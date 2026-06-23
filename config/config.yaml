@@ -1,61 +1,67 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# adbot — non-secret operator config for martin-ads-MY
-# Brand: Martin MY ·《儿童长高方程式》· 馬丁藥師 (kids-growth conditioning course)
+# adbot — non-secret operator config for martin-ads-SG
+# Brand: Martin SG ·《儿童长高方程式》· 馬丁藥師 (kids-growth conditioning course)
 # Secrets live in .env (see .env.example).  `python -m adbot doctor` validates this file.
 #
-# Confirmed SAME as the soocheng template: country MY · currency MYR · timezone GMT+8 ·
-# language Chinese (locale 1004) · objective OUTCOME_SALES / OFFSITE_CONVERSIONS /
-# COMPLETE_REGISTRATION.  cron schedules in .github/workflows are UNCHANGED.
+# 1:1 clone of martin-ads-MY for the Singapore market. Code, guardrails and cron
+# schedules are UNCHANGED. Only project-specific values differ from MY:
+#   ad_account_id · targeting.countries (SG) · naming.prefix (MARTIN-SG) ·
+#   excluded_custom_audiences (SG-native) · schedule.timezone label.
+# Everything else (page/pixel/landing/Drive/Notion/sheet, objective, budget, KPI/CPA
+# numbers) is CLONED from MY per operator instruction.
+#   currency MYR · timezone GMT+8 (Asia/Singapore = same offset as MY) ·
+#   language Chinese (locale 1004) · objective OUTCOME_SALES / OFFSITE_CONVERSIONS /
+#   COMPLETE_REGISTRATION.  cron schedules in .github/workflows are UNCHANGED.
 # ─────────────────────────────────────────────────────────────────────────────
 
 meta:
-  ad_account_id: "act_1011719073600566"   # Martin MY ad account
-  page_id: "341825319024143"               # FB Page the ads run under
-  instagram_user_id: null                  # @martinyaoshi (7085012808290550) is the right IG, but it must be ASSIGNED TO THIS AD ACCOUNT (Business Settings -> Accounts -> Instagram) before it works as an explicit actor (app is already Live; that wasn't the cause). Omitted for now -> IG placements run via the 马丁药师 Page's linked IG. Restore the id once the IG is assigned to the ad account.
-  pixel_id: "1189593242351293"             # pixel / dataset id for conversion tracking
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account (SG-specific)
+  page_id: "341825319024143"               # FB Page the ads run under (SHARED with MY — must be accessible to the SG ad account)
+  instagram_user_id: null                  # IG placements run via the 马丁药师 Page's linked IG (same as MY). Set an IG user id once it is assigned to this ad account.
+  pixel_id: "1189593242351293"             # pixel / dataset id (SHARED with MY — must be shared to the SG ad account in Business Settings, else build fails)
 
-  objective: "OUTCOME_SALES"             # confirmed same as template
+  objective: "OUTCOME_SALES"             # cloned from MY
   optimization_goal: "OFFSITE_CONVERSIONS"   # "Maximize number of conversions"
   conversion_event: "COMPLETE_REGISTRATION"  # Ads Manager "Complete registration" (custom_event_type)
   special_ad_categories: []              # none (kids-growth education — not a restricted category)
 
   lead_destination:
     type: "WEBSITE"                      # WEBSITE | INSTANT_FORM | MESSENGER | WHATSAPP
-    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"
-  conversion_domain: "https://as.dr-martin.com.tw/"   # bare domain derived = as.dr-martin.com.tw (verify it in Meta Business settings)
+    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"   # shared with MY
+  conversion_domain: "https://as.dr-martin.com.tw/"   # bare domain derived = as.dr-martin.com.tw (verify it is verified in the SG ad account's Business settings)
   call_to_action: "LEARN_MORE"           # SIGN_UP / LEARN_MORE / GET_OFFER / SUBSCRIBE ...
   url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
 
   budget:
     level: "CAMPAIGN"                    # CBO — campaign-level budget
-    daily_amount_myr: 250                # CBO daily budget (MYR)
-    currency: "MYR"                      # confirmed same
+    daily_amount_myr: 250                # CBO daily budget (cloned from MY). NOTE: field name keeps the _myr suffix (hardcoded in settings.py); the actual currency is the `currency` field below.
+    currency: "MYR"                      # cloned from MY (SG ad account bills in MYR per operator)
     adset_min_spend_myr: 50              # per-ad-set minimum daily spend (>=50)
 
   targeting:
-    # Mirrors the operator's live ad set (see docs/adset_targeting.md). Advantage+ audience ON
+    # Mirrors MY's live ad set (see docs/adset_targeting.md). Advantage+ audience ON
     # makes age a SUGGESTION (min 25), not a hard cap — do NOT raise age_min as a hard floor here
     # or Meta rejects it ("add a higher minimum age as a suggestion instead").
-    countries: ["MY"]                    # confirmed same
+    countries: ["SG"]                    # SG-specific (was ["MY"])
     age_min: 25                          # Advantage+ suggestion floor (not a hard cap)
     age_max: 65
     advantage_audience: 1                # Advantage+ audience ON (broad; Meta expands beyond the age suggestion)
-    locales: [1004]                      # confirmed same — 1004 = Chinese (All)
-    excluded_custom_audiences:           # exclude existing leads + paid customers (reach fresh prospects)
-      - "120224052749710575"             # 马丁 15days complete registration (website/pixel CA)
-      - "120242141920810575"             # MARTIN MYSG PAID CUSTOMER - 13 APR (customer list)
+    locales: [1004]                      # cloned from MY — 1004 = Chinese (All)
+    excluded_custom_audiences:           # exclude existing leads + paid customers (reach fresh prospects). SG-NATIVE audiences in act_1024930575770087 — no cross-account sharing needed.
+      - "120226672882380093"             # "15 days complete registration" (SG website/pixel CA)
+      - "120246547080720093"             # "马丁 1997 Paid Student" (SG customer list)
 
   build:
     creatives_per_adset: 10              # the "N" in 1-1-N
     activate_after_build: false          # SAFETY: batch builds create everything PAUSED — you activate after review (no spend until then)
 
 naming:
-  prefix: "MARTIN-MY"                    # name prefix scoping every entity this bot creates
+  prefix: "MARTIN-SG"                    # name prefix scoping every entity this bot creates (SG-specific)
   weekly_off_label: "ADBOT_WEEKLY_OFF"   # structural — do not change
 
 drive:
-  # Curated 1-1-10 set "MARTIN-MY ADBOT 1-1-10 (JUNE)" (assembled from your archives;
-  # lives inside "JUNE 2" so the SA inherits read access): 6 videos + 3 single images +
+  # Creatives folder SHARED with MY (reusing the same 1-1-10 set). Must stay readable by the
+  # build service account (the SA in GOOGLE_SERVICE_ACCOUNT_JSON). 6 videos + 3 single images +
   # 1 CAROUSEL subfolder (6 cards) = 10 creative units.
   creatives_folder_id: "1XTztY2xvAKY0YfZW3spZi3ZEKqu3lHlF"
   carousel_subfolder_marker: "carousel"     # matches the CAROUSEL subfolder
@@ -65,26 +71,26 @@ google_docs:
   caption_log_doc_id: ""                 # empty -> auto-create on first write
   idea_backlog_doc_id: ""                # empty -> auto-create on first write
 
-notion:                                  # Notion content DB = single source of truth for ad copy
+notion:                                  # Notion content DB = single source of truth for ad copy (SHARED with MY)
   enabled: true                          # needs NOTION_API_KEY (repo secret) + DB shared with the integration
-  database_id: "4bb82b42449682c294e881448aa21435"   # 🎬 MARTIN Content Pipeline Template
-  brand: "Martin MY"
+  database_id: "4bb82b42449682c294e881448aa21435"   # 🎬 MARTIN Content Pipeline Template (shared with MY)
+  brand: "Martin MY"                     # cloned from MY (Notion row brand tag; operator confirmed keep)
   default_status: "In Review"            # Status set on each new row (Idea/Draft/In Review/Approved/Published)
   default_type: "Caption"                # Type when kind isn't video/carousel/single_image
-  captions_source: true                  # build READS caption+headline FROM Notion (by Content ID) — no second LLM version
+  captions_source: true                  # build READS caption+headline FROM Notion (by Content ID) — no second LLM version. SG reuses MY's creatives, so the Content IDs already have rows.
   require_status: ""                      # use the Notion row regardless of Status (operator: no Approved gate — use directly)
 
 kpi:
-  cpl_threshold_myr: 55.00               # pause an ad above this CPL (MYR)
-  cpl_min_spend_myr: 100.00              # only judge an ad once it has spent >= this (MYR)
+  cpl_threshold_myr: 55.00               # pause an ad above this CPL (cloned from MY; currency per budget.currency)
+  cpl_min_spend_myr: 100.00              # only judge an ad once it has spent >= this
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
   cpl_hold: []                           # ad-name substrings temporarily exempt from auto-pause
 
-cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet)
+cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet, SHARED with MY)
   enabled: true
-  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"   # "Paid Student List" sheet (share with the SA email)
-  sales_tab: "Paid Student List (RM1997)"   # NOTE: tab label says RM1997 but price_myr below is 2591 — confirm
+  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"   # "Paid Student List" sheet (shared with MY; share with the SA email)
+  sales_tab: "Paid Student List (RM1997)"   # cloned from MY
   price_myr: 2591.00                     # default pax price (sheet's Amount column overrides per row)
   target_myr: 740.00                     # primary target CPA
   healthy_max_myr: 860.00                # end of healthy range (NOT an auto-pause line)
@@ -94,7 +100,7 @@ cpa:                                     # cost per real PAID acquisition (joins
   min_spend_myr: 1000.00                 # need >= this spend before a CPA verdict is fair
 
 schedule:                                # informational; the real schedule lives in .github/workflows (UNCHANGED)
-  timezone: "Asia/Kuala_Lumpur"          # GMT+8 (no DST) — confirmed same
+  timezone: "Asia/Singapore"             # GMT+8 (no DST) — same offset as MY's Asia/Kuala_Lumpur, so the UTC cron fires at the same SGT local time
   weekly_off: { day: "WED", time: "15:00" }   # pause ALL            -> workflow cron 9 7 * * 3 (+16:09 backup)
   weekly_on:  { day: "THU", time: "00:00" }   # resume what Wed paused -> workflow cron 9 16 * * 3 (+ backups)
   monitor_interval_hours: 1

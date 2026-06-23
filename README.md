@@ -1,15 +1,14 @@
-# martin-ads-MY — Meta Ads Automation (adbot)
+# martin-ads-SG — Meta Ads Automation (adbot)
 
-Hands-off Meta (Facebook/Instagram) advertising for **[BRAND]** (Martin / Malaysia), run in
-the cloud and monitored from the Claude mobile app. <!-- TODO(martin): set [BRAND]/[PRODUCT]. -->
-A 1:1 clone of the soocheng-ads adbot — code, guardrails, and cron schedules are unchanged;
-only `config/config.yaml`, `config/audience.md`, and `prompts/` are project-specific.
-
+Hands-off Meta (Facebook/Instagram) advertising for **Martin SG /《儿童长高方程式》** (馬丁藥師
+kids-growth course · Singapore market), run in the cloud and monitored from the Claude mobile app.
+A 1:1 clone of martin-ads-MY — code, guardrails and cron schedules are unchanged; only
+`config/config.yaml`, `config/audience.md` and `prompts/` carry the SG-specific values.
 **What it does**
 1. **sync** — downloads creatives (videos / single images / multi-image carousels) from a
    Google Drive folder and uploads them to your Meta ad account.
 2. **build** — creates the "Meta Entrepreneur" **1-1-10** structure (1 CBO campaign, 1 broad
-   ad set targeting Malaysia 25+, 10 ads), writes each ad's caption + headline to a Google
+   ad set targeting Singapore 25+, 10 ads), writes each ad's caption + headline to a Google
    Doc, and auto-activates at a small CBO budget.
 3. **monitor** — pauses any ad whose **CPL** exceeds your threshold.
 4. **weekly_off / weekly_on** — pauses ALL ads every **Wed 15:00 GMT+8** and resumes exactly

@@ -1,15 +1,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# adbot — batch config: "成绩单" angle (social-proof / real growth results)
+# adbot — batch config: "成绩单" angle (social-proof / real growth results) — martin-ads-SG
 # Same account/page/pixel/targeting as config.yaml; only the creatives folder, budget,
 # and per-batch identity (label + state_key) differ so this campaign is fully separate
-# from the JUNE 1-1-10 (which keeps label "1-1-10" / state_key "entities").
+# from the main 1-1-10 (which keeps label "1-1-10" / state_key "entities").
+# SG-specific values mirror config.yaml: ad_account_id · countries · prefix · excluded CAs.
 # ─────────────────────────────────────────────────────────────────────────────
 
 meta:
-  ad_account_id: "act_1011719073600566"
-  page_id: "341825319024143"
-  instagram_user_id: null                  # IG via the Page's linked IG (same as JUNE)
-  pixel_id: "1189593242351293"
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account (SG-specific)
+  page_id: "341825319024143"               # shared with MY
+  instagram_user_id: null                  # IG via the Page's linked IG (same as main)
+  pixel_id: "1189593242351293"             # shared with MY (must be shared to the SG ad account)
 
   objective: "OUTCOME_SALES"
   optimization_goal: "OFFSITE_CONVERSIONS"
@@ -29,29 +30,29 @@ meta:
     currency: "MYR"
     adset_min_spend_myr: 50
 
-  targeting:                               # identical broad setup to JUNE (see docs/adset_targeting.md)
-    countries: ["MY"]
+  targeting:                               # identical broad setup to the main config (see docs/adset_targeting.md)
+    countries: ["SG"]                      # SG-specific (was ["MY"])
     age_min: 25
     age_max: 65
     advantage_audience: 1
     locales: [1004]
-    excluded_custom_audiences:
-      - "120224052749710575"               # 马丁 15days complete registration
-      - "120242141920810575"               # MARTIN MYSG PAID CUSTOMER - 13 APR
+    excluded_custom_audiences:             # SG-native (act_1024930575770087) — no cross-account sharing needed
+      - "120226672882380093"               # "15 days complete registration" (SG website/pixel CA)
+      - "120246547080720093"               # "马丁 1997 Paid Student" (SG customer list)
 
   build:
     creatives_per_adset: 10
     activate_after_build: false            # build PAUSED; activate after review
-    label: "成绩单"                         # campaign name -> "MARTIN-MY | 成绩单"
-    state_key: "entities_grades"           # separate state file so it never touches the JUNE campaign
+    label: "成绩单"                         # campaign name -> "MARTIN-SG | 成绩单"
+    state_key: "entities_grades"           # separate state file so it never touches the main campaign
 
 naming:
-  prefix: "MARTIN-MY"
+  prefix: "MARTIN-SG"                      # SG-specific
   weekly_off_label: "ADBOT_WEEKLY_OFF"
 
 drive:
-  # "成绩单" content folder (2 single images + CAROUSEL 1 + CAROUSEL 2). Must be readable by the
-  # build service account martin-ads-my@martin-as-my.iam.gserviceaccount.com.
+  # "成绩单" content folder (2 single images + CAROUSEL 1 + CAROUSEL 2), reused from MY. Must be
+  # readable by the build service account (the SA in GOOGLE_SERVICE_ACCOUNT_JSON).
   creatives_folder_id: "13Ojdyka9Dy1wQZcvZ87xyb_KnpvT-M32"
   carousel_subfolder_marker: "carousel"     # matches "CAROUSEL 1" / "CAROUSEL 2"
   script_sidecar_ext: ".txt"
@@ -89,7 +90,7 @@ cpa:
   min_spend_myr: 1000.00
 
 schedule:
-  timezone: "Asia/Kuala_Lumpur"
+  timezone: "Asia/Singapore"
   weekly_off: { day: "WED", time: "15:00" }
   weekly_on:  { day: "THU", time: "00:00" }
   monitor_interval_hours: 1
