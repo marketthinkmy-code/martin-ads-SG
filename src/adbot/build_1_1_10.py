@@ -89,12 +89,11 @@ def build(graph, settings: Settings, units: List[Unit],
     # carries the SG geo); Meta rejects the ad set without it. MY (empty list) is unaffected.
     if m.regional_regulated_categories:
         adset_fields["regional_regulated_categories"] = m.regional_regulated_categories
-    # SG ad-transparency: declare the verified advertiser + payer on the ad set (else "Advertiser
-    # is missing" blocks SG delivery). Reuses Meta's DSA beneficiary/payor fields. Empty for MY.
-    if m.dsa_beneficiary:
-        adset_fields["dsa_beneficiary"] = m.dsa_beneficiary
-    if m.dsa_payor:
-        adset_fields["dsa_payor"] = m.dsa_payor
+    # SG ad-transparency: declare the VERIFIED advertiser + payer on the ad set as identity IDs
+    # (Graph API regional_regulation_identities) or Meta blocks delivery with "Advertiser is
+    # missing". Free-text dsa_beneficiary/payor names are NOT accepted for SG. Empty for MY.
+    if m.regional_regulation_identities:
+        adset_fields["regional_regulation_identities"] = m.regional_regulation_identities
     if start_time:  # schedule delivery to begin at this ISO8601 time (with tz offset)
         adset_fields["start_time"] = start_time
 

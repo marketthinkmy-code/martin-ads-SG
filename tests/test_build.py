@@ -153,16 +153,18 @@ def test_build_includes_regional_regulated_categories(tmp_path, monkeypatch):
     monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
     s = _settings(tmp_path)
     s.meta.regional_regulated_categories = ["SINGAPORE_UNIVERSAL"]
-    s.meta.dsa_beneficiary = "Siew Lai Yin"
-    s.meta.dsa_payor = "Siew Lai Yin"
+    s.meta.regional_regulation_identities = {
+        "singapore_universal_beneficiary": "1480351249808277",
+        "singapore_universal_payer": "1480351249808277",
+    }
     g = FakeGraph()
     build(g, s, _units(), CAPTIONS, dry_run=False)
     campaign = next(c[1] for c in g.calls if c[0] == "campaign")
     adset = next(c[1] for c in g.calls if c[0] == "adset")
     assert campaign["regional_regulated_categories"] == ["SINGAPORE_UNIVERSAL"]
     assert adset["regional_regulated_categories"] == ["SINGAPORE_UNIVERSAL"]
-    assert adset["dsa_beneficiary"] == "Siew Lai Yin"
-    assert adset["dsa_payor"] == "Siew Lai Yin"
+    assert adset["regional_regulation_identities"]["singapore_universal_beneficiary"] == "1480351249808277"
+    assert adset["regional_regulation_identities"]["singapore_universal_payer"] == "1480351249808277"
 
 
 def test_build_omits_regional_regulated_categories_when_empty(tmp_path, monkeypatch):
@@ -174,5 +176,4 @@ def test_build_omits_regional_regulated_categories_when_empty(tmp_path, monkeypa
     adset = next(c[1] for c in g.calls if c[0] == "adset")
     assert "regional_regulated_categories" not in campaign
     assert "regional_regulated_categories" not in adset
-    assert "dsa_beneficiary" not in adset
-    assert "dsa_payor" not in adset
+    assert "regional_regulation_identities" not in adset
