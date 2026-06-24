@@ -75,6 +75,10 @@ def build(graph, settings: Settings, units: List[Unit],
         "daily_budget": m.budget.daily_amount_cents,
         "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
     }
+    # Some markets require a regional regulated-category declaration on the campaign
+    # (e.g. Singapore: ["SINGAPORE_UNIVERSAL"]). Only sent when configured, so MY is unchanged.
+    if m.regional_regulated_categories:
+        campaign_fields["regional_regulated_categories"] = m.regional_regulated_categories
     adset_fields = {
         "name": settings.naming.campaign_name(f"{label} | AdSet (Broad {(m.targeting.countries or ['MY'])[0]} {m.targeting.age_min}+)"),
         "optimization_goal": m.optimization_goal, "billing_event": "IMPRESSIONS",

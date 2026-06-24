@@ -91,6 +91,9 @@ class MetaCfg(BaseModel):
     optimization_goal: str = "OFFSITE_CONVERSIONS"
     conversion_event: str = "LEAD"
     special_ad_categories: List[str] = Field(default_factory=list)
+    # Some markets require a regional regulated-category declaration on the campaign
+    # (e.g. Singapore requires ["SINGAPORE_UNIVERSAL"]). Empty for markets that don't (MY).
+    regional_regulated_categories: List[str] = Field(default_factory=list)
     lead_destination: LeadDestination = Field(default_factory=LeadDestination)
     conversion_domain: str = ""
     call_to_action: str = "SIGN_UP"
