@@ -65,9 +65,21 @@ def load_from_notion(notion, settings, units: List[Unit], *,
     missing: List[str] = []
 
     for u in units:
-        rows = notion.query_by_content_id(db, u.content_id)
-        if require:
-            rows = [p for p in rows if _status(p.get("properties", {})) == require]
+        # Notion sometimes stores the original filename (e.g. "单图-睡眠作息-图文繁.png") as the
+        # Content ID instead of the slug; try the slug first, then fall back to the original
+        # asset filename so both conventions work without operator rework.
+        candidates = [u.content_id]
+        if u.assets and u.kind != CAROUSEL:
+            original = u.assets[0].name
+            if original and original != u.content_id:
+                candidates.append(original)
+        rows: List[Dict[str, Any]] = []
+        for cid in candidates:
+            rows = notion.query_by_content_id(db, cid)
+            if require:
+                rows = [p for p in rows if _status(p.get("properties", {})) == require]
+            if rows:
+                break
         if not rows:
             missing.append(u.content_id)
             continue

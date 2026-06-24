@@ -22,7 +22,18 @@ def test_uniquify_ids_keeps_cjk_collisions():
 
 def test_slugify_drops_extension_and_normalizes():
     assert slugify("Promo Video 01.MP4") == "promo_video_01"
-    assert slugify("一分钟.jpg") == "asset" or slugify("一分钟.jpg")  # non-ascii collapses safely
+
+
+def test_slugify_preserves_cjk_and_hyphens():
+    # CJK filenames used to collapse to 'asset', breaking Notion content-id matching for
+    # non-ASCII batches. Keep CJK characters and hyphens; only the extension is stripped.
+    assert slugify("单图-睡眠作息-图文繁.png") == "单图-睡眠作息-图文繁"
+    assert slugify("单图-长得慢-繁.png") == "单图-长得慢-繁"
+    assert slugify("简体.png") == "简体"
+    # ASCII behavior unchanged: lower-case, hyphen kept (was treated as separator before too,
+    # but now we preserve it). Verify the operator-facing slugs from the live batches still hold.
+    assert slugify("sgmy_h1.mp4") == "sgmy_h1"
+    assert slugify("Sgmy_H1.mp4") == "sgmy_h1"
 
 
 def test_top_level_video_and_image_become_units():

@@ -54,7 +54,10 @@ class Unit:
 
 def slugify(name: str) -> str:
     stem = re.sub(r"\.[A-Za-z0-9]+$", "", name)  # drop extension
-    slug = re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").lower()
+    # Keep ASCII alphanumerics + CJK Unified Ideographs (incl. Extension A) + hyphens +
+    # underscores; collapse other runs to '_'. Without preserving CJK, every Chinese filename
+    # collapsed to 'asset', breaking Notion content-id matching for non-ASCII batches.
+    slug = re.sub(r"[^A-Za-z0-9一-鿿㐀-䶿\-_]+", "_", stem).strip("_").lower()
     return slug or "asset"
 
 
