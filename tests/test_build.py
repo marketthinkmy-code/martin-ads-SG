@@ -147,3 +147,22 @@ def test_build_dry_run_creates_nothing(tmp_path):
     result = build(g, s, _units(), CAPTIONS, dry_run=True)
     assert result["dry_run"] is True
     assert g.calls == []
+
+
+def test_build_campaign_includes_regional_regulated_categories(tmp_path, monkeypatch):
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
+    s = _settings(tmp_path)
+    s.meta.regional_regulated_categories = ["SINGAPORE_UNIVERSAL"]
+    g = FakeGraph()
+    build(g, s, _units(), CAPTIONS, dry_run=False)
+    campaign = next(c[1] for c in g.calls if c[0] == "campaign")
+    assert campaign["regional_regulated_categories"] == ["SINGAPORE_UNIVERSAL"]
+
+
+def test_build_campaign_omits_regional_regulated_categories_when_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
+    s = _settings(tmp_path)
+    g = FakeGraph()
+    build(g, s, _units(), CAPTIONS, dry_run=False)
+    campaign = next(c[1] for c in g.calls if c[0] == "campaign")
+    assert "regional_regulated_categories" not in campaign

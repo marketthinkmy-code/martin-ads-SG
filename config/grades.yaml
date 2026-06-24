@@ -16,6 +16,7 @@ meta:
   optimization_goal: "OFFSITE_CONVERSIONS"
   conversion_event: "COMPLETE_REGISTRATION"
   special_ad_categories: []
+  regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]   # SG requires this on the campaign
 
   lead_destination:
     type: "WEBSITE"

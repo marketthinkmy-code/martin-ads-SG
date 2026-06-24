@@ -24,6 +24,7 @@ meta:
   optimization_goal: "OFFSITE_CONVERSIONS"   # "Maximize number of conversions"
   conversion_event: "COMPLETE_REGISTRATION"  # Ads Manager "Complete registration" (custom_event_type)
   special_ad_categories: []              # none (kids-growth education — not a restricted category)
+  regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]   # SG REQUIRES this on the campaign (MY has none); without it Meta rejects ad sets that target Singapore
 
   lead_destination:
     type: "WEBSITE"                      # WEBSITE | INSTANT_FORM | MESSENGER | WHATSAPP
