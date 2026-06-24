@@ -41,7 +41,7 @@ meta:
 
   targeting:                               # identical broad setup to the main config
     countries: ["SG"]
-    age_min: 35                            # operator standard 35–65+ (Advantage+ makes this a suggestion)
+    age_min: 25                            # Meta API rejects age_min > 25 when advantage_audience=1; bump to operator-standard 35 in Ads Manager UI after build (UI accepts it as a soft suggestion)
     age_max: 65
     advantage_audience: 1
     locales: [1004]

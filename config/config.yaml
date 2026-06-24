@@ -52,7 +52,7 @@ meta:
     # makes age a SUGGESTION (min 25), not a hard cap — do NOT raise age_min as a hard floor here
     # or Meta rejects it ("add a higher minimum age as a suggestion instead").
     countries: ["SG"]                    # SG-specific (was ["MY"])
-    age_min: 35                          # operator standard 35–65+; Advantage+ makes this a SUGGESTION, not a hard floor
+    age_min: 25                          # Meta API rejects age_min > 25 when advantage_audience=1 ("add a higher minimum age as a suggestion instead"); the operator standard 35–65+ must be set in the Ads Manager UI after build (UI accepts 35 as a soft suggestion)
     age_max: 65
     advantage_audience: 1                # Advantage+ audience ON (broad; Meta expands beyond the age suggestion)
     locales: [1004]                      # cloned from MY — 1004 = Chinese (All)
