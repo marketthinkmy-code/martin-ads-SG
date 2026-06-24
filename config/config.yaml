@@ -23,6 +23,8 @@ meta:
   objective: "OUTCOME_SALES"             # cloned from MY
   optimization_goal: "OFFSITE_CONVERSIONS"   # "Maximize number of conversions"
   conversion_event: "COMPLETE_REGISTRATION"  # Ads Manager "Complete registration" (custom_event_type)
+  # Customer lifecycle strategy = "Get conversions from all audiences" (operator standard). This is
+  # Meta's default for OUTCOME_SALES; the build sets no new-customer focus, so it is already in effect.
   special_ad_categories: []              # none (kids-growth education — not a restricted category)
   regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]   # SG REQUIRES this (set on campaign AND ad set; MY has none) — Meta rejects SG-targeted ad sets without it
   # SG ad-transparency: ads delivered in Singapore need a VERIFIED advertiser + payer declared on
@@ -50,7 +52,7 @@ meta:
     # makes age a SUGGESTION (min 25), not a hard cap — do NOT raise age_min as a hard floor here
     # or Meta rejects it ("add a higher minimum age as a suggestion instead").
     countries: ["SG"]                    # SG-specific (was ["MY"])
-    age_min: 25                          # Advantage+ suggestion floor (not a hard cap)
+    age_min: 35                          # operator standard 35–65+; Advantage+ makes this a SUGGESTION, not a hard floor
     age_max: 65
     advantage_audience: 1                # Advantage+ audience ON (broad; Meta expands beyond the age suggestion)
     locales: [1004]                      # cloned from MY — 1004 = Chinese (All)

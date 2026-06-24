@@ -6,12 +6,28 @@ hierarchy is then activated (campaign -> ad set -> ads) at the configured CBO bu
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from . import state
 from .creative_groups import CAROUSEL, SINGLE_IMAGE, VIDEO, Unit
 from .logging import final_summary, get_logger
 from .settings import Settings
+
+_KIND_LABEL = {VIDEO: "Video", SINGLE_IMAGE: "Single Image", CAROUSEL: "Carousel"}
+
+
+def _ad_name(unit: Unit, caption: Dict[str, Any]) -> str:
+    """Human ad name '<Type>：[H<n> ]<headline>' (e.g. 'Video：H1 …', 'Single Image：…').
+
+    The H<n> hook tag comes from a content id like ``sgmy_h1``; units without one (images,
+    ``sgmy_8``) get '<Type>：<headline>'. Falls back to the content id when no headline.
+    """
+    label = _KIND_LABEL.get(unit.kind, "Ad")
+    m = re.search(r"_h(\d+)", unit.content_id)
+    hook = f"H{m.group(1)} " if m else ""
+    headline = (caption.get("headline") or "").strip()
+    return f"{label}：{hook}{headline or unit.content_id}"
 
 
 def _cta(settings: Settings) -> Dict[str, Any]:
@@ -139,10 +155,11 @@ def build(graph, settings: Settings, units: List[Unit],
         if unit.content_id in built:
             log.info("  Skipping %s (already built)", unit.content_id)
             continue
+        cap = captions.get(unit.content_id, {})
         thumb = graph.get_video_thumbnail(unit.assets[0].meta_id) if unit.kind == VIDEO else None
-        spec = creative_spec(settings, unit, captions.get(unit.content_id, {}), thumbnail_url=thumb)
+        spec = creative_spec(settings, unit, cap, thumbnail_url=thumb)
         creative_id = graph.create_adcreative(account, **spec)["id"]
-        ad_name = captions.get(unit.content_id, {}).get("name") or f"{settings.naming.prefix} | {unit.content_id}"
+        ad_name = cap.get("name") or _ad_name(unit, cap)
         ad = graph.create_ad(
             account, name=ad_name,
             adset_id=adset_id, creative={"creative_id": creative_id}, status="PAUSED",

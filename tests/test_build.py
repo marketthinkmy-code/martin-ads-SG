@@ -177,3 +177,17 @@ def test_build_omits_regional_regulated_categories_when_empty(tmp_path, monkeypa
     assert "regional_regulated_categories" not in campaign
     assert "regional_regulated_categories" not in adset
     assert "regional_regulation_identities" not in adset
+
+
+def test_ad_name_format():
+    from adbot.build_1_1_10 import _ad_name
+    a = [Asset("f", "x.mp4", "video/mp4", meta_id="m")]
+    # hook video: '<Type>：H<n> <headline>'
+    assert _ad_name(Unit("sgmy_h1", VIDEO, a), {"headline": "面包牛奶天天吃"}) == "Video：H1 面包牛奶天天吃"
+    assert _ad_name(Unit("sgmy_h5", VIDEO, a), {"headline": "中学像小学"}) == "Video：H5 中学像小学"
+    # non-hook video / single image / carousel: '<Type>：<headline>'
+    assert _ad_name(Unit("sgmy_8", VIDEO, a), {"headline": "牛奶迷思"}) == "Video：牛奶迷思"
+    assert _ad_name(Unit("image_1", SINGLE_IMAGE, a), {"headline": "成绩单"}) == "Single Image：成绩单"
+    assert _ad_name(Unit("carousel", CAROUSEL, a), {"headline": "靠方法"}) == "Carousel：靠方法"
+    # no headline -> falls back to content id, still type-prefixed
+    assert _ad_name(Unit("sgmy_h2", VIDEO, a), {}) == "Video：H2 sgmy_h2"
