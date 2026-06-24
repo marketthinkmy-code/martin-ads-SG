@@ -11,7 +11,7 @@ import base64
 import os
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field
@@ -95,10 +95,11 @@ class MetaCfg(BaseModel):
     # ["SINGAPORE_UNIVERSAL"]). We set it on the campaign AND the ad set. Empty for MY.
     regional_regulated_categories: List[str] = Field(default_factory=list)
     # Markets with ad-transparency / advertiser-verification rules (e.g. Singapore) require a
-    # VERIFIED advertiser + payer declared on the ad set, or Meta blocks delivery. These are the
-    # verified advertiser/payer NAMES (not ids). Empty for markets that don't require it (MY).
-    dsa_beneficiary: str = ""   # the verified advertiser (who the ad promotes)
-    dsa_payor: str = ""         # the verified payer (usually the same entity)
+    # VERIFIED advertiser + payer declared on the ad set as identity IDs, or Meta blocks delivery
+    # ("Advertiser is missing"). Map of Graph API RegionalRegulationIdentities keys -> verified
+    # identity id, e.g. {"singapore_universal_beneficiary": "<id>", "singapore_universal_payer":
+    # "<id>"}. Empty for markets that don't require it (MY).
+    regional_regulation_identities: Dict[str, str] = Field(default_factory=dict)
     lead_destination: LeadDestination = Field(default_factory=LeadDestination)
     conversion_domain: str = ""
     call_to_action: str = "SIGN_UP"
