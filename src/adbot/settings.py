@@ -91,9 +91,14 @@ class MetaCfg(BaseModel):
     optimization_goal: str = "OFFSITE_CONVERSIONS"
     conversion_event: str = "LEAD"
     special_ad_categories: List[str] = Field(default_factory=list)
-    # Some markets require a regional regulated-category declaration on the campaign
-    # (e.g. Singapore requires ["SINGAPORE_UNIVERSAL"]). Empty for markets that don't (MY).
+    # Some markets require a regional regulated-category declaration (e.g. Singapore needs
+    # ["SINGAPORE_UNIVERSAL"]). We set it on the campaign AND the ad set. Empty for MY.
     regional_regulated_categories: List[str] = Field(default_factory=list)
+    # Markets with ad-transparency / advertiser-verification rules (e.g. Singapore) require a
+    # VERIFIED advertiser + payer declared on the ad set, or Meta blocks delivery. These are the
+    # verified advertiser/payer NAMES (not ids). Empty for markets that don't require it (MY).
+    dsa_beneficiary: str = ""   # the verified advertiser (who the ad promotes)
+    dsa_payor: str = ""         # the verified payer (usually the same entity)
     lead_destination: LeadDestination = Field(default_factory=LeadDestination)
     conversion_domain: str = ""
     call_to_action: str = "SIGN_UP"
