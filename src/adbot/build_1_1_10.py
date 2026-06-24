@@ -85,6 +85,10 @@ def build(graph, settings: Settings, units: List[Unit],
         "promoted_object": m.promoted_object, "targeting": m.targeting.to_spec(),
         "status": "PAUSED",
     }
+    # Singapore also requires the regional regulated-category declaration on the AD SET (it
+    # carries the SG geo); Meta rejects the ad set without it. MY (empty list) is unaffected.
+    if m.regional_regulated_categories:
+        adset_fields["regional_regulated_categories"] = m.regional_regulated_categories
     if start_time:  # schedule delivery to begin at this ISO8601 time (with tz offset)
         adset_fields["start_time"] = start_time
 
