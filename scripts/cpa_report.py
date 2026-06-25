@@ -43,7 +43,7 @@ def main() -> None:
 
     values = SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab)
     sales, _cols, _hdr = cpa.parse_sales(values, s.cpa.price_myr)
-    _by_ad, _by_adset, by_campaign = cpa.attribute(sales, today)
+    by_ad, by_adset, by_campaign = cpa.attribute(sales, today)
 
     g = graph_client(s)
     acct = s.meta.account_path
@@ -104,6 +104,23 @@ def main() -> None:
     print("\n🔥 Meta campaigns SPENDING (60d) with 0 attributed paid sales:")
     for disp, sp in waste:
         print(f"   RM{sp:>7,.0f}  ·  {disp[:54]}")
+
+    # Ad- / adset-level paid-sale leaderboards (by UTM ad/adset name on the Paid Student List).
+    # Independent of the Meta-spend join, so these show WHICH creatives convert to paid even when
+    # the campaign-name join misses. Sorted by 60d paid sales.
+    print("\n🏆 TOP ADS by PAID sales (utm ad name · 30d / 60d / lifetime):")
+    for (camp, adset, ad), c in sorted(by_ad.items(), key=lambda kv: -kv[1].get("60d", 0))[:25]:
+        if c.get("60d", 0) == 0 and c.get("30d", 0) == 0 and c.get("life", 0) < 3:
+            continue
+        print(f"   30d={c.get('30d',0):>3} 60d={c.get('60d',0):>3} life={c.get('life',0):>4}"
+              f"  ·  ad='{(ad or '∅')[:44]}'  ·  camp='{(camp or '∅')[:24]}'")
+
+    print("\n🏆 TOP AD SETS by PAID sales (utm ad set · 30d / 60d / lifetime):")
+    for (camp, adset), c in sorted(by_adset.items(), key=lambda kv: -kv[1].get("60d", 0))[:15]:
+        if c.get("60d", 0) == 0 and c.get("30d", 0) == 0 and c.get("life", 0) < 3:
+            continue
+        print(f"   30d={c.get('30d',0):>3} 60d={c.get('60d',0):>3} life={c.get('life',0):>4}"
+              f"  ·  adset='{(adset or '∅')[:36]}'  ·  camp='{(camp or '∅')[:24]}'")
 
 
 if __name__ == "__main__":
