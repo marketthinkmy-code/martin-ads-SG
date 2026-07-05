@@ -22,6 +22,23 @@ from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
 API_VERSION = "v21.0"
 BASE = f"https://graph.facebook.com/{API_VERSION}"
 
+# Meta returns account/app/user rate limits as HTTP 400 with these error codes —
+# they should be retried, not raised. 429 is separately handled by status check.
+# code 4/17/32/613 = app/user/page/custom-audience level; subcode 2446079 = ad-account level.
+_RATE_LIMIT_CODES = {4, 17, 32, 613}
+_RATE_LIMIT_SUBCODES = {2446079}
+
+
+def _is_rate_limit(status: int, payload: Dict[str, Any]) -> bool:
+    if status != 400:
+        return False
+    err = (payload or {}).get("error") or {}
+    if err.get("code") in _RATE_LIMIT_CODES:
+        return True
+    if err.get("error_subcode") in _RATE_LIMIT_SUBCODES:
+        return True
+    return "too many calls" in str(err.get("message", "")).lower()
+
 
 class GraphError(RuntimeError):
     """A Meta Graph API error with the structured payload attached."""
@@ -55,8 +72,8 @@ class GraphClient:
             ).hexdigest()
         return params
 
-    @retry(reraise=True, stop=stop_after_attempt(4),
-           wait=wait_exponential(multiplier=2, min=2, max=20),
+    @retry(reraise=True, stop=stop_after_attempt(5),
+           wait=wait_exponential(multiplier=2, min=2, max=32),
            retry=retry_if_exception_type(_Retryable))
     def _request(self, method: str, path: str, *, params: Optional[Dict] = None,
                  data: Optional[Dict] = None, files: Optional[Dict] = None) -> Dict[str, Any]:
@@ -70,12 +87,12 @@ class GraphClient:
         except requests.RequestException as exc:  # network blip
             raise _Retryable(str(exc)) from exc
 
-        if resp.status_code in (429, 500, 502, 503, 504):
-            raise _Retryable(f"HTTP {resp.status_code}: {resp.text[:200]}")
         try:
             payload = resp.json()
         except ValueError:
             payload = {"raw": resp.text}
+        if resp.status_code in (429, 500, 502, 503, 504) or _is_rate_limit(resp.status_code, payload):
+            raise _Retryable(f"HTTP {resp.status_code}: {resp.text[:200]}")
         if resp.status_code >= 400:
             raise GraphError(resp.status_code, payload)
         return payload
