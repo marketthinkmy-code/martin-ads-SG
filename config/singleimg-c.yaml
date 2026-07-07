@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# adbot — batch config: "单图-成绩" angle (5 繁体单图, growth-results / social-proof angle) — martin-ads-SG
+# Second split of the 单图 folder. This half leads with concrete height numbers / before-after
+# comparisons for parents who convert on hard proof:
+# 8.5月双孩+6.5/+7.5, 3月2.5cm对比, 家长报喜4份合集, 2月双孩+4/+3, 4月3cm对比.
+# Mirrors config.yaml SG compliance fields (regulated category + verified advertiser identity IDs).
+# ─────────────────────────────────────────────────────────────────────────────
+
+meta:
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account (SG-specific)
+  page_id: "341825319024143"               # shared with MY
+  instagram_user_id: null
+  pixel_id: "1189593242351293"
+
+  objective: "OUTCOME_SALES"
+  optimization_goal: "OFFSITE_CONVERSIONS"
+  conversion_event: "COMPLETE_REGISTRATION"
+  special_ad_categories: []
+  regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]
+
+  lead_destination:
+    type: "WEBSITE"
+    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"
+  conversion_domain: "https://as.dr-martin.com.tw/"
+  call_to_action: "LEARN_MORE"
+  url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
+
+  budget:
+    level: "CAMPAIGN"
+    daily_amount_myr: 50                   # small-budget A/B test with the 改变 batch (both RM50/day)
+    currency: "MYR"
+    adset_min_spend_myr: 50
+
+  regional_regulation_identities:
+    singapore_universal_beneficiary: "1480351249808277"
+    singapore_universal_payer: "1480351249808277"
+
+  targeting:
+    countries: ["SG"]
+    age_min: 25                            # Meta API ceiling with Advantage+ on; bump to 35 in UI after build
+    age_max: 65
+    advantage_audience: 1
+    locales: [1004]
+    excluded_custom_audiences:
+      - "120226672882380093"
+      - "120246547080720093"
+
+  build:
+    creatives_per_adset: 5                 # 5 growth-result single images
+    activate_after_build: false
+    label: "单图-成绩"                       # campaign name -> "MARTIN-SG | 单图-成绩"
+    state_key: "entities_singleimg_c"      # separate state file — never touches other batches
+
+naming:
+  prefix: "MARTIN-SG"
+  weekly_off_label: "ADBOT_WEEKLY_OFF"
+
+drive:
+  # Angle C subfolder: 5 growth-result images (8.5月双孩, 3月对比, 报喜合集, 2月双孩, 4月对比).
+  creatives_folder_id: "1ysofSrrmbffb4Q4cVu_zlMCNqd90-6AI"
+  carousel_subfolder_marker: "carousel"
+  script_sidecar_ext: ".txt"
+
+google_docs:
+  caption_log_doc_id: ""
+  idea_backlog_doc_id: ""
+
+notion:
+  enabled: true
+  database_id: "4bb82b42449682c294e881448aa21435"
+  brand: "Martin MY"
+  default_status: "In Review"
+  default_type: "Caption"
+  captions_source: true
+  require_status: ""
+
+kpi:
+  cpl_threshold_myr: 55.00
+  cpl_min_spend_myr: 100.00
+  cpl_lookback: "week_thu"
+  pause_zero_lead_after_spend: true
+  cpl_hold: []
+
+cpa:
+  enabled: true
+  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"
+  sales_tab: "Paid Student List (RM1997)"
+  price_myr: 2591.00
+  target_myr: 740.00
+  healthy_max_myr: 860.00
+  max_acceptable_myr: 1040.00
+  hard_stop_myr: 1300.00
+  conversion_days: 14
+  min_spend_myr: 1000.00
+
+schedule:
+  timezone: "Asia/Singapore"
+  weekly_off: { day: "WED", time: "15:00" }
+  weekly_on:  { day: "THU", time: "00:00" }
+  monitor_interval_hours: 1
