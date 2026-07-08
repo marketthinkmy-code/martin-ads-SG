@@ -91,10 +91,12 @@ def main() -> None:
     phone_col = _find_phone_col(header)
     date_col = cols.get("date", -1)
 
+    date_hdr = repr(header[date_col]) if date_col >= 0 else "NONE"
+    phone_hdr = repr(header[phone_col]) if phone_col >= 0 else "NONE"
     print(f"Sheet '{s.cpa.sales_tab}'  ·  header row #{header_idx}  ·  "
           f"data rows: {len(values) - header_idx - 1}")
-    print(f"Date column: #{date_col} ({header[date_col]!r if date_col>=0 else 'NONE'})")
-    print(f"Phone column: #{phone_col} ({header[phone_col]!r if phone_col>=0 else 'NONE'})")
+    print(f"Date column: #{date_col} ({date_hdr})")
+    print(f"Phone column: #{phone_col} ({phone_hdr})")
 
     # Filter to SG rows AND dump a date-parseability diagnostic on SG rows.
     sg_rows = [header]
