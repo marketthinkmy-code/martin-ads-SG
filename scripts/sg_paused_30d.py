@@ -97,6 +97,43 @@ def main() -> None:
           f"data rows: {len(values) - header_idx - 1}")
     print(f"Date column: #{date_col} ({date_hdr})")
     print(f"Phone column: #{phone_col} ({phone_hdr})")
+    print("Full header (for triage):")
+    for i, h in enumerate(header):
+        print(f"   col {i:>2}: {h!r}")
+
+    # Re-scan for a date column that includes Chinese / other non-English
+    # headers, since cpa.find_columns only knows 'createddate'/'date'.
+    if date_col == -1:
+        DATE_HINTS = ("date", "日期", "時間", "时间", "created", "purchase",
+                      "订单日期", "報名日期", "报名日期", "購買日期", "购买日期")
+        for i, h in enumerate(header):
+            hs = (h or "").casefold()
+            if any(hint in hs for hint in DATE_HINTS):
+                date_col = i
+                print(f"  → picked date column #{i} = {h!r} by keyword scan")
+                break
+        # Fallback: try to sniff by peeking at data — column with the highest
+        # ratio of parseable dates in the first 100 rows.
+        if date_col == -1:
+            best_i, best_hits = -1, 0
+            sample = values[header_idx + 1:header_idx + 101]
+            for i in range(len(header)):
+                hits = sum(1 for row in sample
+                           if i < len(row) and cpa.parse_date(row[i]))
+                if hits > best_hits:
+                    best_i, best_hits = i, hits
+            if best_hits > 5:
+                date_col = best_i
+                print(f"  → sniffed date column #{best_i} "
+                      f"({header[best_i]!r}) — {best_hits}/100 rows parse")
+            else:
+                print("  → no date column detected even after keyword + sniff")
+
+        # Propagate the detected date column into cpa.parse_sales: force its
+        # find_columns() to pick this column by rewriting the header cell.
+        if date_col >= 0:
+            values[header_idx][date_col] = "date"
+            header = values[header_idx]
 
     # Filter to SG rows AND dump a date-parseability diagnostic on SG rows.
     sg_rows = [header]
