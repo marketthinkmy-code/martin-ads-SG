@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# adbot — batch config: "单图-症状" angle (6 繁体单图, symptom-identification angle) — martin-ads-SG
-# Split of the original 单图 batch. This half targets 焦虑型 parents who recognize a problem:
-# 长得慢, 比同龄矮 (×2), 吸收体质, 睡眠作息, 成长趋势.
+# adbot — batch config: "单图-改变" angle (4 繁体单图, holistic-change / side-effect angle) — martin-ads-SG
+# Second split of the 单图 folder. This half leads with体质 changes (measurement myths, appetite,
+# nose sensitivity, shorter-than-peers) for observant parents who convert on trust + story:
+# 测量波动, 三餐正常, 鼻敏感 (SG local voice), 比同龄矮小.
 # Mirrors config.yaml SG compliance fields (regulated category + verified advertiser identity IDs).
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ meta:
 
   budget:
     level: "CAMPAIGN"
-    daily_amount_myr: 50                   # small-budget A/B test with the 迷思 batch (both RM50/day)
+    daily_amount_myr: 50                   # small-budget A/B test with the 成绩 batch (both RM50/day)
     currency: "MYR"
     adset_min_spend_myr: 50
 
@@ -45,18 +46,18 @@ meta:
       - "120246547080720093"
 
   build:
-    creatives_per_adset: 6                 # 6 symptom-identification single images
+    creatives_per_adset: 4                 # 4 holistic-change single images
     activate_after_build: false
-    label: "单图-症状"                       # campaign name -> "MARTIN-SG | 单图-症状"
-    state_key: "entities_singleimg_a"      # separate state file — never touches other batches
+    label: "单图-改变"                       # campaign name -> "MARTIN-SG | 单图-改变"
+    state_key: "entities_singleimg_d"      # separate state file — never touches other batches
 
 naming:
   prefix: "MARTIN-SG"
   weekly_off_label: "ADBOT_WEEKLY_OFF"
 
 drive:
-  # Angle 1 subfolder: 6 symptom-identification images (长得慢, 比同龄矮 ×2, 吸收体质, 睡眠作息, 成长趋势).
-  creatives_folder_id: "1vpOgmd6LlfQsmgPYvMWahyRtuDHtsCly"
+  # Angle D subfolder: 4 holistic-change images (测量波动, 三餐正常, 鼻敏感, 比同龄矮小).
+  creatives_folder_id: "1XvEFvFzOfl6mDOcHzQXEVkILbPXL_V-s"
   carousel_subfolder_marker: "carousel"
   script_sidecar_ext: ".txt"
 

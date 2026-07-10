@@ -90,7 +90,7 @@ notion:                                  # Notion content DB = single source of 
   require_status: ""                      # use the Notion row regardless of Status (operator: no Approved gate — use directly)
 
 kpi:
-  cpl_threshold_myr: 55.00               # pause an ad above this CPL (cloned from MY; currency per budget.currency)
+  cpl_threshold_myr: 65.00               # pause an ad above this CPL. Sitting at 65 for the SG market (MYR-denominated; 55 was cloned from MY but too tight against the SG account's blended CPA ≈ RM70, so it was killing profitable ads).
   cpl_min_spend_myr: 100.00              # only judge an ad once it has spent >= this
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause

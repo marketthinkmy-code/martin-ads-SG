@@ -1,12 +1,13 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# adbot — batch config: "单图-症状" angle (6 繁体单图, symptom-identification angle) — martin-ads-SG
-# Split of the original 单图 batch. This half targets 焦虑型 parents who recognize a problem:
-# 长得慢, 比同龄矮 (×2), 吸收体质, 睡眠作息, 成长趋势.
-# Mirrors config.yaml SG compliance fields (regulated category + verified advertiser identity IDs).
-# ─────────────────────────────────────────────────────────────────────────────
+#  ─────────────────────────────────────────────────────────────────────────────
+#  adbot — batch config: "Test-ABO" (SG creative test campaign, 220 MYR/day ABO) — martin-ads-SG
+#  New-material intake with 3-day / 150 MYR elimination rule (elimination handled by the
+#  operator/monitor; this config just creates the container). Structure is built via
+#  scripts/build_test_abo.py which calls build_1_1_10.build() with units=[] — campaign +
+#  ad set created PAUSED, new test creatives added manually in Ads Manager.
+#  ─────────────────────────────────────────────────────────────────────────────
 
 meta:
-  ad_account_id: "act_1024930575770087"    # Martin SG ad account (SG-specific)
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account
   page_id: "341825319024143"               # shared with MY
   instagram_user_id: null
   pixel_id: "1189593242351293"
@@ -25,8 +26,8 @@ meta:
   url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
 
   budget:
-    level: "CAMPAIGN"
-    daily_amount_myr: 50                   # small-budget A/B test with the 迷思 batch (both RM50/day)
+    level: "ADSET"                         # ABO — daily_budget lives on the ad set, NOT the campaign
+    daily_amount_myr: 220                  # per ad set (only 1 ad set for now; add more via UI)
     currency: "MYR"
     adset_min_spend_myr: 50
 
@@ -36,27 +37,26 @@ meta:
 
   targeting:
     countries: ["SG"]
-    age_min: 25                            # Meta API ceiling with Advantage+ on; bump to 35 in UI after build
+    age_min: 25                            # bump to 35 in UI as Advantage+ suggestion
     age_max: 65
     advantage_audience: 1
     locales: [1004]
     excluded_custom_audiences:
-      - "120226672882380093"
-      - "120246547080720093"
+      - "120226672882380093"               # 15 days complete registration
+      - "120246547080720093"               # 马丁 1997 Paid Student
 
   build:
-    creatives_per_adset: 6                 # 6 symptom-identification single images
+    creatives_per_adset: 0                 # ADS ADDED MANUALLY IN ADS MANAGER — script uses units=[]
     activate_after_build: false
-    label: "单图-症状"                       # campaign name -> "MARTIN-SG | 单图-症状"
-    state_key: "entities_singleimg_a"      # separate state file — never touches other batches
+    label: "Test-ABO"                      # campaign name -> "MARTIN-SG | Test-ABO"
+    state_key: "entities_test_abo"         # separate state file
 
 naming:
   prefix: "MARTIN-SG"
   weekly_off_label: "ADBOT_WEEKLY_OFF"
 
 drive:
-  # Angle 1 subfolder: 6 symptom-identification images (长得慢, 比同龄矮 ×2, 吸收体质, 睡眠作息, 成长趋势).
-  creatives_folder_id: "1vpOgmd6LlfQsmgPYvMWahyRtuDHtsCly"
+  creatives_folder_id: "1XTztY2xvAKY0YfZW3spZi3ZEKqu3lHlF"   # placeholder — script skips Drive
   carousel_subfolder_marker: "carousel"
   script_sidecar_ext: ".txt"
 
@@ -74,7 +74,7 @@ notion:
   require_status: ""
 
 kpi:
-  cpl_threshold_myr: 65.00
+  cpl_threshold_myr: 65.00                 # match config.yaml (65 for SG market)
   cpl_min_spend_myr: 100.00
   cpl_lookback: "week_thu"
   pause_zero_lead_after_spend: true

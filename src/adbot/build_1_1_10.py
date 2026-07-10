@@ -84,13 +84,26 @@ def build(graph, settings: Settings, units: List[Unit],
     account = settings.meta.account_path
     m = settings.meta
 
+    # CBO (budget on the campaign) is the default; ABO (budget on each ad set) is opted into by
+    # setting meta.budget.level = "ADSET" in the config. Meta requires the daily_budget to live on
+    # exactly one of the two — putting it on the campaign for CBO, or on the ad set(s) for ABO.
+    is_cbo = (m.budget.level or "CAMPAIGN").upper() == "CAMPAIGN"
+
     campaign_fields = {
         "name": settings.naming.campaign_name(label),
         "objective": m.objective, "buying_type": "AUCTION", "status": "PAUSED",
         "special_ad_categories": m.special_ad_categories,
-        "daily_budget": m.budget.daily_amount_cents,
-        "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
     }
+    if is_cbo:
+        campaign_fields["daily_budget"] = m.budget.daily_amount_cents
+        # bid_strategy on the campaign is only valid when a campaign budget exists.
+        campaign_fields["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
+    else:
+        # ABO: Meta rejects the campaign create with 400 "You must specify True or False in
+        # the field is_adset_budget_sharing_enabled if you are not using campaign budget."
+        # False = each ad set spends independently within its own daily budget. bid_strategy
+        # then belongs on the ad set (Meta 400: "This campaign doesn't have a budget…").
+        campaign_fields["is_adset_budget_sharing_enabled"] = False
     # Some markets require a regional regulated-category declaration on the campaign
     # (e.g. Singapore: ["SINGAPORE_UNIVERSAL"]). Only sent when configured, so MY is unchanged.
     if m.regional_regulated_categories:
@@ -101,6 +114,9 @@ def build(graph, settings: Settings, units: List[Unit],
         "promoted_object": m.promoted_object, "targeting": m.targeting.to_spec(),
         "status": "PAUSED",
     }
+    if not is_cbo:
+        adset_fields["daily_budget"] = m.budget.daily_amount_cents
+        adset_fields["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
     # Singapore also requires the regional regulated-category declaration on the AD SET (it
     # carries the SG geo); Meta rejects the ad set without it. MY (empty list) is unaffected.
     if m.regional_regulated_categories:
@@ -120,7 +136,7 @@ def build(graph, settings: Settings, units: List[Unit],
             log.info("[dry-run] CREATIVE %s (%s): %s", unit.content_id, unit.kind,
                      creative_spec(settings, unit, captions.get(unit.content_id, {})))
         final_summary(log, f"build (dry-run): would create 1 campaign, 1 ad set, {len(units)} ads "
-                           f"at {m.budget.daily_amount_myr:.0f} MYR/day CBO (nothing created)")
+                           f"at {m.budget.daily_amount_myr:.0f} MYR/day {'CBO' if is_cbo else 'ABO'} (nothing created)")
         return {"dry_run": True, "ads": len(units)}
 
     # Resumable: reuse any campaign / ad set / ads already recorded in state, and persist
@@ -180,5 +196,5 @@ def build(graph, settings: Settings, units: List[Unit],
 
     state_word = "ACTIVE" if activated else "PAUSED"
     final_summary(log, f"build: 1 campaign + 1 ad set + {len(ad_ids)} ads "
-                       f"at {m.budget.daily_amount_myr:.0f} MYR/day CBO — now {state_word}")
+                       f"at {m.budget.daily_amount_myr:.0f} MYR/day {'CBO' if is_cbo else 'ABO'} — now {state_word}")
     return {"campaign_id": campaign_id, "adset_id": adset_id, "ad_ids": ad_ids, "activated": activated}
