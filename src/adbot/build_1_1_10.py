@@ -97,6 +97,11 @@ def build(graph, settings: Settings, units: List[Unit],
     }
     if is_cbo:
         campaign_fields["daily_budget"] = m.budget.daily_amount_cents
+    else:
+        # ABO: Meta rejects the campaign create with 400 "You must specify True or False in
+        # the field is_adset_budget_sharing_enabled if you are not using campaign budget."
+        # False = each ad set spends independently within its own daily budget.
+        campaign_fields["is_adset_budget_sharing_enabled"] = False
     # Some markets require a regional regulated-category declaration on the campaign
     # (e.g. Singapore: ["SINGAPORE_UNIVERSAL"]). Only sent when configured, so MY is unchanged.
     if m.regional_regulated_categories:
