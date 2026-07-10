@@ -93,14 +93,16 @@ def build(graph, settings: Settings, units: List[Unit],
         "name": settings.naming.campaign_name(label),
         "objective": m.objective, "buying_type": "AUCTION", "status": "PAUSED",
         "special_ad_categories": m.special_ad_categories,
-        "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
     }
     if is_cbo:
         campaign_fields["daily_budget"] = m.budget.daily_amount_cents
+        # bid_strategy on the campaign is only valid when a campaign budget exists.
+        campaign_fields["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
     else:
         # ABO: Meta rejects the campaign create with 400 "You must specify True or False in
         # the field is_adset_budget_sharing_enabled if you are not using campaign budget."
-        # False = each ad set spends independently within its own daily budget.
+        # False = each ad set spends independently within its own daily budget. bid_strategy
+        # then belongs on the ad set (Meta 400: "This campaign doesn't have a budget…").
         campaign_fields["is_adset_budget_sharing_enabled"] = False
     # Some markets require a regional regulated-category declaration on the campaign
     # (e.g. Singapore: ["SINGAPORE_UNIVERSAL"]). Only sent when configured, so MY is unchanged.
@@ -114,6 +116,7 @@ def build(graph, settings: Settings, units: List[Unit],
     }
     if not is_cbo:
         adset_fields["daily_budget"] = m.budget.daily_amount_cents
+        adset_fields["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
     # Singapore also requires the regional regulated-category declaration on the AD SET (it
     # carries the SG geo); Meta rejects the ad set without it. MY (empty list) is unaffected.
     if m.regional_regulated_categories:
