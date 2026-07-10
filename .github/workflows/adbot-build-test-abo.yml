@@ -1,0 +1,38 @@
+name: adbot · Test-ABO build (manual)
+
+# Builds the SG Test-ABO skeleton (1 campaign + 1 ad set ABO, PAUSED, 0 ads)
+# with all SG compliance fields. Idempotent — reruns reuse the ids in
+# state/entities_test_abo.json so it never duplicates. New test creatives are
+# added manually in Ads Manager afterwards; the 3-day / MYR 150 elimination
+# rule is enforced by the CPL monitor.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Test-ABO skeleton (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/test-abo.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_test_abo.py
+      - name: Persist created entity IDs back to the branch
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Test-ABO entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
