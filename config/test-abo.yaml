@@ -1,0 +1,99 @@
+#  ─────────────────────────────────────────────────────────────────────────────
+#  adbot — batch config: "Test-ABO" (SG creative test campaign, 220 MYR/day ABO) — martin-ads-SG
+#  New-material intake with 3-day / 150 MYR elimination rule (elimination handled by the
+#  operator/monitor; this config just creates the container). Structure is built via
+#  scripts/build_test_abo.py which calls build_1_1_10.build() with units=[] — campaign +
+#  ad set created PAUSED, new test creatives added manually in Ads Manager.
+#  ─────────────────────────────────────────────────────────────────────────────
+
+meta:
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account
+  page_id: "341825319024143"               # shared with MY
+  instagram_user_id: null
+  pixel_id: "1189593242351293"
+
+  objective: "OUTCOME_SALES"
+  optimization_goal: "OFFSITE_CONVERSIONS"
+  conversion_event: "COMPLETE_REGISTRATION"
+  special_ad_categories: []
+  regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]
+
+  lead_destination:
+    type: "WEBSITE"
+    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"
+  conversion_domain: "https://as.dr-martin.com.tw/"
+  call_to_action: "LEARN_MORE"
+  url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
+
+  budget:
+    level: "ADSET"                         # ABO — daily_budget lives on the ad set, NOT the campaign
+    daily_amount_myr: 220                  # per ad set (only 1 ad set for now; add more via UI)
+    currency: "MYR"
+    adset_min_spend_myr: 50
+
+  regional_regulation_identities:
+    singapore_universal_beneficiary: "1480351249808277"
+    singapore_universal_payer: "1480351249808277"
+
+  targeting:
+    countries: ["SG"]
+    age_min: 25                            # bump to 35 in UI as Advantage+ suggestion
+    age_max: 65
+    advantage_audience: 1
+    locales: [1004]
+    excluded_custom_audiences:
+      - "120226672882380093"               # 15 days complete registration
+      - "120246547080720093"               # 马丁 1997 Paid Student
+
+  build:
+    creatives_per_adset: 0                 # ADS ADDED MANUALLY IN ADS MANAGER — script uses units=[]
+    activate_after_build: false
+    label: "Test-ABO"                      # campaign name -> "MARTIN-SG | Test-ABO"
+    state_key: "entities_test_abo"         # separate state file
+
+naming:
+  prefix: "MARTIN-SG"
+  weekly_off_label: "ADBOT_WEEKLY_OFF"
+
+drive:
+  creatives_folder_id: "1XTztY2xvAKY0YfZW3spZi3ZEKqu3lHlF"   # placeholder — script skips Drive
+  carousel_subfolder_marker: "carousel"
+  script_sidecar_ext: ".txt"
+
+google_docs:
+  caption_log_doc_id: ""
+  idea_backlog_doc_id: ""
+
+notion:
+  enabled: true
+  database_id: "4bb82b42449682c294e881448aa21435"
+  brand: "Martin MY"
+  default_status: "In Review"
+  default_type: "Caption"
+  captions_source: true
+  require_status: ""
+
+kpi:
+  cpl_threshold_myr: 85.00
+  cpl_min_spend_myr: 100.00
+  cpl_lookback: "week_thu"
+  pause_zero_lead_after_spend: true
+  cpl_hold: []
+
+cpa:
+  enabled: true
+  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"
+  sales_tab: "Paid Student List (RM1997)"
+  price_myr: 2591.00
+  target_myr: 740.00
+  healthy_max_myr: 860.00
+  max_acceptable_myr: 1040.00
+  hard_stop_myr: 1300.00
+  conversion_days: 14
+  min_spend_myr: 1000.00
+
+schedule:
+  timezone: "Asia/Singapore"
+  weekly_off: { day: "WED", time: "15:00" }
+  weekly_on:  { day: "THU", time: "00:00" }
+  monitor_interval_hours: 1
