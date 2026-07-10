@@ -72,7 +72,7 @@ notion:                                    # same Notion DB; captions matched by
   require_status: ""
 
 kpi:
-  cpl_threshold_myr: 55.00
+  cpl_threshold_myr: 65.00
   cpl_min_spend_myr: 100.00
   cpl_lookback: "week_thu"
   pause_zero_lead_after_spend: true

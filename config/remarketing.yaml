@@ -90,7 +90,7 @@ notion:
   require_status: ""
 
 kpi:
-  cpl_threshold_myr: 85.00
+  cpl_threshold_myr: 65.00                 # match config.yaml (65 for SG market)
   cpl_min_spend_myr: 100.00
   cpl_lookback: "week_thu"
   pause_zero_lead_after_spend: true
