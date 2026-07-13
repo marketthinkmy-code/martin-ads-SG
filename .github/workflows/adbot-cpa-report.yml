@@ -9,8 +9,6 @@ on:
 jobs:
   report:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write          # tmp: persist state/ for the one-off Test-ABO ad upload
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,19 +24,3 @@ jobs:
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
         run: python scripts/cpa_report.py
-      - name: Add Test-ABO ad (one-off; revert after)
-        env:
-          ADBOT_ROOT: ${{ github.workspace }}
-          ADBOT_CONFIG: ${{ github.workspace }}/config/test-abo.yaml
-          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
-          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
-        run: python scripts/add_ad_test_abo.py
-      - name: Persist Test-ABO state (one-off; revert after)
-        run: |
-          git config user.name "adbot"
-          git config user.email "noreply@anthropic.com"
-          git add state/ || true
-          git commit -m "build: persist Test-ABO ad ids [skip ci]" || echo "no state change"
-          git push || echo "push skipped"
