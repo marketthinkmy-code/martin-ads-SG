@@ -1,7 +1,9 @@
 """Top 5 ad SET names by paid sales across the ENTIRE Paid Student List.
 
-Same shape as all_top15_ads.py but groups by normalised UTM ad-set name.
-No country / phone filter — every row with a non-empty UTM ad-set is counted.
+Dumps the sheet header + which column index was matched for each UTM field,
+so the operator can verify we're actually reading UTM Ads Set (col 14) and
+not UTM Ads Name (col 15) or Campaign Name (col 13). Then groups by
+normalised UTM ad-set value, prints top 5 + a side-by-side sample.
 """
 from __future__ import annotations
 
@@ -26,9 +28,27 @@ def main() -> None:
         if cand.get("campaign", -1) >= 0 and cand.get("ad", -1) >= 0:
             header_idx, cols = i, cand
             break
+    header = values[header_idx]
 
     print(f"Sheet '{s.cpa.sales_tab}'  ·  header row #{header_idx}  ·  "
-          f"data rows: {len(values) - header_idx - 1}")
+          f"data rows: {len(values) - header_idx - 1}\n")
+
+    print("Full header:")
+    for i, h in enumerate(header):
+        print(f"   col {i:>2}: {h!r}")
+
+    print(f"\nfind_columns matched:")
+    for key, idx in cols.items():
+        name = header[idx] if 0 <= idx < len(header) else "MISS"
+        print(f"   {key:>10}  ->  col {idx:>2}  ({name!r})")
+
+    adset_col = cols.get("adset", -1)
+    ad_col = cols.get("ad", -1)
+    print(f"\nSanity — first 5 data rows: col {adset_col} (UTM Ads Set) vs col {ad_col} (UTM Ads Name):")
+    for i, row in enumerate(values[header_idx + 1:header_idx + 6], 1):
+        aset = row[adset_col] if 0 <= adset_col < len(row) else ""
+        aname = row[ad_col] if 0 <= ad_col < len(row) else ""
+        print(f"   row {i}:  adset={aset!r}  ·  ad={aname!r}")
 
     sales, _c, _h = cpa.parse_sales(values, s.cpa.price_myr)
     adset_sales = defaultdict(int)
@@ -42,7 +62,7 @@ def main() -> None:
     ranked = sorted(adset_sales.items(), key=lambda kv: -kv[1])
     total = sum(adset_sales.values())
     total_rev = sum(adset_rev.values())
-    print(f"\nGrouped by UTM ad SET — {len(ranked)} distinct ad sets · "
+    print(f"\nGrouped by UTM ad SET (col {adset_col}) — {len(ranked)} distinct ad sets · "
           f"{total} matched sales · RM {total_rev:,.0f}\n")
 
     print(f"{'#':>3} {'sales':>5} {'revenue':>11}  ad set name")
