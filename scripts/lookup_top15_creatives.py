@@ -1,11 +1,11 @@
-"""Find each Top-15 (by paid sales) ad NAME inside the SG ad account and pull the
-creative behind it (video_id / image_hash + caption + headline).
+"""Find each Top-15 (by paid sales) ad NAME inside the SG ad account and report
+its reusable creative_id (video_id / image_hash is account-scoped; creative_id is
+directly reusable to create new ads in the SAME account).
 
-Why: video_id / image_hash are ACCOUNT-SCOPED, so to rebuild the 5 audience-test
-ad sets with the WINNING creatives we need the SG-account copy of each winner.
-The SG account is a full clone (770 ad sets), so the winners are very likely
-already uploaded there. Read-only — just reports what matched and its reusable
-creative id, so build_audience_tests.py can be re-pointed at these.
+Robust matching: normalises traditional→simplified + full-width punctuation +
+strips spaces, matches EXACT first, and for anything that is not an exact hit,
+dumps up to 6 candidate SG ad names (with creative_id) so the mapping can be
+locked by eye. Read-only.
 """
 from __future__ import annotations
 
@@ -34,15 +34,28 @@ TOP15 = [
     "Video 1: 迷思喝牛奶增高",
 ]
 
+# just the traditional chars that appear across these winner names / their SG variants
+TRAD2SIMP = str.maketrans({
+    "麵": "面", "書": "书", "長": "长", "見": "见", "證": "证", "馬": "马",
+    "頭": "头", "個": "个", "會": "会", "還": "还", "學": "学", "習": "习",
+    "歲": "岁", "對": "对", "來": "来", "媽": "妈", "屬": "属", "營": "营",
+    "養": "养", "師": "师", "後": "后", "們": "们", "屆": "届",
+})
+PUNCT = str.maketrans("：（）～！？，．－—–、", "::()~!?,.---,")
+
 
 def norm(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip().lower())
+    s = (s or "").strip().lower().translate(TRAD2SIMP).translate(PUNCT)
+    return re.sub(r"\s+", "", s)
 
 
-def core(name: str) -> str:
-    """Drop a leading 'MAR Video 1:' / 'JAN Video 6:' / 'Hook 18:' style prefix."""
-    n = re.sub(r"^[A-Za-z0-9 ()#_\-]+[:：\-]\s*", "", name)
-    return norm(n)
+def longest_cjk(s: str) -> str:
+    runs = re.findall(r"[一-鿿]+", s.translate(TRAD2SIMP))
+    return max(runs, key=len) if runs else ""
+
+
+def _cid(a: dict):
+    return (a.get("creative") or {}).get("id")
 
 
 def main() -> None:
@@ -54,37 +67,30 @@ def main() -> None:
     print(f"SG account {SG_ACCT}: {len(ads)} ads pulled\n")
     idx = [(norm(a.get("name", "")), a) for a in ads]
 
-    found = 0
+    exact_hits = 0
     for i, top in enumerate(TOP15, 1):
         nt = norm(top)
-        ct = core(top)
-        hits = [a for (na, a) in idx
-                if na == nt or (len(ct) > 5 and ct in na) or (len(na) > 6 and na in nt)]
+        exact = [a for (na, a) in idx if na == nt]
         print(f"#{i:>2}  {top}")
-        if not hits:
-            print("      ✗ NO SG-account ad matched this name\n")
+        if exact:
+            exact_hits += 1
+            best = sorted(exact, key=lambda a: 0 if a.get("effective_status") == "ACTIVE" else 1)[0]
+            print(f"      ✓ EXACT ({len(exact)} ad) · creative_id={_cid(best)} · "
+                  f"name={best.get('name')!r} ({best.get('effective_status')})")
             continue
-        found += 1
-        # resolve the creative of the first match; prefer an ACTIVE-ish one
-        best = sorted(hits, key=lambda a: 0 if a.get("effective_status") == "ACTIVE" else 1)[0]
-        cid = (best.get("creative") or {}).get("id")
-        spec = {}
-        try:
-            spec = g.get_object(cid, "object_story_spec,video_id,image_hash") if cid else {}
-        except Exception as e:                              # noqa: BLE001
-            print(f"      ! creative fetch failed for {cid}: {e}")
-        oss = spec.get("object_story_spec") or {}
-        vd = oss.get("video_data") or {}
-        ld = oss.get("link_data") or {}
-        vid = vd.get("video_id") or spec.get("video_id")
-        img = ld.get("image_hash") or spec.get("image_hash")
-        kind = "VIDEO" if vid else ("IMAGE" if img else "?")
-        title = vd.get("title") or ld.get("name") or ""
-        print(f"      ✓ {len(hits)} SG ad(s) · kind={kind} · video_id={vid} · image_hash={img}")
-        print(f"        matched SG name={best.get('name')!r} ({best.get('effective_status')})")
-        print(f"        creative_id={cid} · headline={title[:50]!r}\n")
+        tok = norm(longest_cjk(top))
+        cands = [a for (na, a) in idx if tok and tok in na]
+        # de-dup candidate NAMES, keep first creative per name
+        seen: dict[str, dict] = {}
+        for a in cands:
+            seen.setdefault(a.get("name", ""), a)
+        cand_list = list(seen.items())[:6]
+        print(f"      ✗ no exact · fuzzy token={tok!r} · {len(seen)} candidate name(s):")
+        for nm, a in cand_list:
+            print(f"          • creative_id={_cid(a)} · {nm!r} ({a.get('effective_status')})")
+        print()
 
-    print(f"═══ {found}/15 Top ads found in the SG account ═══")
+    print(f"═══ {exact_hits}/15 exact; resolve the rest from candidates above ═══")
 
 
 if __name__ == "__main__":
