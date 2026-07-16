@@ -24,12 +24,3 @@ jobs:
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
         run: python scripts/cpa_report.py
-      - name: TEST 加州 monitor dry-run (validate config.california.yaml; revert after)
-        env:
-          ADBOT_ROOT: ${{ github.workspace }}
-          ADBOT_CONFIG: ${{ github.workspace }}/config/config.california.yaml
-          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
-          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
-        run: python -m adbot --config "${{ github.workspace }}/config/config.california.yaml" monitor --dry-run
