@@ -124,11 +124,17 @@ def build_cpa_context(graph, settings: Settings, today: dt.date):
             settings.cpa.spreadsheet_id, settings.cpa.sales_tab)
         sales, _cols, _hdr = cpa.parse_sales(values, settings.cpa.price_myr)
         cutoff = today - dt.timedelta(days=60)
-        sold: Dict[Tuple[str, str], int] = {}
+        # Match by ad NAME only: the sheet's campaign column is missing/misnamed for some
+        # markets (e.g. SG) and its campaign values don't align with Meta campaign names,
+        # so keying on (campaign, ad) silently attributed 0 sales and the CPA rescue never
+        # fired. ad_key() is width/punctuation-robust so 'MAR Video 5: 林書豪 story' matches
+        # the sheet's 'mar video 5：林書豪story'.
+        sold: Dict[str, int] = {}
         for s in sales:
             if s.date and s.date > cutoff:
-                key = (_mkey(s.campaign), s.ad)
-                sold[key] = sold.get(key, 0) + 1
+                key = cpa.ad_key(s.ad)
+                if key:
+                    sold[key] = sold.get(key, 0) + 1
         spend: Dict[str, float] = {}
         for row in graph.account_insights(
                 settings.meta.account_path, level="ad", fields="ad_id,spend",
@@ -166,7 +172,6 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
     for campaign in graph.list_campaigns(account):
         if campaign.get("effective_status") != "ACTIVE":  # paused/archived have no live ads
             continue
-        camp_key = _mkey(campaign.get("name", ""))
         for ad in graph.list_ads_under_campaign(campaign["id"]):
             if ad.get("effective_status") != "ACTIVE":
                 continue
@@ -188,7 +193,7 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
             n_sales, age = 0, None
             should_pause, reason = cpl_pause, cpl_reason
             if use_cpa:
-                n_sales = sold60.get((camp_key, cpa.norm(name)), 0)
+                n_sales = sold60.get(cpa.ad_key(name), 0)
                 sp60 = spend60.get(ad["id"], 0.0)
                 cpa_val = cpa.cpa(sp60, n_sales)
                 created = cpa.parse_date((ad.get("created_time") or "")[:10])
