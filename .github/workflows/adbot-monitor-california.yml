@@ -1,22 +1,21 @@
-name: adbot · CPL+CPA monitor 加州/US (ALERT-ONLY)
+name: adbot · CPL+CPA monitor 加州/US (hourly)
 
 # SEPARATE monitor for the 加州/US account (act_1629566827721449), fully isolated
 # from the SG monitor (adbot-monitor.yml) — different config, different account,
-# different sheet tab. Runs ALERT-ONLY: evaluates every active US ad and LOGS
-# "WOULD PAUSE …", but writes NOTHING to Meta and no state (monitor's --dry-run
-# guards both the pause and the pause-log). Read the Actions logs to see verdicts.
+# different sheet tab. ARMED: on schedule it pauses any ACTIVE US ad whose
+# cost-per-Complete-Registration exceeds RM85 (US ceiling; higher than SG's RM65
+# because US CPMs run higher), folded with the real-sales CPA gate. Only pauses
+# over-threshold ACTIVE ads, never un-pauses. Registration-optimized ads only.
 #
-# To ARM it later (actually pause): remove `--dry-run` from the run step (or flip
-# the dispatch input), once the US CPL/CPA thresholds in config.california.yaml
-# have been confirmed against real US-market numbers.
+# Manual dispatch with dry_run=true = alert-only (evaluate + log, write nothing).
 
 on:
   schedule:
     - cron: "12,32,52 * * * *"   # staggered off SG's 7,27,47 so the two monitors don't hit the API together
   workflow_dispatch:
     inputs:
-      arm:
-        description: "ARM it — actually pause over-threshold ads (default false = alert-only)"
+      dry_run:
+        description: "Dry run — evaluate + log what would pause, write nothing"
         type: boolean
         default: false
 
@@ -41,5 +40,4 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        # default = alert-only (--dry-run). Manual dispatch with arm=true removes it.
-        run: python -m adbot --config "${{ github.workspace }}/config/config.california.yaml" monitor ${{ inputs.arm == true && '' || '--dry-run' }}
+        run: python -m adbot --config "${{ github.workspace }}/config/config.california.yaml" monitor ${{ inputs.dry_run && '--dry-run' || '' }}

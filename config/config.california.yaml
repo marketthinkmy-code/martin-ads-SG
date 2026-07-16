@@ -1,17 +1,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # adbot — MONITOR-ONLY config for the 加州/US ad account (act_1629566827721449).
 #
-# Purpose: let the CPL+CPA monitor watch the US (California & PNW) account WITHOUT
-# touching the SG setup. This file is loaded ONLY by the separate
-# `.github/workflows/adbot-monitor-california.yml` cron, which runs the monitor in
-# ALERT-ONLY (`--dry-run`) mode — it evaluates + logs "WOULD PAUSE" but writes
-# NOTHING to Meta and NO state, until the US CPL/CPA numbers are confirmed.
+# Purpose: let the CPL+CPA monitor watch AND auto-pause on the US (California &
+# PNW) account WITHOUT touching the SG setup. Loaded ONLY by the separate
+# `.github/workflows/adbot-monitor-california.yml` cron (ARMED — real pauses).
 #
 # Isolation from SG: different ad_account_id · different sheet TAB (US, not SG) ·
 # different workflow file. config.yaml (SG) and adbot-monitor.yml (SG) are untouched.
 #
-# ⚠️ Thresholds below are still the MYR SG values. US market CPLs differ; leave in
-# alert-only and read the logged verdicts before switching --dry-run off (arming).
+# US CPL ceiling = RM85 (operator-set; higher than SG's RM65 because US CPMs run
+# higher — RM65 would over-pause profitable US ads). CPA gate kept at the SG MYR
+# values (conservative for $799 US students); re-tune the CPA band after real US data.
 # ─────────────────────────────────────────────────────────────────────────────
 
 meta:
@@ -75,7 +74,7 @@ notion:
   require_status: ""
 
 kpi:
-  cpl_threshold_myr: 65.00                   # ⚠ SG value (MYR). US CPLs differ — confirm from alert-only logs before arming.
+  cpl_threshold_myr: 85.00                   # US CPL ceiling (MYR), operator-set — higher than SG's 65 (US CPMs run higher)
   cpl_min_spend_myr: 100.00
   cpl_lookback: "week_thu"
   pause_zero_lead_after_spend: true
