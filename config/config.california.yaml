@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# adbot — MONITOR-ONLY config for the 加州/US ad account (act_1629566827721449).
+#
+# Purpose: let the CPL+CPA monitor watch AND auto-pause on the US (California &
+# PNW) account WITHOUT touching the SG setup. Loaded ONLY by the separate
+# `.github/workflows/adbot-monitor-california.yml` cron (ARMED — real pauses).
+#
+# Isolation from SG: different ad_account_id · different sheet TAB (US, not SG) ·
+# different workflow file. config.yaml (SG) and adbot-monitor.yml (SG) are untouched.
+#
+# US CPL ceiling = RM85 (operator-set; higher than SG's RM65 because US CPMs run
+# higher — RM65 would over-pause profitable US ads). CPA gate kept at the SG MYR
+# values (conservative for $799 US students); re-tune the CPA band after real US data.
+# ─────────────────────────────────────────────────────────────────────────────
+
+meta:
+  ad_account_id: "act_1629566827721449"    # 加州 MTC - Martin New 5 (bills in MYR, per the account audit)
+  page_id: "341825319024143"               # not used by the monitor; kept valid for settings load
+  instagram_user_id: null
+  pixel_id: "1189593242351293"             # not used by the monitor (it reads each ad's live promoted_object)
+
+  objective: "OUTCOME_SALES"
+  optimization_goal: "OFFSITE_CONVERSIONS"
+  conversion_event: "COMPLETE_REGISTRATION"  # monitor only judges ads whose ad set optimizes for THIS event
+  special_ad_categories: []
+  regional_regulated_categories: []          # US is not SG — no SINGAPORE_UNIVERSAL
+  regional_regulation_identities: {}
+
+  lead_destination:
+    type: "WEBSITE"
+    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"   # not used by the monitor
+  conversion_domain: "https://as.dr-martin.com.tw/"
+  call_to_action: "LEARN_MORE"
+  url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
+
+  budget:
+    level: "CAMPAIGN"
+    daily_amount_myr: 250
+    currency: "MYR"                          # the 加州 ad account bills in MYR (verified)
+    adset_min_spend_myr: 50
+
+  targeting:                                 # not used by the monitor; placeholder only
+    countries: ["US"]
+    age_min: 25
+    age_max: 65
+    advantage_audience: 1
+    locales: [1004]
+    excluded_custom_audiences: []
+
+  build:
+    creatives_per_adset: 10
+    activate_after_build: false              # SAFETY — this config is for monitoring, not building
+
+naming:
+  prefix: "MARTIN-US"
+  weekly_off_label: "ADBOT_WEEKLY_OFF"
+
+drive:
+  creatives_folder_id: "1XTztY2xvAKY0YfZW3spZi3ZEKqu3lHlF"
+  carousel_subfolder_marker: "carousel"
+  script_sidecar_ext: ".txt"
+
+google_docs:
+  caption_log_doc_id: ""
+  idea_backlog_doc_id: ""
+
+notion:
+  enabled: false                            # monitor doesn't need Notion
+  database_id: "4bb82b42449682c294e881448aa21435"
+  brand: "Martin US"
+  default_status: "In Review"
+  default_type: "Caption"
+  captions_source: false
+  require_status: ""
+
+kpi:
+  cpl_threshold_myr: 85.00                   # US CPL ceiling (MYR), operator-set — higher than SG's 65 (US CPMs run higher)
+  cpl_min_spend_myr: 100.00
+  cpl_lookback: "week_thu"
+  pause_zero_lead_after_spend: true
+  cpl_hold: []
+
+cpa:                                         # US paid-student CPA — SAME spreadsheet as SG, DIFFERENT tab
+  enabled: true
+  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"
+  sales_tab: "🇺🇸 Paid Student List ($799)"   # US tab (gid 1292000535) — UTM columns are populated, so CPA match works
+  price_myr: 799.00                          # US students pay $799 USD; Amount col overrides per row. Affects revenue display ONLY, not the pause gate (spend[MYR] ÷ student count).
+  target_myr: 740.00                         # ⚠ SG MYR values — spend-per-student cap; conservative for $799 US students. Re-tune after observing.
+  healthy_max_myr: 860.00
+  max_acceptable_myr: 1040.00
+  hard_stop_myr: 1300.00
+  conversion_days: 14
+  min_spend_myr: 1000.00
+
+schedule:
+  timezone: "America/Los_Angeles"            # informational only (real cron in the workflow)
+  weekly_off: { day: "WED", time: "15:00" }
+  weekly_on:  { day: "THU", time: "00:00" }
+  monitor_interval_hours: 1
