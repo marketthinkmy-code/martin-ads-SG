@@ -12,6 +12,7 @@ import calendar
 import datetime as dt
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -29,6 +30,17 @@ def norm(s: str) -> str:
     """Normalise a UTM/name value for matching: unescape, collapse whitespace, casefold."""
     s = (s or "").replace("\\", "")
     return " ".join(s.split()).casefold()
+
+
+def ad_key(s: str) -> str:
+    """Punctuation/width-robust key for matching an ad NAME between the sheet's UTM
+    value and a Meta ad name. NFKC-folds full-width→half-width, casefolds, and drops
+    ALL whitespace + punctuation (keeps only alphanumerics + CJK). So the same creative
+    matches even when one side used a full-width colon or extra spaces:
+    'MAR Video 5: 林書豪 story'  and  'mar video 5：林書豪story'  →  'marvideo5林書豪story'.
+    """
+    s = unicodedata.normalize("NFKC", (s or "").replace("\\", "")).casefold()
+    return re.sub(r"[\W_]+", "", s)
 
 
 def _hkey(s: str) -> str:
@@ -50,9 +62,18 @@ def find_columns(header: List[str]) -> Dict[str, int]:
                     return i
         return -1
 
+    date = first("createddate", "date")
+    if date < 0:                          # Chinese date headers (報名日期) get stripped to "" by _hkey
+        low = [(h or "").strip().lower() for h in header]
+        for zh in ("報名日期", "报名日期", "報名", "报名", "購買日期", "购买日期", "付款日期", "成交日期"):
+            hit = next((i for i, h in enumerate(low) if zh in h), -1)
+            if hit >= 0:
+                date = hit
+                break
     return {
-        "date": first("createddate", "date"),
-        "campaign": first("utmcampaign"),
+        "date": date,
+        # "campaignname"/"campaign" also catch the SG tab's "Campaign Name" header (no "UTM Campaign")
+        "campaign": first("utmcampaign", "campaignname", "campaign"),
         "adset": first("utmadset", "utmadsset"),
         "ad": first("utmadname", "utmadsname"),
         "amount": first("purchaseamount", "amount"),

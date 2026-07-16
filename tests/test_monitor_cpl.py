@@ -160,8 +160,7 @@ def test_evaluate_account_cpa_rescues_and_hard_stops():
     ads = {"A": [_ad("rescue_me"), _ad("kill_me")]}
     insights = {"rescue_me": _reg_insight(300, 3),   # CPL 100 > 40 -> CPL would pause
                 "kill_me": _reg_insight(100, 4)}      # CPL 25 -> CPL keeps
-    ck = cpa.norm("mtc - news")
-    sold = {(ck, cpa.norm("rescue_me")): 10, (ck, cpa.norm("kill_me")): 2}
+    sold = {cpa.ad_key("rescue_me"): 10, cpa.ad_key("kill_me"): 2}   # ad-name keyed (campaign-agnostic)
     spend60 = {"rescue_me": 7000.0, "kill_me": 4000.0}  # CPA 700 (rescue) / 2000 (hard stop)
 
     by_name = {d.name: d for d in evaluate_account(
