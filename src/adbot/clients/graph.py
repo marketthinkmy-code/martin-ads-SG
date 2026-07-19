@@ -51,8 +51,14 @@ class GraphError(RuntimeError):
         super().__init__(f"[{status}] {msg}")
 
 
-class _Retryable(Exception):
-    """Internal marker for transient failures worth retrying."""
+class TransientGraphError(Exception):
+    """A transient Meta failure (429/5xx/rate-limit/network blip) worth retrying.
+
+    Raised inside ``_request`` and consumed by the tenacity retry below. When every retry
+    is exhausted it propagates out — so an idempotent periodic caller (e.g. the CPL monitor
+    cron) can catch it and skip the run cleanly instead of alarming. It is explicitly NOT a
+    config/auth/code error (those are ``GraphError``/``Exception`` and must still surface).
+    """
 
 
 class GraphClient:
@@ -74,7 +80,7 @@ class GraphClient:
 
     @retry(reraise=True, stop=stop_after_attempt(5),
            wait=wait_exponential(multiplier=2, min=2, max=32),
-           retry=retry_if_exception_type(_Retryable))
+           retry=retry_if_exception_type(TransientGraphError))
     def _request(self, method: str, path: str, *, params: Optional[Dict] = None,
                  data: Optional[Dict] = None, files: Optional[Dict] = None) -> Dict[str, Any]:
         url = f"{BASE}/{path.lstrip('/')}"
@@ -85,14 +91,14 @@ class GraphClient:
             resp = self.session.request(method, url, params=call_params, data=data,
                                         files=files, timeout=self.timeout)
         except requests.RequestException as exc:  # network blip
-            raise _Retryable(str(exc)) from exc
+            raise TransientGraphError(str(exc)) from exc
 
         try:
             payload = resp.json()
         except ValueError:
             payload = {"raw": resp.text}
         if resp.status_code in (429, 500, 502, 503, 504) or _is_rate_limit(resp.status_code, payload):
-            raise _Retryable(f"HTTP {resp.status_code}: {resp.text[:200]}")
+            raise TransientGraphError(f"HTTP {resp.status_code}: {resp.text[:200]}")
         if resp.status_code >= 400:
             raise GraphError(resp.status_code, payload)
         return payload
