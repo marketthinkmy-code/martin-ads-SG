@@ -1,0 +1,38 @@
+name: adbot · Scale-Winners build (manual)
+
+# Builds the SG "Scale-Winners Broad A+" campaign PAUSED: 1 broad Advantage+ CBO
+# (RM350/day, NO detailed targeting) + 1 ad set + the 4 distinct proven-winner ads,
+# each reusing its existing SG creative_id (verbatim video/copy/UTM). Idempotent —
+# reruns reuse campaign_id + adset_id and skip already-built winners via
+# state/entities_scale_winners.json. Operator activates + sets placements in Ads Manager.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (entity ids) back to the branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Scale-Winners Broad A+ (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/scale-winners.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_scale_winners.py
+      - name: Persist created entity IDs back to the branch
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Scale-Winners entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
