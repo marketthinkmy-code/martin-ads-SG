@@ -1,0 +1,107 @@
+#  ─────────────────────────────────────────────────────────────────────────────
+#  adbot — batch config: "Scale-Winners Broad A+" (SG) — martin-ads-SG
+#  ONE broad Advantage+ CBO that houses the proven-winner creatives, so Meta finds
+#  the audience itself (NO hand-sliced interest buckets). Runs ALONGSIDE the existing
+#  campaigns (operator: do NOT merge/kill them) — this is a fresh, well-funded home
+#  for the winners, not a consolidation.
+#
+#  Structure: scripts/build_scale_winners.py calls build_1_1_10.build() with an EMPTY
+#  units list to create the campaign + ad set PAUSED (all SG compliance), then adds the
+#  winning ads by REUSING each winner's existing SG-account creative_id (verbatim video
+#  + copy + UTM, so paid-sale attribution by ad name keeps matching).
+#
+#  Budget = RM350/day: enough to earn ~50 registrations/week at the winners' blended
+#  CPL (~RM50) to exit Meta's learning phase, WITHOUT doubling total account spend
+#  against the small SG audience. Bump toward 2× (RM600-700) later, once the old
+#  fragmented campaigns are wound down. PAUSED — operator activates + sets placements
+#  (FB Feed/Reels + IG Feed) in Ads Manager after review.
+#  ─────────────────────────────────────────────────────────────────────────────
+
+meta:
+  ad_account_id: "act_1024930575770087"    # Martin SG ad account
+  page_id: "341825319024143"               # shared with MY
+  instagram_user_id: null
+  pixel_id: "1189593242351293"
+
+  objective: "OUTCOME_SALES"
+  optimization_goal: "OFFSITE_CONVERSIONS"
+  conversion_event: "COMPLETE_REGISTRATION"
+  special_ad_categories: []
+  regional_regulated_categories: ["SINGAPORE_UNIVERSAL"]
+
+  lead_destination:
+    type: "WEBSITE"
+    link_url: "https://as.dr-martin.com.tw/kids-growth-formula-landing"
+  conversion_domain: "https://as.dr-martin.com.tw/"
+  call_to_action: "LEARN_MORE"
+  url_tags: "utm_source={{adset.name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}"
+
+  budget:
+    level: "CAMPAIGN"                      # CBO — Meta distributes across the winners
+    daily_amount_myr: 350                  # see header: ~50 reg/week to exit learning; bump to 2× later
+    currency: "MYR"
+    adset_min_spend_myr: 50
+
+  regional_regulation_identities:
+    singapore_universal_beneficiary: "1480351249808277"
+    singapore_universal_payer: "1480351249808277"
+
+  targeting:
+    # BROAD Advantage+ — geo/age/locale only, NO detailed_targeting interests. Advantage+
+    # audience ON lets Meta expand freely and find the buyers (the whole point of this campaign).
+    countries: ["SG"]
+    age_min: 25                            # Advantage+ makes this a suggestion; bump to 35 in UI after build
+    age_max: 65
+    advantage_audience: 1
+    locales: [1004]                        # Chinese (All)
+    excluded_custom_audiences:             # keep it broad but FRESH (exclude leads + paid customers)
+      - "120226672882380093"               # "15 days complete registration" (SG website/pixel CA)
+      - "120246547080720093"               # "马丁 1997 Paid Student" (SG customer list)
+
+  build:
+    creatives_per_adset: 0                 # ads added by the script via reused creative_ids (units=[])
+    activate_after_build: false            # PAUSED — operator activates after review + placements
+    label: "Scale-Winners Broad A+"        # campaign name -> "MARTIN-SG | Scale-Winners Broad A+"
+    state_key: "entities_scale_winners"    # separate state file — never touches other batches
+
+naming:
+  prefix: "MARTIN-SG"
+  weekly_off_label: "ADBOT_WEEKLY_OFF"
+
+drive:
+  # Placeholder — build_scale_winners.py does NOT read Drive (units=[]). Kept for pydantic.
+  creatives_folder_id: "1XTztY2xvAKY0YfZW3spZi3ZEKqu3lHlF"
+  carousel_subfolder_marker: "carousel"
+  script_sidecar_ext: ".txt"
+
+google_docs:
+  caption_log_doc_id: ""
+  idea_backlog_doc_id: ""
+
+notion:
+  enabled: false                           # not needed — reusing existing creatives, no new copy
+
+kpi:
+  cpl_threshold_myr: 65.00                 # match config.yaml (65 for SG market)
+  cpl_min_spend_myr: 100.00
+  cpl_lookback: "week_thu"
+  pause_zero_lead_after_spend: true
+  cpl_hold: []
+
+cpa:
+  enabled: true
+  spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"
+  sales_tab: "Paid Student List (RM1997)"
+  price_myr: 2591.00
+  target_myr: 740.00
+  healthy_max_myr: 860.00
+  max_acceptable_myr: 1040.00
+  hard_stop_myr: 1300.00
+  conversion_days: 14
+  min_spend_myr: 1000.00
+
+schedule:
+  timezone: "Asia/Singapore"
+  weekly_off: { day: "WED", time: "15:00" }
+  weekly_on:  { day: "THU", time: "00:00" }
+  monitor_interval_hours: 1
