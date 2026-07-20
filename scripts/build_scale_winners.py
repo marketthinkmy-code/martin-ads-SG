@@ -11,10 +11,14 @@ Point ADBOT_CONFIG at config/scale-winners.yaml. Two phases:
      cpa.ad_key) and a new ad is created that REUSES its existing creative_id — same video,
      same copy, same UTM ad name, so paid-sale attribution keeps matching the winner.
 
-WINNERS = the 4 DISTINCT proven winners from the scale analysis (2026-07-20). The report's
-5th row ('MAR Video 1: 我不会买牛奶' twice) is the SAME creative as row #4, so it appears once.
+WINNERS = the 4 distinct proven winners by SG CPL + the account's #1 PAID converter
+(孩子15岁以上, borderline CPL but the top sales creative). The report's duplicate 5th row
+('MAR Video 1: 我不会买牛奶' twice) is the SAME creative as the workhorse, so it appears once.
 Idempotent: creative names already recorded in state/entities_scale_winners.json are skipped,
-so a second dispatch never duplicates ads.
+so a second dispatch only adds newly-listed winners and never duplicates ads.
+
+It also prints, for each winner, the OTHER campaign(s) it currently runs in ("home campaigns")
+so the operator can decide whether to shift that budget here.
 """
 from __future__ import annotations
 
@@ -36,6 +40,7 @@ WINNERS = [
     "Video：H2 面包牛奶一点都不健康",           # CPL 41 — cheap + steady
     "MAR Video 5: 林書豪 story",              # CPL 56
     "MAR Video 1: 我不会买牛奶",               # CPL 62 — the workhorse (absorbs real budget)
+    "Video: 孩子15岁以上还有机会长高吗?",       # CPL 66 (borderline) — account's #1 PAID converter (life 47)
 ]
 
 
@@ -51,16 +56,20 @@ def main() -> None:
                 label=s.meta.build.label, state_key=s.meta.build.state_key)
     campaign_id, adset_id = ent["campaign_id"], ent["adset_id"]
 
-    # 2) index every ad in the account by ad_key(name) -> (name, creative_id, active?)
+    # 2) index every ad in the account by ad_key(name) -> (name, creative_id, active?),
+    #    and record which campaign(s) each name currently runs in (its "home").
     ads = g._get_all(f"{acct}/ads",
-                     {"fields": "id,name,effective_status,creative{id}", "limit": 500})
+                     {"fields": "id,name,effective_status,creative{id},campaign{name}", "limit": 500})
     index: dict[str, tuple[str, str, bool]] = {}
+    homes: dict[str, list[tuple[str, str]]] = {}
     for ad in ads:
         cid = (ad.get("creative") or {}).get("id")
         if not cid:
             continue
         key = cpa.ad_key(ad.get("name", ""))
         active = ad.get("effective_status") == "ACTIVE"
+        camp = (ad.get("campaign") or {}).get("name", "∅")
+        homes.setdefault(key, []).append((camp, ad.get("effective_status", "?")))
         # prefer an ACTIVE source ad; otherwise keep the first seen for this name
         if key not in index or (active and not index[key][2]):
             index[key] = (ad.get("name", ""), cid, active)
@@ -102,6 +111,16 @@ def main() -> None:
         log.info(line)
     if missing:
         log.warning("MISSING (add manually / re-check name): %s", ", ".join(missing))
+
+    # where does each winner currently live? (exclude this new campaign so we show only the
+    # OLD homes whose budget the operator might shift here)
+    log.info("─" * 84)
+    log.info("📍 Winners' current home campaign(s) — budget to consider shifting here:")
+    for want in WINNERS:
+        others = [(c, stt) for c, stt in homes.get(cpa.ad_key(want), [])
+                  if "Scale-Winners" not in c]
+        loc = "  ·  ".join(f"{c} [{stt}]" for c, stt in others) or "— (only in Scale-Winners now)"
+        log.info("   %-32s → %s", want, loc)
     final_summary(
         log,
         f"Scale-Winners Broad A+ built PAUSED: 1 CBO (RM{s.meta.budget.daily_amount_myr:.0f}/day) "
