@@ -4,20 +4,21 @@ Campaign A: [SG] 儿童长高方程式 | Parents 3–17 + Engaged | 1-1-2
 Campaign B: [SG] 儿童长高方程式 | Family and Relationships | 1-1-2
 
 Each = 1 CBO (RM100/day) + 1 ad set (interest targeting cloned LIVE from that audience's
-canonical winning ad set, forced to SG) + the SAME 2 NEW video ads:
+canonical winning ad set, forced to SG) + the SAME 2 NEW video ads competing in that ONE
+ad set:
   · Video 3：别再拿你的经验，赌孩子的身高
   · Video 4：孩子长高最大的敌人，不是遗传而是误判
 
-Each ad is a FLEXIBLE creative (asset_feed_spec): the operator's multiple primary-text
-options (main caption + 3 A/B hooks) + multiple headline options (3), which Meta rotates
-/ optimizes ("add text option" + "add headline option"). If Meta rejects the flexible
-payload the build falls back to a single text/headline video creative (main caption +
-1st headline) so it never hard-fails — the extra options can then be added in the UI.
+NOTE — single text + headline per ad (main caption + primary headline): Meta treats an ad
+carrying MULTIPLE text/headline options as a "Dynamic Creative", which it only allows in a
+Dynamic Creative ad set that holds exactly ONE ad. That is mutually exclusive with "1 ad set
++ 2 video ads" (the operator's 1-1-2), so we keep the exact 1-1-2 structure and use each
+video's strongest single option. The extra A/B hooks + alt headlines are on file for a
+follow-up dynamic-creative build if wanted.
 
-Videos are downloaded from Drive and uploaded to Meta ONCE; the 2 creatives are reused in
-both campaigns. Idempotent: uploaded video_id + creative_id cached in
-state/entities_ctest_shared.json and each campaign's entities in its own state file, so a
-re-dispatch never re-uploads or duplicates.
+Videos are uploaded to Meta ONCE (cached by video_id in state/entities_ctest_shared.json —
+pre-primed with the two already-uploaded videos so this never re-uploads). Idempotent: each
+campaign's entities live in its own state file, so a re-dispatch never duplicates.
 """
 from __future__ import annotations
 
@@ -42,7 +43,8 @@ DETAIL_KEYS = ["interests", "behaviors", "life_events", "family_statuses", "indu
                "income", "education_statuses", "work_positions", "work_employers",
                "relationship_statuses", "user_adclusters", "moms"]
 
-# ── operator-supplied copy (verbatim). bodies[0] = main caption, [1:] = A/B hooks. ──
+# ── operator-supplied copy (verbatim). bodies[0] = main caption used now; the rest are
+#    A/B hook options kept for a follow-up dynamic-creative build. titles[0] = primary headline. ──
 VIDEO3_MAIN = """🚫「我小时候也很矮，后来不也长到这么高？」
 
 如果你也常这样安慰自己——请先停一下。
@@ -101,14 +103,6 @@ VIDEO3_MAIN = """🚫「我小时候也很矮，后来不也长到这么高？�
 很多家长最后后悔的，从来不是做错了什么，
 而是当初以为还有时间，一等再等，错过了黄金期。"""
 
-VIDEO3_HOOKS = [
-    "👨‍⚕️ 10 年经验、700+ 家庭、6 个国家的谘询——\n"
-    "马丁药师发现：长不高的孩子，家长常常「太关心」，却看错了地方。",
-    "😴 有的孩子只是晚发育，⏳ 有的却正在错过黄金期。\n"
-    "可怕的是——这两种，你用肉眼几乎分不出来。",
-    "很多爸妈后悔的，从来不是做错了什么，\n"
-    "而是以为「还有时间」，结果一等，就错过了。",
-]
 VIDEO3_TITLES = [
     "别再拿你的经验，赌孩子的身高",
     "你的孩子，不是 20 年前的你｜免费公开课",
@@ -179,14 +173,6 @@ VIDEO4_MAIN = """⚠️ 孩子长高最大的敌人，不是遗传——
 
 孩子的成长只有一次，别让一个「误判」，赔掉他的身高。"""
 
-VIDEO4_HOOKS = [
-    "😴 睡眠差、🌿 体质弱、🦵 筋膜紧——\n"
-    "孩子长不高，往往不是缺钙，是这三个警讯被忽略了。",
-    "🏃 你小时候九点睡、天天跑跳；📱 你孩子十二点还在滑手机。\n"
-    "凭什么用你的成长经历，赌他的身高？",
-    "👅 从孩子的舌象、日常症状、饮食反应，就能看出他为什么长不高。\n"
-    "马丁药师的「儿童体质辨识系统」，帮家长找出真正的卡点。",
-]
 VIDEO4_TITLES = [
     "孩子长高最大的敌人，是遗传还是误判？",
     "长不高不一定缺钙——是这 3 个警讯被忽略了",
@@ -195,11 +181,9 @@ VIDEO4_TITLES = [
 
 VIDEOS = [
     {"key": "video3", "drive_id": "16rmsI2MjxGcCT8Br7jrXwVGDRBaQo7e3",
-     "ad_name": "Video 3：别再拿你的经验，赌孩子的身高",
-     "bodies": [VIDEO3_MAIN, *VIDEO3_HOOKS], "titles": VIDEO3_TITLES},
+     "ad_name": "Video 3：别再拿你的经验，赌孩子的身高", "message": VIDEO3_MAIN, "title": VIDEO3_TITLES[0]},
     {"key": "video4", "drive_id": "13ztt-jYHTmK7X93Is84GQ1L_8Oc6xd8f",
-     "ad_name": "Video 4：孩子长高最大的敌人，不是遗传而是误判",
-     "bodies": [VIDEO4_MAIN, *VIDEO4_HOOKS], "titles": VIDEO4_TITLES},
+     "ad_name": "Video 4：孩子长高最大的敌人，不是遗传而是误判", "message": VIDEO4_MAIN, "title": VIDEO4_TITLES[0]},
 ]
 
 CAMPAIGNS = [
@@ -210,15 +194,11 @@ CAMPAIGNS = [
 ]
 
 
-# ── targeting clone (self-contained copy of the audience-test logic) ─────────────
 def _richness(t: dict) -> int:
     if not isinstance(t, dict):
         return 0
     cnt = lambda spec: sum(len(spec.get(k) or []) for k in DETAIL_KEYS)
-    n = cnt(t)
-    for grp in (t.get("flexible_spec") or []):
-        n += cnt(grp)
-    return n
+    return cnt(t) + sum(cnt(grp) for grp in (t.get("flexible_spec") or []))
 
 
 def pull_adsets(g) -> List[dict]:
@@ -236,9 +216,8 @@ def pull_adsets(g) -> List[dict]:
 
 def clone_targeting(adsets: List[dict], name: str) -> Tuple[Optional[dict], Optional[str]]:
     key = name.strip().lower()
-    matches = [a for a in adsets if (a.get("name") or "").strip().lower() == key]
-    if not matches:
-        matches = [a for a in adsets if key in (a.get("name") or "").strip().lower()]
+    matches = [a for a in adsets if (a.get("name") or "").strip().lower() == key] \
+        or [a for a in adsets if key in (a.get("name") or "").strip().lower()]
     if not matches:
         return None, None
     best = max(matches, key=lambda a: _richness(a.get("targeting") or {}))
@@ -265,39 +244,19 @@ def clone_targeting(adsets: List[dict], name: str) -> Tuple[Optional[dict], Opti
     return spec, best.get("name")
 
 
-# ── flexible creative (multi text + title) with single-option fallback ──────────
-def make_creative(g, acct, s, name, video_id, thumb, bodies, titles) -> Tuple[str, str]:
-    log = get_logger()
-    ident = {"page_id": s.meta.page_id}
+def make_single_creative(g, acct, s, name, video_id, thumb, message, title) -> str:
+    """Standard single text + single headline video creative — attaches to a normal ad set."""
+    cta = {"type": s.meta.call_to_action, "value": {"link": s.meta.lead_destination.link_url}}
+    vdata = {"video_id": video_id, "title": title, "message": message, "call_to_action": cta}
+    if thumb:
+        vdata["image_url"] = thumb
+    story = {"page_id": s.meta.page_id, "video_data": vdata}
     if s.meta.instagram_user_id:
-        ident["instagram_user_id"] = s.meta.instagram_user_id
-    try:
-        video = {"video_id": video_id}
-        if thumb:
-            video["thumbnail_url"] = thumb
-        afs = {
-            "ad_formats": ["SINGLE_VIDEO"],
-            "videos": [video],
-            "bodies": [{"text": b} for b in bodies],
-            "titles": [{"text": t} for t in titles],
-            "link_urls": [{"website_url": s.meta.lead_destination.link_url}],
-            "call_to_action_types": [s.meta.call_to_action],
-        }
-        fields = {"name": name, "object_story_spec": ident, "asset_feed_spec": afs}
-        if s.meta.url_tags:
-            fields["url_tags"] = s.meta.url_tags
-        return g.create_adcreative(acct, **fields)["id"], f"flexible({len(bodies)}text/{len(titles)}title)"
-    except Exception as e:  # noqa: BLE001
-        log.warning("  ! flexible creative rejected (%s) — falling back to single text/title", e)
-        cta = {"type": s.meta.call_to_action, "value": {"link": s.meta.lead_destination.link_url}}
-        vdata = {"video_id": video_id, "title": titles[0], "message": bodies[0], "call_to_action": cta}
-        if thumb:
-            vdata["image_url"] = thumb
-        story = dict(ident, video_data=vdata)
-        fields = {"name": name, "object_story_spec": story}
-        if s.meta.url_tags:
-            fields["url_tags"] = s.meta.url_tags
-        return g.create_adcreative(acct, **fields)["id"], "single(fallback)"
+        story["instagram_user_id"] = s.meta.instagram_user_id
+    fields = {"name": name, "object_story_spec": story}
+    if s.meta.url_tags:
+        fields["url_tags"] = s.meta.url_tags
+    return g.create_adcreative(acct, **fields)["id"]
 
 
 def main() -> None:
@@ -311,48 +270,64 @@ def main() -> None:
     s.meta.budget.level = "CAMPAIGN"                 # CBO
     s.meta.budget.daily_amount_myr = DAILY_MYR
 
-    # 1) upload the 2 videos + build creatives ONCE (cached in shared state) ───────
-    drive = DriveClient(s.secrets.google_sa_json)
+    # 1) upload (or reuse cached) videos + build single-option creatives ───────────
+    drive = None
     shared_path = STATE_DIR / "entities_ctest_shared.json"
     shared = json.loads(shared_path.read_text()) if shared_path.exists() else {}
+    videos_cache: Dict[str, Dict[str, Any]] = shared.get("videos", {})
     creatives: Dict[str, Dict[str, str]] = shared.get("creatives", {})
     for v in VIDEOS:
         if v["key"] in creatives:
             log.info("reuse %s → creative %s (cached)", v["key"], creatives[v["key"]]["creative_id"])
             continue
-        path = drive.download_file(v["drive_id"], Path(f"/tmp/{v['key']}.mp4"))
-        log.info("downloaded %s (%d bytes) → uploading to Meta…", v["key"], path.stat().st_size)
-        video_id = g.upload_video(acct, str(path), name=v["ad_name"])
-        thumb = g.get_video_thumbnail(video_id)
-        cid, mode = make_creative(g, acct, s, v["ad_name"], video_id, thumb, v["bodies"], v["titles"])
-        creatives[v["key"]] = {"video_id": video_id, "creative_id": cid, "mode": mode,
-                               "ad_name": v["ad_name"]}
-        shared["creatives"] = creatives
+        vc = videos_cache.get(v["key"])
+        if vc and vc.get("video_id"):
+            video_id = vc["video_id"]
+            thumb = vc.get("thumb") or g.get_video_thumbnail(video_id)
+            log.info("reuse uploaded %s → video %s", v["key"], video_id)
+        else:
+            if drive is None:
+                drive = DriveClient(s.secrets.google_sa_json)
+            path = drive.download_file(v["drive_id"], Path(f"/tmp/{v['key']}.mp4"))
+            log.info("downloaded %s (%d bytes) → uploading…", v["key"], path.stat().st_size)
+            video_id = g.upload_video(acct, str(path), name=v["ad_name"])
+            thumb = g.get_video_thumbnail(video_id)
+        videos_cache[v["key"]] = {"video_id": video_id, "thumb": thumb}
+        cid = make_single_creative(g, acct, s, v["ad_name"], video_id, thumb, v["message"], v["title"])
+        creatives[v["key"]] = {"video_id": video_id, "creative_id": cid}
+        shared.update({"videos": videos_cache, "creatives": creatives})
         shared_path.parent.mkdir(parents=True, exist_ok=True)
         shared_path.write_text(json.dumps(shared, ensure_ascii=False, indent=2))
-        log.info("  ✔ %s → video %s · creative %s · %s", v["key"], video_id, cid, mode)
+        log.info("  ✔ %s → video %s · creative %s (single text/title)", v["key"], video_id, cid)
 
-    # 2) clone targeting + build each campaign (skeleton) + wire the 2 ads ─────────
-    all_adsets = pull_adsets(g)
-    log.info("pulled %d ad sets across accounts", len(all_adsets))
-
+    # 2) build each campaign (reuse if state already has it) + wire the 2 ads ───────
+    all_adsets: Optional[List[dict]] = None
     summary: List[str] = []
     for camp in CAMPAIGNS:
-        spec, src = clone_targeting(all_adsets, camp["clone"])
-        if spec is None:
-            log.error("!! no ad set like %r to clone — SKIPPING %s", camp["clone"], camp["label"])
-            summary.append(f"  SKIPPED {camp['label']} (no clone source {camp['clone']!r})")
-            continue
-        log.info("── %s ← cloned from %r (age %s-%s · %d detail entries)",
-                 camp["label"], src, spec["age_min"], spec["age_max"],
-                 _richness({"flexible_spec": spec.get("flexible_spec", [])}))
+        st_path = STATE_DIR / f"{camp['state_key']}.json"
+        st = json.loads(st_path.read_text()) if st_path.exists() else {}
+        spec = None
+        if not st.get("adset_id"):                    # fresh campaign → need a cloned targeting spec
+            if all_adsets is None:
+                all_adsets = pull_adsets(g)
+                log.info("pulled %d ad sets across accounts", len(all_adsets))
+            spec, src = clone_targeting(all_adsets, camp["clone"])
+            if spec is None:
+                log.error("!! no ad set like %r to clone — SKIPPING %s", camp["clone"], camp["label"])
+                summary.append(f"  SKIPPED {camp['label']} (no clone source)")
+                continue
+            log.info("── %s ← cloned from %r (age %s-%s · %d detail entries)",
+                     camp["label"], src, spec["age_min"], spec["age_max"],
+                     _richness({"flexible_spec": spec.get("flexible_spec", [])}))
+        else:
+            log.info("── %s reuse campaign %s / adset %s", camp["label"],
+                     st.get("campaign_id"), st.get("adset_id"))
 
         ent = build(g, s, units=[], captions={}, dry_run=False,
                     label=f"{camp['label']} | 1-1-2", state_key=camp["state_key"],
                     adset_name=camp["label"], targeting_override=spec)
         campaign_id, adset_id = ent["campaign_id"], ent["adset_id"]
 
-        st_path = STATE_DIR / f"{camp['state_key']}.json"
         st = json.loads(st_path.read_text()) if st_path.exists() else {}
         built = set(st.get("built_ad_keys", []))
         ad_ids = list(st.get("ad_ids", []))
@@ -362,20 +337,18 @@ def main() -> None:
                 continue
             cid = creatives[v["key"]]["creative_id"]
             ad = g.create_ad(acct, name=v["ad_name"], adset_id=adset_id,
-                             creative={"creative_id": cid}, status="PAUSED",
-                             conversion_domain=conv)
+                             creative={"creative_id": cid}, status="PAUSED", conversion_domain=conv)
             ad_ids.append(ad["id"])
             built.add(v["key"])
             st.update({"campaign_id": campaign_id, "adset_id": adset_id,
                        "ad_ids": ad_ids, "built_ad_keys": sorted(built)})
             st_path.write_text(json.dumps(st, ensure_ascii=False, indent=2))
             log.info("   + ad %s ⟵ %s (%s)", ad["id"], v["ad_name"], cid)
-        summary.append(f"  {camp['label']:26} campaign={campaign_id} adset={adset_id} "
-                       f"ads={len(ad_ids)}")
+        summary.append(f"  {camp['label']:26} campaign={campaign_id} adset={adset_id} ads={len(ad_ids)}")
 
     log.info("═" * 84)
     for k, c in creatives.items():
-        log.info("creative %s: %s (%s)", k, c["creative_id"], c["mode"])
+        log.info("creative %s: %s", k, c["creative_id"])
     for line in summary:
         log.info(line)
     final_summary(
