@@ -2,11 +2,21 @@
   "videos": {
     "video3": {
       "video_id": "1952800642059136",
-      "thumb": null
+      "thumb": "https://scontent-iad3-1.xx.fbcdn.net/v/t15.5256-10/753306365_1053171583843908_2897717420814139449_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=e3495b&_nc_ohc=zC5OcoOBo90Q7kNvwEf2t_l&_nc_oc=AdouEdEN5Eo8byoSJy-XECZNPxMW_bs5PJyLopLoDLdWKx8SKxdlceeGat5a7R_Mmd0&_nc_zt=23&_nc_ht=scontent-iad3-1.xx&edm=AF0wKlEEAAAA&_nc_gid=y335OQ0GvBfKALHl_PWLvA&_nc_tpa=Q5bMBQG0ScNay33L8ttqyK34AM5sAVHM8znZoSnjZ2dsZJbfloZqHjdW5RDndJypZ3i7ywvlxhyCUPjjjQ&oh=00_AQDrld1l7Z6xi1PrfqMVeJGkpmAiMf3FEShSD7eOVx_blQ&oe=6A64BE74"
     },
     "video4": {
       "video_id": "1584372750024654",
-      "thumb": null
+      "thumb": "https://scontent-iad3-1.xx.fbcdn.net/v/t15.5256-10/752638569_1374883007949546_8479047371282058501_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=e3495b&_nc_ohc=XKPW34-z1RAQ7kNvwEEISw3&_nc_oc=Adp05DhzqARilewbr6_RS1XBbpSyLn4_Ywz8Qr84PoJVS2O-zv4LEyJaNi-A1s_uVSw&_nc_zt=23&_nc_ht=scontent-iad3-1.xx&edm=AF0wKlEEAAAA&_nc_gid=wUDblAyrA37-aaPxLly8Cg&_nc_tpa=Q5bMBQGkrecUUOYMvtI-VlXg37LrMc1eRtdVczJIFRu8SXY57vH5EZAGo_QFsNkyNrOX62EuIziOQ1zRGw&oh=00_AQBBlwBTbpeI1l6YR9UZK2tch2xlxFlB6ss0c1g0nqk-og&oe=6A64D3B9"
+    }
+  },
+  "creatives": {
+    "video3": {
+      "video_id": "1952800642059136",
+      "creative_id": "1343018984691564"
+    },
+    "video4": {
+      "video_id": "1584372750024654",
+      "creative_id": "2108783769733691"
     }
   }
 }
