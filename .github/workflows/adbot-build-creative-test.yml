@@ -1,0 +1,38 @@
+name: adbot · Creative-test 1-1-2 build (manual)
+
+# Builds 2 creative-test campaigns PAUSED: [SG] … | Parents 3–17 + Engaged | 1-1-2 and
+# … | Family and Relationships | 1-1-2. Downloads Video 3 + Video 4 from Drive, uploads to
+# Meta, builds FLEXIBLE creatives (multi text + headline options), clones each audience's
+# winning targeting, reuses the 2 creatives across both campaigns. Idempotent — reruns reuse
+# cached video/creative + campaign/adset ids from state/. Operator activates in Ads Manager.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (video/creative/entity ids) back to the branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build creative-test 1-1-2 (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_creative_test_1_1_2.py
+      - name: Persist created entity IDs back to the branch
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist creative-test 1-1-2 entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
