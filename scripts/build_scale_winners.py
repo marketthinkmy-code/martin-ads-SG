@@ -41,6 +41,7 @@ WINNERS = [
     "MAR Video 5: 林書豪 story",              # CPL 56
     "MAR Video 1: 我不会买牛奶",               # CPL 62 — the workhorse (absorbs real budget)
     "Video: 孩子15岁以上还有机会长高吗?",       # CPL 66 (borderline) — account's #1 PAID converter (life 47)
+    "video 1：孩子如果有鼻窦炎",               # proven converter (12 life / 2 sales in 30d) but was fully paused — add to compete
 ]
 
 
