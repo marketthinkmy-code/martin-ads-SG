@@ -1,0 +1,39 @@
+name: adbot · Build 1-1-2 Parents 兴趣定向 (Video 11 + 13) (manual)
+
+# Builds ONE creative-test campaign PAUSED: [SG] … | Parents 兴趣定向 | 1-1-2.
+# Downloads Video 11 (孩子來MC了) + Video 13 (三年前他長了10公分) from Drive, uploads to Meta,
+# builds single text+headline creatives, clones targeting from the "Advantage+ Parents +
+# Engaged" ad set, and runs both videos as 2 ads in ONE ad set (CBO RM100/day). Idempotent —
+# reruns reuse cached video/creative + campaign/adset ids from state/. Operator activates in
+# Ads Manager after review.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (video/creative/entity ids) back to the branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build 1-1-2 Parents 兴趣定向 (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_1_1_2_parents_v11v13.py
+      - name: Persist created entity IDs back to the branch
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist 1-1-2 Parents 兴趣定向 (v11+v13) entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
