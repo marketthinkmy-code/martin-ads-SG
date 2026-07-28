@@ -1,16 +1,17 @@
-"""Build ONE 1-1-3 creative-test campaign on Parents interest targeting — PAUSED.
+"""Build ONE 1-1-4 creative-test campaign on Parents interest targeting — PAUSED.
 
-Campaign: [SG] 儿童长高方程式 | Parents 兴趣定向 | 1-1-3
+Campaign: [SG] 儿童长高方程式 | Parents 兴趣定向 | 1-1-4
   = 1 CBO (RM100/day) + 1 ad set (targeting cloned LIVE from the winning
-    "Advantage+ Parents + Engaged" ad set, forced to SG) + 3 NEW video ads
+    "Advantage+ Parents + Engaged" ad set, forced to SG) + 4 NEW video ads
     competing in that ONE ad set:
       · Video 11：孩子來MC了            (初潮 = 长高倒计时 urgency angle)
       · Video 13：三年前他長了10公分     (testimonial / proof angle)
       · Video 14：身高停在小學           (青春期是"机会"不是"保证" · 3 条件角度)
+      · Video 15：不到160慌了           (男孩15岁不到160 · 慌了乱补 = 治标不治本角度)
 
-Idempotent: re-dispatching this after the 1-1-2 build reuses the cached Video 11/13 creatives
-+ the existing campaign/ad set from state, and only uploads + attaches the new Video 14 ad
-(turning the 1-1-2 into a 1-1-3). The campaign is renamed to "| 1-1-3" to match.
+Idempotent: each re-dispatch reuses the cached earlier creatives + the existing campaign/ad
+set from state, and only uploads + attaches the newly-added video ad (this run adds Video 15,
+turning the 1-1-3 into a 1-1-4). The campaign is renamed to "| 1-1-4" to match.
 
 Single text + single headline per ad (Meta treats multi-option text/headline as a
 "Dynamic Creative", which only lives in a dynamic ad set holding exactly ONE ad — mutually
@@ -232,6 +233,67 @@ VIDEO14_MAIN = """⚠️ 孩子已经上中学了，
 
 VIDEO14_TITLE = "孩子上中学，身高还停在小学？｜免费公开课"
 
+VIDEO15_MAIN = """⚠️ 男孩子 15 岁了，身高还不到 160——
+你是不是已经开始慌了？
+
+慌，是正常的。
+但我要告诉你——
+比慌更危险的是：慌了之后，乱做。
+
+🗣️ 有些家长一慌，就开始疯狂买保健品。
+今天看到广告说增高保健品有效，买；
+明天听朋友说花生根汤有效，煲。
+还有些家长，甚至去咨询生长激素注射——
+一个月几千块，打了半年，
+经济负担太重，又停了。
+
+结果呢？
+💔 钱花了，时间也花了，
+孩子的身高，还是不到 160。
+
+你知道问题出在哪吗？
+👉 你一直在「治标」，从来没有「治本」。
+
+15 岁、身高不到 160，
+这不是「缺营养」那么简单的事。
+背后一定有一个根本原因，在卡住孩子的生长：
+
+🥣 也许他的脾胃从小就弱——
+　　吃了很多好东西，身体却吸收不了，等于白吃。
+😴 也许他的睡眠品质长期很差——
+　　打游戏到半夜、课业压力大睡不着，
+　　生长激素分泌的黄金时段，被完全浪费。
+🌿 也许他的体质，在东南亚这种环境下严重失衡——
+　　你不知道，所以只能不停地「加东西」上去，越加越乱。
+
+你要做的，不是「加更多」，
+而是——先找到那个根本原因。
+
+我是马丁药师（台湾执照药师 · 中西医结合背景）。
+这十几年，我陪着近 7,000 个家庭，
+不是叫他们拼命加补品，
+而是先找出卡住孩子生长的「根」，再对症调理。
+
+这星期，我会开一场免费线上公开课——
+📘《儿童长高方程式》
+
+课堂上你会了解：
+📍 为什么保健品、汤方一直换，孩子却还是不长
+📍 脾胃、睡眠、体质——哪一个才是你孩子真正的「根」
+📍 15 岁以上的孩子，还有没有机会、又该怎么抓
+
+家里有 15 岁以上孩子的爸妈，
+✅ 这堂课你一定要看完——别再用「加更多」赌他最后的身高。
+
+⏰ 名额有限，坐满即止。
+
+👇 点击下方链接，立即免费报名《儿童长高方程式》
+
+慌，没有用；乱做，更危险。
+先找到根本原因，才是真正帮到孩子。"""
+
+VIDEO15_TITLE = "男孩15岁还不到160，别再乱补了｜免费公开课"
+
 VIDEOS = [
     {"key": "video11", "drive_id": "17EC5vCjPQBbs7tPIbPg8RKfXsGUkbnZx",
      "ad_name": "Video 11：孩子來MC了", "message": VIDEO11_MAIN, "title": VIDEO11_TITLE},
@@ -239,6 +301,8 @@ VIDEOS = [
      "ad_name": "Video 13：三年前他長了10公分", "message": VIDEO13_MAIN, "title": VIDEO13_TITLE},
     {"key": "video14", "drive_id": "16FJbD3oCzmKLCosjRZ760r8qOpq_2Xzu",
      "ad_name": "Video 14：身高停在小學", "message": VIDEO14_MAIN, "title": VIDEO14_TITLE},
+    {"key": "video15", "drive_id": "15dxn6BGkWblgZ1OtibXqFuRIeD3hoHaa",
+     "ad_name": "Video 15：不到160慌了", "message": VIDEO15_MAIN, "title": VIDEO15_TITLE},
 ]
 
 
@@ -365,13 +429,13 @@ def main() -> None:
         log.info("── reuse campaign %s / adset %s", st.get("campaign_id"), st.get("adset_id"))
 
     ent = build(g, s, units=[], captions={}, dry_run=False,
-                label=f"{ADSET_NAME} | 1-1-3", state_key=STATE_KEY,
+                label=f"{ADSET_NAME} | 1-1-4", state_key=STATE_KEY,
                 adset_name=ADSET_NAME, targeting_override=spec)
     campaign_id, adset_id = ent["campaign_id"], ent["adset_id"]
 
     # reused campaigns keep their original name (build never renames), so bump the live
-    # campaign to "| 1-1-3" now that a 3rd ad joins. Setting the same name is a harmless no-op.
-    new_name = s.naming.campaign_name(f"{ADSET_NAME} | 1-1-3")
+    # campaign to "| 1-1-4" now that a 4th ad joins. Setting the same name is a harmless no-op.
+    new_name = s.naming.campaign_name(f"{ADSET_NAME} | 1-1-4")
     g._request("POST", campaign_id, data={"name": new_name})
     log.info("campaign %s name → %s", campaign_id, new_name)
 
@@ -397,9 +461,9 @@ def main() -> None:
         log.info("creative %s: %s", k, c["creative_id"])
     log.info("campaign=%s  adset=%s  ads=%d", campaign_id, adset_id, len(ad_ids))
     final_summary(
-        log, f"1-1-3 built PAUSED (CBO RM{DAILY_MYR}/day): Video 11 + Video 13 + Video 14 on "
+        log, f"1-1-4 built PAUSED (CBO RM{DAILY_MYR}/day): Video 11 + 13 + 14 + 15 on "
              f"'{ADSET_NAME}' (cloned from {CLONE_SOURCE!r}; Advantage+ audience ON per operator). "
-             f"Review Video 14 copy, set age 35+ / placements in Ads Manager, then activate.")
+             f"Review Video 15 copy, set age 35+ / placements in Ads Manager, then activate.")
 
 
 if __name__ == "__main__":
