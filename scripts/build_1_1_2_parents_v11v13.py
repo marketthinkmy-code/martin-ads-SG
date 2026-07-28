@@ -1,11 +1,16 @@
-"""Build ONE 1-1-2 creative-test campaign on Parents interest targeting — PAUSED.
+"""Build ONE 1-1-3 creative-test campaign on Parents interest targeting — PAUSED.
 
-Campaign: [SG] 儿童长高方程式 | Parents 兴趣定向 | 1-1-2
+Campaign: [SG] 儿童长高方程式 | Parents 兴趣定向 | 1-1-3
   = 1 CBO (RM100/day) + 1 ad set (targeting cloned LIVE from the winning
-    "Advantage+ Parents + Engaged" ad set, forced to SG) + 2 NEW video ads
+    "Advantage+ Parents + Engaged" ad set, forced to SG) + 3 NEW video ads
     competing in that ONE ad set:
       · Video 11：孩子來MC了            (初潮 = 长高倒计时 urgency angle)
       · Video 13：三年前他長了10公分     (testimonial / proof angle)
+      · Video 14：身高停在小學           (青春期是"机会"不是"保证" · 3 条件角度)
+
+Idempotent: re-dispatching this after the 1-1-2 build reuses the cached Video 11/13 creatives
++ the existing campaign/ad set from state, and only uploads + attaches the new Video 14 ad
+(turning the 1-1-2 into a 1-1-3). The campaign is renamed to "| 1-1-3" to match.
 
 Single text + single headline per ad (Meta treats multi-option text/headline as a
 "Dynamic Creative", which only lives in a dynamic ad set holding exactly ONE ad — mutually
@@ -169,11 +174,71 @@ VIDEO13_MAIN = """📈 三年前，有个孩子长高了 10 公分。
 
 VIDEO13_TITLE = "三年长高10公分，不是运气｜免费公开课"
 
+VIDEO14_MAIN = """⚠️ 孩子已经上中学了，
+身高却还停在小学的水平——你要注意了。
+
+别再安慰自己「等青春期一到，他自然就会长」。
+
+这些年在东南亚，我见过太多这样的孩子：
+🗣️ 小学毕业 140 几公分，想说「还好，等发育就追上了」。
+
+结果上了中学，一年、两年、三年，
+身高几乎没动。📉
+同学一个个在飙高，
+你的孩子站在旁边，还是小学时候的样子。
+
+你有没有想过，为什么？
+
+👉 很多家长以为，青春期一到，孩子自然会长高。
+但事实是——
+青春期是长高的「机会」，不是「保证」。
+
+孩子是进入青春期了，
+但身体如果不具备长高的条件，
+机会来了，也一样抓不住。
+
+什么叫「条件」？三个关键👇
+
+🥣 脾胃功能正常——吃进去的营养，身体真的吸收得到。
+😴 睡眠品质好——进入深睡，生长激素才会大量分泌。
+🌿 体质没有失衡——东南亚这种气候，孩子长期喝冰饮、吃奶制品，
+　　体质很容易偏湿偏热，这会直接拖慢骨骼的生长速度。
+
+这三个条件，缺任何一个，
+青春期的长高机会，就这样被浪费掉了。💔
+
+我是马丁药师（台湾执照药师 · 中西医结合背景）。
+这十几年，我陪着近 7,000 个家庭，
+先帮孩子把脾胃、睡眠、体质调理好，
+再用最健康的方式，一年年把身高追上来。
+
+这星期，我会开一场免费线上公开课——
+📘《儿童长高方程式》
+
+课堂上你会了解：
+📍 为什么孩子进了青春期，身高却还是不动
+📍 脾胃、睡眠、体质这三个「长高条件」，怎么判断哪个卡住了
+📍 东南亚气候下，孩子的饮食与体质该怎么调
+
+如果你的孩子已经上中学，身高却还追不上同学——
+✅ 别再等了，先搞懂他到底卡在哪。
+
+⏰ 名额有限，坐满即止。
+
+👇 点击下方链接，立即免费报名《儿童长高方程式》
+
+青春期的窗口就那几年，
+机会来了，得先让孩子的身体接得住。"""
+
+VIDEO14_TITLE = "孩子上中学，身高还停在小学？｜免费公开课"
+
 VIDEOS = [
     {"key": "video11", "drive_id": "17EC5vCjPQBbs7tPIbPg8RKfXsGUkbnZx",
      "ad_name": "Video 11：孩子來MC了", "message": VIDEO11_MAIN, "title": VIDEO11_TITLE},
     {"key": "video13", "drive_id": "1VCbh8D55mDlMz78D1l9CQvusAp1gLNCC",
      "ad_name": "Video 13：三年前他長了10公分", "message": VIDEO13_MAIN, "title": VIDEO13_TITLE},
+    {"key": "video14", "drive_id": "16FJbD3oCzmKLCosjRZ760r8qOpq_2Xzu",
+     "ad_name": "Video 14：身高停在小學", "message": VIDEO14_MAIN, "title": VIDEO14_TITLE},
 ]
 
 
@@ -300,9 +365,15 @@ def main() -> None:
         log.info("── reuse campaign %s / adset %s", st.get("campaign_id"), st.get("adset_id"))
 
     ent = build(g, s, units=[], captions={}, dry_run=False,
-                label=f"{ADSET_NAME} | 1-1-2", state_key=STATE_KEY,
+                label=f"{ADSET_NAME} | 1-1-3", state_key=STATE_KEY,
                 adset_name=ADSET_NAME, targeting_override=spec)
     campaign_id, adset_id = ent["campaign_id"], ent["adset_id"]
+
+    # reused campaigns keep their original name (build never renames), so bump the live
+    # campaign to "| 1-1-3" now that a 3rd ad joins. Setting the same name is a harmless no-op.
+    new_name = s.naming.campaign_name(f"{ADSET_NAME} | 1-1-3")
+    g._request("POST", campaign_id, data={"name": new_name})
+    log.info("campaign %s name → %s", campaign_id, new_name)
 
     st = json.loads(st_path.read_text()) if st_path.exists() else {}
     built = set(st.get("built_ad_keys", []))
@@ -326,9 +397,9 @@ def main() -> None:
         log.info("creative %s: %s", k, c["creative_id"])
     log.info("campaign=%s  adset=%s  ads=%d", campaign_id, adset_id, len(ad_ids))
     final_summary(
-        log, f"1-1-2 built PAUSED (CBO RM{DAILY_MYR}/day): Video 11 + Video 13 on '{ADSET_NAME}' "
-             f"(cloned from {CLONE_SOURCE!r}). Review copy, set age 35+ / placements + confirm the "
-             f"Advantage+-audience toggle in Ads Manager, then activate.")
+        log, f"1-1-3 built PAUSED (CBO RM{DAILY_MYR}/day): Video 11 + Video 13 + Video 14 on "
+             f"'{ADSET_NAME}' (cloned from {CLONE_SOURCE!r}; Advantage+ audience ON per operator). "
+             f"Review Video 14 copy, set age 35+ / placements in Ads Manager, then activate.")
 
 
 if __name__ == "__main__":
