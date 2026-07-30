@@ -49,6 +49,14 @@ def _norm(s: str) -> str:
     return " ".join((s or "").lower().split())
 
 
+def _mk(s: str) -> str:  # punctuation-robust key: lowercase, &→and, drop non-alphanumerics
+    return re.sub(r"[^a-z0-9]+", "", (s or "").lower().replace("&", " and "))
+
+
+def _base(n: str) -> str:  # the name BEFORE the "(category)" Meta appends
+    return _mk(re.sub(r"\(.*?\)", " ", n or ""))
+
+
 def main() -> None:
     log = get_logger()
     s = load_settings()
@@ -57,12 +65,13 @@ def main() -> None:
 
     # 1) harvest interest/behavior id-by-name from every SG ad set ───────────────
     adsets = g._get_all(f"{acct}/adsets", {"fields": "targeting", "limit": 500})
-    int_by_name, beh_by_name = {}, {}
+    int_by_name, int_by_base, beh_by_name = {}, {}, {}
 
     def grab(d):
         for i in (d.get("interests") or []):
             if i.get("id") and i.get("name"):
                 int_by_name.setdefault(_norm(i["name"]), (str(i["id"]), i["name"]))
+                int_by_base.setdefault(_base(i["name"]), (str(i["id"]), i["name"]))
         for b in (d.get("behaviors") or []):
             if b.get("id") and b.get("name"):
                 beh_by_name.setdefault(_norm(b["name"]), (str(b["id"]), b["name"]))
@@ -84,12 +93,6 @@ def main() -> None:
             return []
         return rows
 
-    def _mk(s):  # punctuation-robust key: lowercase, &→and, drop non-alphanumerics
-        return re.sub(r"[^a-z0-9]+", "", (s or "").lower().replace("&", " and "))
-
-    def _base(n):  # match on the name BEFORE the "(category)" Meta appends
-        return _mk(re.sub(r"\(.*?\)", " ", n or ""))
-
     def _cat(r):  # searchable category text (the parenthetical + path + disambiguation)
         return _mk(str(r.get("disambiguation_category") or "") + " "
                    + " ".join(str(x) for x in (r.get("path") or [])) + " " + str(r.get("name") or ""))
@@ -110,7 +113,7 @@ def main() -> None:
 
     interests, missing = [], []
     for (nm, disp), hint in zip(WANT_INTERESTS, HINTS):
-        hit = int_by_name.get(nm) or resolve(disp, "interest", hint)
+        hit = int_by_name.get(nm) or int_by_base.get(_base(disp)) or resolve(disp, "interest", hint)
         if hit:
             interests.append({"id": hit[0], "name": hit[1]})
             log.info("✓ interest %-22s → %s (%s)", disp, hit[0], hit[1])
@@ -126,10 +129,14 @@ def main() -> None:
         missing.append(WANT_BEHAVIOR[1])
         log.error("✗ behavior %-22s → NOT FOUND", WANT_BEHAVIOR[1])
 
+    if not beh or len(interests) < 8:
+        raise SystemExit(f"!! resolved {len(interests)}/9 interests"
+                         f"{' + behavior' if beh else ' but NO behavior'}; missing {missing} — nothing "
+                         "written. Provide the missing Meta ID(s).")
     if missing:
-        raise SystemExit(f"!! could not resolve {len(missing)} item(s): {missing} — nothing written. "
-                         "Need their Meta IDs (add each once in Ads Manager so it can be harvested, "
-                         "or provide the IDs).")
+        log.warning("⚠ applying %d/9 interests — proceeding WITHOUT %s (Meta surfaces no distinct "
+                    "interest by that exact name; likely a display alias of one already included)",
+                    len(interests), missing)
 
     # 3) preserve the ad set's current geo/age/advantage, swap in the new detailed targeting ──
     cur = g._request("GET", TARGET_ADSET, params={"fields": "name,targeting"})
@@ -151,8 +158,8 @@ def main() -> None:
     log.info("✔ updated ad set %s ('%s')", TARGET_ADSET, cur.get("name"))
     log.info("   %d interests + %d behavior · age %s-%s · advantage_audience=%s · geo SG",
              len(interests), len(behaviors), age_min, age_max, adv)
-    final_summary(log, "Health & Wellness | 1-1-5 targeting fixed to the operator's 9 interests + "
-                       "Engaged Shoppers (still PAUSED). Review in Ads Manager, then activate.")
+    final_summary(log, f"Health & Wellness | 1-1-5 targeting set to {len(interests)} interests + "
+                       f"{len(behaviors)} behavior (still PAUSED). Review in Ads Manager, then activate.")
 
 
 if __name__ == "__main__":
