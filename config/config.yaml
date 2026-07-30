@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # adbot — non-secret operator config for martin-ads-SG
-# Brand: Martin SG ·《儿童长高方程式》· 馬丁藥師 (kids-growth conditioning course)
+# Brand: Martin SG ·《儿童长高方程式》· 馬丁醫師 (kids-growth conditioning course)
 # Secrets live in .env (see .env.example).  `python -m adbot doctor` validates this file.
 #
 # 1:1 clone of martin-ads-MY for the Singapore market. Code, guardrails and cron
@@ -17,7 +17,7 @@
 meta:
   ad_account_id: "act_1024930575770087"    # Martin SG ad account (SG-specific)
   page_id: "341825319024143"               # FB Page the ads run under (SHARED with MY — must be accessible to the SG ad account)
-  instagram_user_id: null                  # IG placements run via the 马丁药师 Page's linked IG (same as MY). Set an IG user id once it is assigned to this ad account.
+  instagram_user_id: null                  # IG placements run via the 马丁医师 Page's linked IG (same as MY). Set an IG user id once it is assigned to this ad account.
   pixel_id: "1189593242351293"             # pixel / dataset id (SHARED with MY — must be shared to the SG ad account in Business Settings, else build fails)
 
   objective: "OUTCOME_SALES"             # cloned from MY

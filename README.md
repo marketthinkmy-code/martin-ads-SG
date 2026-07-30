@@ -1,6 +1,6 @@
 # martin-ads-SG — Meta Ads Automation (adbot)
 
-Hands-off Meta (Facebook/Instagram) advertising for **Martin SG /《儿童长高方程式》** (馬丁藥師
+Hands-off Meta (Facebook/Instagram) advertising for **Martin SG /《儿童长高方程式》** (馬丁醫師
 kids-growth course · Singapore market), run in the cloud and monitored from the Claude mobile app.
 A 1:1 clone of martin-ads-MY — code, guardrails and cron schedules are unchanged; only
 `config/config.yaml`, `config/audience.md` and `prompts/` carry the SG-specific values.
