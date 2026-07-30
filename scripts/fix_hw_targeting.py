@@ -16,6 +16,8 @@ the resolved id→name map for verification.
 """
 from __future__ import annotations
 
+import re
+
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
@@ -82,18 +84,28 @@ def main() -> None:
             return []
         return rows
 
-    def _cat(r):
-        return _norm(str(r.get("disambiguation_category") or "") + " " + " ".join(r.get("path") or []))
+    def _mk(s):  # punctuation-robust key: lowercase, &→and, drop non-alphanumerics
+        return re.sub(r"[^a-z0-9]+", "", (s or "").lower().replace("&", " and "))
+
+    def _base(n):  # match on the name BEFORE the "(category)" Meta appends
+        return _mk(re.sub(r"\(.*?\)", " ", n or ""))
+
+    def _cat(r):  # searchable category text (the parenthetical + path + disambiguation)
+        return _mk(str(r.get("disambiguation_category") or "") + " "
+                   + " ".join(str(x) for x in (r.get("path") or [])) + " " + str(r.get("name") or ""))
 
     def resolve(disp, want_kind, hint=""):
         raw = ts_search(disp)
-        named = [r for r in raw if _norm(r.get("name")) == _norm(disp)]
-        typed = [r for r in named if _norm(str(r.get("type") or "")).startswith(want_kind)] or named
-        log.info("   targetingsearch %-20s → %d raw / %d name / %d typed", disp, len(raw), len(named), len(typed))
-        if not typed:
+        typed = [r for r in raw if _norm(str(r.get("type") or "")).startswith(want_kind)] or raw
+        cands = [r for r in typed if _base(r.get("name")) == _mk(disp)]
+        log.info("   targetingsearch %-20s → %d raw / %d base-name match", disp, len(raw), len(cands))
+        if not cands:
+            for r in typed[:5]:
+                log.info("      cand '%s' [%s]", r.get("name"), r.get("id"))
             return None
-        best = (next((r for r in typed if hint and hint in _cat(r)), None)
-                or max(typed, key=lambda r: r.get("audience_size_upper_bound") or r.get("audience_size") or 0))
+        hk = _mk(hint)
+        best = (next((r for r in cands if hk and hk in _cat(r)), None)
+                or max(cands, key=lambda r: r.get("audience_size_upper_bound") or r.get("audience_size") or 0))
         return (str(best["id"]), best["name"])
 
     interests, missing = [], []
