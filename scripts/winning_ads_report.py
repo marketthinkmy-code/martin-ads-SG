@@ -80,8 +80,10 @@ def main() -> None:
         return {r.get(idkey): _f(r.get("spend")) for r in rows}
 
     camp_splife = spend_map("campaign", "campaign_id", preset="maximum")
+    ad_sp30 = spend_map("ad", "ad_id", preset="last_30d")
     ad_sp60 = spend_map("ad", "ad_id", tr={"since": d60, "until": until})
     ad_splife = spend_map("ad", "ad_id", preset="maximum")
+    adset_sp30 = spend_map("adset", "adset_id", preset="last_30d")
     adset_sp60 = spend_map("adset", "adset_id", tr={"since": d60, "until": until})
     adset_splife = spend_map("adset", "adset_id", preset="maximum")
 
@@ -135,24 +137,25 @@ def main() -> None:
         life, n60, n30 = windows_of(grp)
         prov = sum(1 for x in grp if is_distinct_sale(x))
         ids = sg_ad_ids_by_key.get(k, [])
+        sp30 = sum(ad_sp30.get(i, 0.0) for i in ids)
         sp60 = sum(ad_sp60.get(i, 0.0) for i in ids)
         splife = sum(ad_splife.get(i, 0.0) for i in ids)
         st = sg_ad_status_by_key.get(k, set())
         live = "ACTIVE" if "ACTIVE" in st else ("PAUSED" if st else "not-in-SG")
         ad_rows.append({"name": sg_ad_name_by_key.get(k) or grp[0].ad, "live": live,
                         "life": life, "n60": n60, "n30": n30, "prov": prov,
-                        "sp60": sp60, "splife": splife,
-                        "cpa60": cpa.cpa(sp60, n60), "cpalife": cpa.cpa(splife, life)})
-    top_ads = sorted(ad_rows, key=lambda r: (-r["life"], -r["n60"], (r["cpa60"] or math.inf)))
+                        "sp30": sp30, "sp60": sp60, "splife": splife,
+                        "cpa30": cpa.cpa(sp30, n30), "cpa60": cpa.cpa(sp60, n60)})
+    top_ads = sorted(ad_rows, key=lambda r: (-r["n30"], -r["n60"], (r["cpa30"] or math.inf)))
 
     print("═" * 94)
-    print("TOP 5 SG ADS  — ranked by SG paid sales (life);  CPA = real SG spend ÷ SG sales")
+    print("TOP 5 SG ADS — last 30 DAYS  (ranked by 30d SG sales;  CPA = 30d SG spend ÷ 30d sales)")
     print("═" * 94)
     for i, r in enumerate(top_ads[:5], 1):
         tag = "✅provably-SG" if r["prov"] == r["life"] else f"⚠️{r['prov']}/{r['life']} provably-SG"
         print(f"{i}. {r['name'][:56]}   [{r['live']}]  {tag}")
-        print(f"     sales life {r['life']} · 60d {r['n60']} · 30d {r['n30']}    "
-              f"SG spend 60d RM{r['sp60']:.0f} → CPA {_s(r['cpa60'])}   ·   life CPA {_s(r['cpalife'])}")
+        print(f"     30d: {r['n30']} sale · RM{r['sp30']:.0f} → CPA {_s(r['cpa30'])}    "
+              f"|  60d {r['n60']} (CPA {_s(r['cpa60'])}) · life {r['life']}")
 
     # ── TOP 3 SG AD SETS ────────────────────────────────────────────────────────
     by_adset = defaultdict(list)
@@ -163,29 +166,29 @@ def main() -> None:
         life, n60, n30 = windows_of(grp)
         prov = sum(1 for x in grp if is_distinct_sale(x))
         ids = sg_adset_ids_by_tuple.get(tk, [])
+        sp30 = sum(adset_sp30.get(i, 0.0) for i in ids)
         sp60 = sum(adset_sp60.get(i, 0.0) for i in ids)
-        splife = sum(adset_splife.get(i, 0.0) for i in ids)
         disp = sg_adset_disp.get(tk)
         name = disp[0] if disp else (grp[0].adset or "∅")
         camp = disp[1] if disp else (grp[0].campaign or "∅")
         live = "🟢LIVE" if "ACTIVE" in sg_adset_status_by_tuple.get(tk, set()) else "🔴paused"
         adset_rows.append({"adset": name, "camp": camp, "live": live, "life": life, "n60": n60,
-                          "n30": n30, "prov": prov, "sp60": sp60, "splife": splife,
-                          "cpa60": cpa.cpa(sp60, n60), "cpalife": cpa.cpa(splife, life)})
-    top_adsets = sorted(adset_rows, key=lambda r: (-r["life"], -r["n60"], (r["cpa60"] or math.inf)))
+                          "n30": n30, "prov": prov, "sp30": sp30, "sp60": sp60,
+                          "cpa30": cpa.cpa(sp30, n30), "cpa60": cpa.cpa(sp60, n60)})
+    top_adsets = sorted(adset_rows, key=lambda r: (-r["n30"], -r["n60"], (r["cpa30"] or math.inf)))
 
     print("\n" + "═" * 94)
-    print("TOP 3 SG AD SETS  — ranked by SG paid sales (life)  ·  🟢LIVE = running now / 🔴paused")
+    print("TOP 3 SG AD SETS — last 30 DAYS  (ranked by 30d SG sales)  ·  🟢LIVE now / 🔴paused")
     print("═" * 94)
     for i, r in enumerate(top_adsets[:3], 1):
         tag = "✅provably-SG" if r["prov"] == r["life"] else f"⚠️{r['prov']}/{r['life']} provably-SG"
         print(f"{i}. [{r['live']}] {r['adset'][:44]}  ·  {r['camp'][:38]}   {tag}")
-        print(f"     sales life {r['life']} · 60d {r['n60']} · 30d {r['n30']}    "
-              f"ad-set spend 60d RM{r['sp60']:.0f} → CPA {_s(r['cpa60'])}   ·   life CPA {_s(r['cpalife'])}")
+        print(f"     30d: {r['n30']} sale · RM{r['sp30']:.0f} → CPA {_s(r['cpa30'])}    "
+              f"|  60d {r['n60']} (CPA {_s(r['cpa60'])}) · life {r['life']}")
 
     # ── PROVABLY-SG only (hard floor, [SG]/MARTIN-SG campaigns) ──────────────────
     print("\n" + "═" * 94)
-    print("PROVABLY-SG ONLY — ads under [SG]/MARTIN-SG campaigns (zero MY overlap possible)")
+    print("PROVABLY-SG ONLY — ads under [SG]/MARTIN-SG campaigns, by 30d sales (zero MY overlap)")
     print("═" * 94)
     by_ad_p = defaultdict(list)
     for x in distinct_sales:
@@ -196,14 +199,13 @@ def main() -> None:
     for k, grp in by_ad_p.items():
         life, n60, n30 = windows_of(grp)
         ids = sg_ad_ids_by_key.get(k, [])
-        sp60 = sum(ad_sp60.get(i, 0.0) for i in ids)
+        sp30 = sum(ad_sp30.get(i, 0.0) for i in ids)
         prov_rows.append({"name": sg_ad_name_by_key.get(k) or grp[0].ad,
-                         "life": life, "n60": n60, "n30": n30, "cpa60": cpa.cpa(sp60, n60)})
+                         "life": life, "n60": n60, "n30": n30, "cpa30": cpa.cpa(sp30, n30)})
     if not prov_rows:
         print("  (no sales yet under an SG-distinctively-named campaign)")
-    for i, r in enumerate(sorted(prov_rows, key=lambda r: (-r["life"], -r["n60"]))[:8], 1):
-        print(f"{i}. {r['name'][:56]:56} life {r['life']:>3} · 60d {r['n60']:>2} · 30d {r['n30']:>2} "
-              f"· 60d CPA {_s(r['cpa60'])}")
+    for i, r in enumerate(sorted(prov_rows, key=lambda r: (-r["n30"], -r["n60"], -r["life"]))[:8], 1):
+        print(f"{i}. {r['name'][:54]:54} 30d {r['n30']:>2} (CPA {_s(r['cpa30']):>4}) · 60d {r['n60']:>2} · life {r['life']:>3}")
 
 
 if __name__ == "__main__":
