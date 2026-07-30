@@ -1,0 +1,28 @@
+name: adbot · Winning ads + ad sets report (manual)
+
+# Read-only. Ranks SG winning ads + ad sets by REAL paid sales from the latest Paid Student
+# List, attributed via each sale's UTM (campaign/ad-set/ad) and isolated to the SG account.
+# Prints top 5 ads + top 3 ad sets (with spend→CPA) plus a whole-sheet by-name cross-check.
+# Writes nothing to Meta or the repo.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Winning ads + ad sets report
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/winning_ads_report.py
