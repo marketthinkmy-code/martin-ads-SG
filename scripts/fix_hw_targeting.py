@@ -35,6 +35,9 @@ WANT_INTERESTS = [
     ("wellness", "Wellness"),
 ]
 WANT_BEHAVIOR = ("engaged shoppers", "Engaged Shoppers")
+# disambiguation hint per interest (the parenthetical category in the screenshot), same order
+HINTS = ["toiletries", "personal care", "retail", "fitness", "retail",
+         "beauty", "fitness", "psychology", "personal care"]
 
 SG_GEO = {"countries": ["SG"]}
 SG_EXCL = [{"id": "120226672882380093"}, {"id": "120246547080720093"}]
@@ -70,20 +73,32 @@ def main() -> None:
     log.info("harvested %d interests + %d behaviors from %d SG ad sets",
              len(int_by_name), len(beh_by_name), len(adsets))
 
-    # 2) targeting-search fallback for anything not harvested ────────────────────
-    def search(kind, q):
+    # 2) act_/targetingsearch (what Ads Manager uses) for anything not harvested ──
+    def ts_search(q):
         try:
-            rows = g._request("GET", "search", params={"type": kind, "q": q, "limit": 50}).get("data", [])
+            rows = g._request("GET", f"{acct}/targetingsearch", params={"q": q, "limit": 100}).get("data", [])
         except Exception as e:  # noqa: BLE001
-            log.warning("   search(%s,%r) failed: %s", kind, q, e)
+            log.warning("   targetingsearch(%r) failed: %s", q, e)
+            return []
+        return rows
+
+    def _cat(r):
+        return _norm(str(r.get("disambiguation_category") or "") + " " + " ".join(r.get("path") or []))
+
+    def resolve(disp, want_kind, hint=""):
+        raw = ts_search(disp)
+        named = [r for r in raw if _norm(r.get("name")) == _norm(disp)]
+        typed = [r for r in named if _norm(str(r.get("type") or "")).startswith(want_kind)] or named
+        log.info("   targetingsearch %-20s → %d raw / %d name / %d typed", disp, len(raw), len(named), len(typed))
+        if not typed:
             return None
-        exact = [r for r in rows if _norm(r.get("name")) == _norm(q)]
-        pick = max(exact or rows, key=lambda r: r.get("audience_size_upper_bound", r.get("audience_size", 0) or 0), default=None)
-        return (str(pick["id"]), pick["name"]) if pick and _norm(pick.get("name")) == _norm(q) else None
+        best = (next((r for r in typed if hint and hint in _cat(r)), None)
+                or max(typed, key=lambda r: r.get("audience_size_upper_bound") or r.get("audience_size") or 0))
+        return (str(best["id"]), best["name"])
 
     interests, missing = [], []
-    for nm, disp in WANT_INTERESTS:
-        hit = int_by_name.get(nm) or search("adinterest", disp)
+    for (nm, disp), hint in zip(WANT_INTERESTS, HINTS):
+        hit = int_by_name.get(nm) or resolve(disp, "interest", hint)
         if hit:
             interests.append({"id": hit[0], "name": hit[1]})
             log.info("✓ interest %-22s → %s (%s)", disp, hit[0], hit[1])
@@ -91,8 +106,7 @@ def main() -> None:
             missing.append(disp)
             log.error("✗ interest %-22s → NOT FOUND", disp)
 
-    beh = beh_by_name.get(WANT_BEHAVIOR[0]) or search("adTargetingCategory", WANT_BEHAVIOR[1]) \
-        or search("adbehavior", WANT_BEHAVIOR[1])
+    beh = beh_by_name.get(WANT_BEHAVIOR[0]) or resolve(WANT_BEHAVIOR[1], "behavior")
     behaviors = [{"id": beh[0], "name": beh[1]}] if beh else []
     if beh:
         log.info("✓ behavior %-22s → %s (%s)", WANT_BEHAVIOR[1], beh[0], beh[1])
