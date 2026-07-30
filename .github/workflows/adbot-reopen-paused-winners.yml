@@ -1,0 +1,26 @@
+name: adbot · Reopen paused winners (manual)
+
+# LIVE writes approved 2026-07-30: reactivate the 3 cheap paused SG winners
+# (Video 8（1）新马版牛奶迷思 · Hook 7 担心孩子的高度 · Hook 3 准备早餐面包). Only copies that are
+# PAUSED under an effectively-ACTIVE ad set are reopened (so they actually deliver); anything
+# under a paused parent is reported, not touched. One-shot dispatch.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Reopen paused winners
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/reopen_paused_winners.py
