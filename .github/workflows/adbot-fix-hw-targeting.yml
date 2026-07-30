@@ -1,0 +1,25 @@
+name: adbot · Fix Health & Wellness 1-1-5 targeting (manual)
+
+# LIVE write 2026-07-30: overwrite the Health & Wellness | 1-1-5 ad set's detailed targeting
+# with the operator's exact 9 interests + Engaged Shoppers (IDs resolved from the account's own
+# ad sets, targeting-search fallback). Keeps SG geo/exclusions/age/advantage. One-shot.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Fix H&W targeting
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/fix_hw_targeting.py
