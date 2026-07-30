@@ -104,11 +104,13 @@ def main() -> None:
         sg_ad_status_by_key[k].add(a.get("effective_status"))
     sg_adset_ids_by_tuple = defaultdict(list)
     sg_adset_disp = {}
+    sg_adset_status_by_tuple = defaultdict(set)
     for a in adsets:
         cname = camp_by_id.get(a.get("campaign_id"), {}).get("name", "")
         tk = (ad_key(cname), ad_key(a.get("name")))
         sg_adset_ids_by_tuple[tk].append(a["id"])
         sg_adset_disp.setdefault(tk, (a.get("name"), cname))
+        sg_adset_status_by_tuple[tk].add(a.get("effective_status"))
 
     # ── SG sales = UTM campaign matches an SG campaign that really spent ─────────
     def is_distinct_sale(x):
@@ -166,17 +168,18 @@ def main() -> None:
         disp = sg_adset_disp.get(tk)
         name = disp[0] if disp else (grp[0].adset or "∅")
         camp = disp[1] if disp else (grp[0].campaign or "∅")
-        adset_rows.append({"adset": name, "camp": camp, "life": life, "n60": n60, "n30": n30,
-                          "prov": prov, "sp60": sp60, "splife": splife,
+        live = "🟢LIVE" if "ACTIVE" in sg_adset_status_by_tuple.get(tk, set()) else "🔴paused"
+        adset_rows.append({"adset": name, "camp": camp, "live": live, "life": life, "n60": n60,
+                          "n30": n30, "prov": prov, "sp60": sp60, "splife": splife,
                           "cpa60": cpa.cpa(sp60, n60), "cpalife": cpa.cpa(splife, life)})
     top_adsets = sorted(adset_rows, key=lambda r: (-r["life"], -r["n60"], (r["cpa60"] or math.inf)))
 
     print("\n" + "═" * 94)
-    print("TOP 3 SG AD SETS  — ranked by SG paid sales (life)")
+    print("TOP 3 SG AD SETS  — ranked by SG paid sales (life)  ·  🟢LIVE = running now / 🔴paused")
     print("═" * 94)
     for i, r in enumerate(top_adsets[:3], 1):
         tag = "✅provably-SG" if r["prov"] == r["life"] else f"⚠️{r['prov']}/{r['life']} provably-SG"
-        print(f"{i}. {r['adset'][:46]}  ·  {r['camp'][:40]}   {tag}")
+        print(f"{i}. [{r['live']}] {r['adset'][:44]}  ·  {r['camp'][:38]}   {tag}")
         print(f"     sales life {r['life']} · 60d {r['n60']} · 30d {r['n30']}    "
               f"ad-set spend 60d RM{r['sp60']:.0f} → CPA {_s(r['cpa60'])}   ·   life CPA {_s(r['cpalife'])}")
 
