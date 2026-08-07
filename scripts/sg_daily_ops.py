@@ -150,7 +150,7 @@ def main() -> None:
             print(f"  ❓ {label}: NOT FOUND")
             continue
         tot_sp30 = sum(sp30.get(a["id"], 0.0) for a in matches)
-        tot_sg = sg30.get(ck, 0)
+        tot_sg = sum(v for k2, v in sg30.items() if ck in k2)  # substring match: core phrase inside the full sheet ad-name key
         live = sum(1 for a in matches if a.get("status") == "ACTIVE")
         statuses = ", ".join(f"{a['id'][-6:]}={a.get('status')}" for a in matches)
         print(f"  {label}: {len(matches)} copy(ies), {live} ACTIVE · 30d spend RM{tot_sp30:.0f} · "
