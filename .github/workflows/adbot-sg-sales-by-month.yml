@@ -1,0 +1,25 @@
+name: adbot · SG sales by month (Jun/Jul/Aug, manual)
+
+# Read-only. SG-only paid sales for June/July/August 2026 from the Paid Student List,
+# isolated by phone country code +65 (cross-checked vs the campaign [sg] marker), with the
+# converting ads + campaigns per month. Sheets-only (no Meta calls). Writes nothing.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: SG sales by month
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/sg_sales_by_month.py
