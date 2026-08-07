@@ -1,0 +1,28 @@
+name: adbot · SG daily ops (manual)
+
+# LIVE (Section D only). One run: (A) yesterday's provably-SG paid sales, (B) named
+# reopened-winner status, (C) new-test bucket status, (D) backstop-pause any ACTIVE
+# reg-optimized ad that is ALL FOUR of age>=14d / 30d spend>=RM300 / 0 provably-SG 30d
+# sales / 30d CPL>RM65 (skips Scale-Winners campaigns). Idempotent — only flips ACTIVE ads.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: SG daily ops
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/sg_daily_ops.py
