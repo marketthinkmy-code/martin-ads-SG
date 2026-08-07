@@ -25,7 +25,19 @@ from adbot.clients.sheets import SheetsClient
 from adbot.settings import load_settings
 
 LINKED_GID = 1500782859
-TARGET = [(2026, 6), (2026, 7), (2026, 8)]
+
+
+def _month_back(d: dt.date, n: int):
+    y, m = d.year, d.month - n
+    while m <= 0:
+        m += 12
+        y -= 1
+    return (y, m)
+
+
+# auto-roll: the current month + the 2 prior, computed at run time (reusable month to month)
+_TODAY = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+TARGET = [_month_back(_TODAY, 2), _month_back(_TODAY, 1), (_TODAY.year, _TODAY.month)]
 
 PHONE_HEADERS = (
     "phone", "phonenumber", "phoneno", "mobile", "mobilenumber", "mobileno",
