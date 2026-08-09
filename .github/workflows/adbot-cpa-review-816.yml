@@ -1,0 +1,57 @@
+name: adbot · SG CPA review (scheduled 8/16)
+
+# Durable one-shot-ish review: auto-runs the SG winners CPA + monthly analyses on 16 Aug
+# (02:02 UTC = 10:02 SGT) and posts the combined output to a GitHub issue so the owner is
+# notified even if no Claude session is live. cron has no year field, so it also fires next
+# 16 Aug — harmless; delete this workflow after the 2026 review if unwanted. Manual runs allowed.
+
+on:
+  schedule:
+    - cron: "2 2 16 8 *"      # 16 Aug, 02:02 UTC (10:02 Asia/Singapore)
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Run CPA + monthly analyses
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: |
+          python scripts/sg_winners_cpa.py   > cpa_out.txt   2>&1 || echo "(cpa script failed)"   >> cpa_out.txt
+          python scripts/sg_sales_by_month.py > month_out.txt 2>&1 || echo "(month script failed)" >> month_out.txt
+      - name: Post results to a GitHub issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const read = f => { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return '(no output)'; } };
+            const cpa = read('cpa_out.txt'), mon = read('month_out.txt');
+            const baseline = [
+              '**8/9 基线（用来对比）**',
+              '- blended 60d CPA RM1,112',
+              '- scaled 赢家：新马版牛奶迷思 CPA60 625 / CPA30 184、dec hook 13 663（各在 1-1-5，RM150/天）',
+              '- bleeders：孩子15岁以上 CPA60 1975 / ROAS 1.31、我不会买牛奶 1822 / ROAS 1.42（已降预算：Parents 3–17→RM60、Scale-CBO→RM120）',
+              '- 重开 什麼樣的孩子；Video 12 1-1-1（Family）8/7 启动 RM100/天',
+              '',
+              '**要看**：blended CPA 有没有往 target RM740 走？scaled 赢家有没有多出单？被降的 bleeders 花费/CPA 有没有改善？Video 12 有没有成交？→ ping Claude 做完整解读 + 下一步 scale/关/开 建议。',
+            ].join('\n');
+            const body = `## 🇸🇬 SG CPA 复查 · 8/16（自动生成）\n\n${baseline}\n\n---\n### SG winners CPA\n\`\`\`\n${cpa}\n\`\`\`\n\n### SG sales by month\n\`\`\`\n${mon}\n\`\`\`\n`;
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `SG CPA 复查 · ${new Date().toISOString().slice(0,10)}`, body,
+            });
