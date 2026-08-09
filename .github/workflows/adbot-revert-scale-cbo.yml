@@ -1,0 +1,27 @@
+name: adbot · Revert Scale-CBO to RM200 + inspect (manual)
+
+# LIVE (one budget write). Restores the Scale-CBO campaign budget to RM200 (undo the earlier
+# -40% throttle) to protect its ads, and prints every ad in it with 7d CPL + 60d SG ROAS so the
+# operator can see what's there. Hyphen-robust campaign match. Writes nothing to the repo.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Revert Scale-CBO + inspect
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/revert_scale_cbo.py
