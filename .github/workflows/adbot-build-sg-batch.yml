@@ -1,0 +1,44 @@
+name: adbot · Build SG creative batch (18 ads, manual)
+
+# LIVE build. Creates 6 CBO campaigns (RM60/day each) + 6 ad sets + 18 ads in the SG account,
+# all PAUSED (config activate_after_build:false) — nothing spends until you activate in Ads Manager.
+# Assets ship from the repo (assets/sg_batch/**), so no Drive sharing is involved.
+#
+# Idempotent: media uploads are cached in state/media_cache.json and each group's ids live in its
+# own state file, so a re-dispatch reuses everything instead of duplicating. If Meta rate-limits
+# mid-run (error code 17), just re-dispatch — optionally set `groups` to redo only what failed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      groups:
+        description: "Comma-separated group keys to build (blank = all). a_knowledge,b_myths,c_proof,d_emotion,e_lowkey,f_backup"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the batch (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_BATCH_GROUPS: ${{ github.event.inputs.groups }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_sg_batch.py
+      - name: Upload state (campaign/adset/ad ids + media cache)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sg-batch-state
+          path: state/
+          if-no-files-found: warn

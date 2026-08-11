@@ -44,16 +44,22 @@ def creative_spec(settings: Settings, unit: Unit, caption: Dict[str, Any],
     headline = caption.get("headline", "")
     cta = _cta(settings)
 
+    description = caption.get("description", "")
+
     if unit.kind == VIDEO:
         video_data = {"video_id": unit.assets[0].meta_id, "title": headline,
                       "message": message, "call_to_action": cta}
+        if description:  # shown under the headline in feed placements
+            video_data["link_description"] = description
         if thumbnail_url:  # Meta requires a thumbnail (image_url/image_hash) for video creatives
             video_data["image_url"] = thumbnail_url
         story = {"page_id": page_id, "video_data": video_data}
     elif unit.kind == SINGLE_IMAGE:
-        story = {"page_id": page_id, "link_data": {
-            "link": link, "image_hash": unit.assets[0].meta_id,
-            "message": message, "name": headline, "call_to_action": cta}}
+        link_data = {"link": link, "image_hash": unit.assets[0].meta_id,
+                     "message": message, "name": headline, "call_to_action": cta}
+        if description:
+            link_data["description"] = description
+        story = {"page_id": page_id, "link_data": link_data}
     elif unit.kind == CAROUSEL:
         cards = caption.get("carousel_card_texts") or []
         child = []
