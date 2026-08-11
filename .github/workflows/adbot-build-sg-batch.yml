@@ -4,9 +4,13 @@ name: adbot · Build SG creative batch (18 ads, manual)
 # all PAUSED (config activate_after_build:false) — nothing spends until you activate in Ads Manager.
 # Assets ship from the repo (assets/sg_batch/**), so no Drive sharing is involved.
 #
-# Idempotent: media uploads are cached in state/media_cache.json and each group's ids live in its
-# own state file, so a re-dispatch reuses everything instead of duplicating. If Meta rate-limits
-# mid-run (error code 17), just re-dispatch — optionally set `groups` to redo only what failed.
+# ⚠️ NOT idempotent across dispatches on a runner. The script's resumability relies on state/,
+# which is NOT committed to the repo, so every run starts from an EMPTY state and would create a
+# SECOND copy of every campaign, ad set and ad. Treat this workflow as one-shot.
+#   · already built (run 31491269416) → do NOT re-dispatch to "fix" something; edit the entities
+#     directly with a targeted script instead (see scripts/fix_remove_phone_number_ads.py).
+#   · if a run dies part-way, download its `sg-batch-state` artifact, commit state/ , and only then
+#     re-dispatch (optionally with `groups` set to just the failed groups).
 
 on:
   workflow_dispatch:

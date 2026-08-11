@@ -1,0 +1,30 @@
+name: adbot · Remove phone-number artwork (manual)
+
+# LIVE. Pulls the two creatives whose artwork has a parent's phone number baked into the WhatsApp
+# chat header: deletes F's 医生说不会再长 ad, rebuilds C's best-of carousel without that card, and
+# purges both images from the ad-image library. Everything it touches is already PAUSED.
+#
+# Verifies each target BY IMAGE HASH before acting and skips (rather than guesses) on a mismatch.
+# Safe to re-run: a second run finds the ads already gone and reports the skips.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Remove phone-number creatives
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/fix_remove_phone_number_ads.py

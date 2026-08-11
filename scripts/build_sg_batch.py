@@ -287,9 +287,10 @@ ADS: List[Dict[str, Any]] = [
         "content_id": "sg-好评合集-7个月12cm",
         "headline": "7 个月，哥哥长了 12cm",
         "description": "6000+ 家长的共同见证 · 免费线上课",
+        # card_04 (the 医生说不会再长 / Rina 群聊 card) was pulled: the chat header has a parent's
+        # phone number baked into the artwork. Operator rule — no phone numbers in creatives.
         "cards": [{}, {},
                   {"name": "平均一个月长 1cm", "description": "两个孩子，半年多的记录"},
-                  {"name": "医生说不会再长，结果逆转", "description": "18 岁大女儿长了 3cm"},
                   {"name": "7 个月 12cm", "description": "「我发梦都不敢想」"}],
         "caption": tail(
             "「从 11 月上课到现在，哥哥总共长了 12cm。\n"
@@ -534,27 +535,10 @@ ADS: List[Dict[str, Any]] = [
     },
 
     # ══ F · 备用组（证据与 C 组重叠，先建后放） ═══════════════════════════════════
-    {
-        "group": "f_backup", "dir": "doctor_said_no", "kind": SINGLE_IMAGE,
-        "content_id": "sg-权威反转-医生说他不会再长了",
-        "headline": "医生说他不会再长了，结果呢？",
-        "description": "免费线上课 · 被判「长不高」的孩子，后来长回来了",
-        "caption": tail(
-            "「医生说她骨龄快封闭了，最多就 149cm。」\n\n"
-            "几个月后，这位妈妈自己在群里发了消息：\n"
-            "女儿长了 3cm，现在比 151cm 的妈妈还要高 🎉\n\n"
-            "这不是我写的文案，是家长亲自截图分享的。\n\n"
-            "同一位妈妈的 4 岁儿子，以前每个月都感冒发烧、挑食，\n"
-            "身高体重都不及同龄孩子；\n"
-            "戒掉麦类和奶制品、调整体质之后，\n"
-            "不但不用每个月跑医院，几个月内还长高了 5cm。\n\n"
-            "你是不是也听过类似的话？\n"
-            "🔸 医生说骨龄快封闭了，孩子大概就这样了\n"
-            "🔸 每年长不到 2cm，中医西医都看过，就是没起色\n"
-            "🔸 全家为孩子的身高操碎心，却不知道还能做什么\n\n"
-            "我想告诉你的是：被判「不会再长」的孩子，我看过太多后来长回来了。",
-            closing="别让身高成为孩子一辈子的遗憾。"),
-    },
+    # NOTE: 「医生说他不会再长了」was removed 2026-08-11 — its artwork bakes in a parent's phone
+    # number (visible in the WhatsApp chat header). Operator rule: no phone numbers in creatives.
+    # The same testimonial also appeared as card 4 of C's best-of carousel and was pulled there
+    # too, so this parent's screenshots are entirely out of rotation.
     {
         "group": "f_backup", "dir": "no_supplements", "kind": SINGLE_IMAGE,
         "content_id": "sg-反补品-不吃保健品孩子反而长高了",
