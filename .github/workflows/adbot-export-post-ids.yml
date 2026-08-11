@@ -1,0 +1,33 @@
+name: adbot · Export SG batch post ids (manual)
+
+# READ-ONLY. Dumps every SG batch ad's effective_object_story_id so the MY account can point
+# creatives at the same page posts (both markets run on page 341825319024143) instead of
+# re-uploading the 52 assets. Writes state/sg_batch_post_ids.json and uploads it as an artifact.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Export post ids
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/export_batch_post_ids.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sg-batch-post-ids
+          path: state/sg_batch_post_ids.json
+          if-no-files-found: warn
