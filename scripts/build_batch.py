@@ -139,7 +139,15 @@ def main() -> None:
     s.meta.budget.daily_amount_myr = mk["daily_myr"]
     s.meta.lead_destination.link_url = mk["link"]
     geo = mk.get("geo") or {"countries": s.meta.targeting.countries}
-    assets_root = ROOT / spec_doc["assets_root"]
+    mode = mk.get("targeting", "clone")
+    # A second market should not carry a 31MB copy of the same 52 files. ADBOT_ASSETS_ROOT lets
+    # the MY/CAL workflows point at a sparse checkout of the SG repo (public, so no credential),
+    # keeping one physical copy of the creative library.
+    assets_root = Path(os.environ.get("ADBOT_ASSETS_ROOT") or (ROOT / spec_doc["assets_root"]))
+    if not assets_root.is_dir():
+        raise SystemExit(f"assets root not found: {assets_root} "
+                         f"(set ADBOT_ASSETS_ROOT, or check {spec_doc['assets_root']})")
+    log.info("assets ← %s", assets_root)
 
     log.info("market=%s · prefix=%r · RM%s/day · link=%s", market, s.naming.prefix,
              mk["daily_myr"], mk["link"])
@@ -170,13 +178,20 @@ def main() -> None:
         log.info("═" * 88)
         log.info("── %s  (%d ads)", label, len(ads))
 
-        spec, src = clone_targeting(adsets, grp["clone"], s, geo)
-        if spec is None:
-            log.error("!! no ad set like %r to clone — SKIPPING %s", grp["clone"], label)
-            summary.append(f"  ⏭ SKIP {label} (no clone source {grp['clone']!r})")
-            continue
-        log.info("   targeting ← %r (age %s-%s · adv=%s · %d detail entries)", src,
-                 spec["age_min"], spec["age_max"],
+        # Markets differ in how they target, and forcing one strategy on both would be wrong:
+        # SG stacks interests cloned from proven ad sets; CAL runs Advantage+ broad across four
+        # states and lets the creative hook do the work. `markets.<m>.targeting` picks.
+        if mode == "config":
+            spec, src = s.meta.targeting.to_spec(), "config broad"
+        else:
+            spec, src = clone_targeting(adsets, grp["clone"], s, geo)
+            if spec is None:
+                # Falling back is safer than skipping: a skipped group silently drops 3-4 ads,
+                # whereas the market's own config targeting is at least a deliberate audience.
+                spec, src = s.meta.targeting.to_spec(), f"config broad (no ad set like {grp['clone']!r})"
+                log.warning("   !! no clone source %r — falling back to config targeting", grp["clone"])
+        log.info("   targeting ← %s (age %s-%s · adv=%s · %d detail entries)", src,
+                 spec.get("age_min"), spec.get("age_max"),
                  (spec.get("targeting_automation") or {}).get("advantage_audience"),
                  _richness({"flexible_spec": spec.get("flexible_spec", [])}))
 

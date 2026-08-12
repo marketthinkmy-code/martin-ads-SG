@@ -45,11 +45,20 @@ markets:
       learn_lead: 在这堂免费线上课里，你会学到：
       and_lead: 而且这些方法：
       cta: 点下方按钮，马上免费报名《儿童长高方程式》👇
+    targeting: clone
   cal:
     script: hant
     naming_prefix: '[CAL] 兒童長高方程式'
-    link: TODO_CAL_LANDING_PAGE
-    geo: TODO_CAL_GEO
+    link: https://kidsgrowthformula.com/webinar-main-page
+    geo:
+      regions:
+      - key: '3847'
+      - key: '3890'
+      - key: '3880'
+      - key: '3871'
+      location_types:
+      - home
+      - recent
     daily_myr: 100
     blocks:
       bio: |-
@@ -71,6 +80,10 @@ markets:
       learn_lead: 在這堂免費線上課裡，你會學到：
       and_lead: 而且這些方法：
       cta: 點下方按鈕，馬上免費報名《兒童長高方程式》👇
+    targeting: config
+    geo_note: 3847 California · 3890 Washington · 3880 Oregon · 3871 Nevada. City-level geo is NOT emitted
+      by the code — set the Chinese-dense cities (Arcadia, San Marino, San Gabriel, Monterey Park, Cupertino,
+      Fremont, Irvine) manually in Ads Manager before activating, or CPL runs high on state-level reach.
 groups:
 - key: a_knowledge
   clone: Parents
