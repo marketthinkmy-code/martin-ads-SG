@@ -1,0 +1,31 @@
+name: adbot · Apply 8/13 CPA actions (manual)
+
+# LIVE status + budget writes. Closes 5 ads whose 30d CPA is past the RM1300 hard stop, reopens
+# 3 sleeping winners (cheapest is CPA RM135 with zero live copies), and raises the budget of
+# campaigns still holding a scale winner by 50%, capped at RM225/day.
+#
+# Guarded: keep-list ads can never be paused, close matching is by cpa.ad_key not substring, and
+# a paused parent is only re-activated when every sibling ad is already paused (otherwise
+# un-pausing the campaign would quietly restart a whole pool — that case is reported, not forced).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Apply the 8/13 actions
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/apply_0813_actions.py
