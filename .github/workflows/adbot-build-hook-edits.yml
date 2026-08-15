@@ -1,0 +1,46 @@
+name: adbot · Build 8月 hook-edit test (10 videos, manual)
+
+# LIVE build. Creates 1 CBO campaign (RM150/day) + 1 ad set + 10 video ads in the SG account,
+# all PAUSED — nothing spends until you activate in Ads Manager.
+#
+# The 10 hook edits come from Drive …/2026/AUGUST (folder 1fMEzFUpxGaHZeNXsaqBBKtYHl97cwNKx)
+# and are downloaded with the Google service account, uploaded to Meta once, then deleted from
+# the runner. Ad body is the account's proven evergreen copy held CONSTANT; only the headline
+# changes per hook, so the hook is the only variable under test.
+#
+# Idempotent: video ids, creative ids and campaign/adset/ad ids are persisted back to the branch
+# in state/, so a re-dispatch reuses them instead of building a second copy of everything.
+# Uploading ~1.3GB of video takes a while — hence the raised timeout.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write          # persist state/ (video/creative/campaign/adset/ad ids) back to the branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the hook-edit test (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_hook_edits.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist 8月 hook-edit entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
