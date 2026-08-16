@@ -1,0 +1,44 @@
+name: adbot · Re-shape hook edits into 1-1-4 + 1-1-3 + 1-1-3 (manual)
+
+# LIVE build. Creates 3 CBO campaigns (RM50/day each) + 3 ad sets + 10 ads in the SG account,
+# all PAUSED. No video is uploaded: the ten creatives already exist from the 1-1-10 build and
+# their ids are read from state/entities_hookedits_shared.json, so this runs in about a minute.
+#
+# The old 1-1-10 campaign (120257637038600093) is left PAUSED and is NOT deleted here — deleting
+# is destructive and it still carries this test's first RM36.58 of spend history. Delete it by
+# hand once the three new campaigns look right; until then it holds ten ads whose names duplicate
+# the new ones.
+#
+# Idempotent: entity ids are persisted back to the branch, so a re-dispatch reuses them.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (campaign/adset/ad ids) back to the branch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Re-shape the hook-edit test (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/restructure_hook_edits.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist hook-edit A/B/C entity ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
