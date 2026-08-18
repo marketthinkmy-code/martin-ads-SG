@@ -51,7 +51,12 @@ from adbot.settings import load_settings
 STATE_PATH = Path("state") / "entities_lookalike_paid.json"
 SEED_NAME = "Cust Paid List"
 TARGET_COUNTRY = "SG"
-RATIOS = [0.01, 0.03]                    # 1% (closest) and 3% (reach) — both targeted at SG
+# (starting_ratio, ratio). starting_ratio None = a plain top-N% audience; a pair = a RANGE
+# audience covering that band, which is what Meta calls "1% to 5%" and what the account's older
+# "Lookalike (SG, 1% to 2%)" audiences are. A range excludes the tighter band below it, so 1%-5%
+# does NOT overlap a separate 1% audience — they can run side by side without bidding against
+# each other for the same people.
+LOOKALIKES = [(None, 0.01), (None, 0.03), (0.01, 0.05)]
 BATCH = 500                              # rows per upload call; Meta allows 10k, 500 keeps errors legible
 
 PAID_HEADER = re.compile(r"(Item purchase|Purchase amount|付費管道|Transaction Id|Amount)", re.I)
@@ -175,28 +180,32 @@ def main() -> None:
     # 3) lookalikes ──────────────────────────────────────────────────────────────────
     lals: Dict[str, str] = st.get("lookalikes", {})
     made = []
-    for ratio in RATIOS:
-        key = f"{ratio:.2f}"
+    for start, ratio in LOOKALIKES:
+        # Keep the old single-ratio key shape so audiences built before ranges existed are still
+        # recognised as already-created and are not duplicated on this run.
+        key = f"{ratio:.2f}" if start is None else f"{start:.2f}-{ratio:.2f}"
+        band = f"{int(ratio*100)}%" if start is None else f"{int(start*100)}% to {int(ratio*100)}%"
         if lals.get(key):
-            log.info("   · lookalike %s%% already exists (%s)", int(ratio * 100), lals[key])
+            log.info("   · lookalike %s already exists (%s)", band, lals[key])
             continue
-        name = f"Lookalike ({TARGET_COUNTRY}, {int(ratio*100)}%) - {SEED_NAME}"
+        name = f"Lookalike ({TARGET_COUNTRY}, {band}) - {SEED_NAME}"
+        spec = {"ratio": ratio, "country": TARGET_COUNTRY, "allow_international_seeds": True}
+        if start is not None:
+            spec["starting_ratio"] = start
         try:
             lal_id = g._request("POST", f"{acct}/customaudiences", data={
                 "name": name, "subtype": "LOOKALIKE", "origin_audience_id": seed_id,
-                "lookalike_spec": json.dumps(
-                    {"ratio": ratio, "country": TARGET_COUNTRY, "allow_international_seeds": True}),
+                "lookalike_spec": json.dumps(spec),
             })["id"]
         except Exception as exc:                                    # noqa: BLE001
             # A lookalike fails when the seed has not finished matching yet. That is expected on a
             # first run and is NOT a reason to lose the seed — report it and let a re-dispatch add it.
-            log.warning("   !! lookalike %s%% failed (seed may still be matching): %s",
-                        int(ratio * 100), exc)
+            log.warning("   !! lookalike %s failed (seed may still be matching): %s", band, exc)
             continue
         lals[key] = lal_id
         st["lookalikes"] = lals
         STATE_PATH.write_text(json.dumps(st, ensure_ascii=False, indent=2))
-        made.append(f"{int(ratio*100)}%={lal_id}")
+        made.append(f"{band}={lal_id}")
         log.info("   + lookalike %s → %s", name, lal_id)
 
     log.info("═" * 88)
