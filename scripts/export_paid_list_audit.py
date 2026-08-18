@@ -1,112 +1,35 @@
-"""Export the Cust Paid List seed to a Google Sheet for the operator to audit. Touches NO Meta.
+"""Export the paid list to "AUDIT ·" tabs in the source workbook. Touches NO Meta object.
 
-This is a READ-ONLY audit step. It does not create, update or delete a single Meta object — the
-operator asked to review the row-level list before it is uploaded again, so this only produces
-the evidence.
+A read-only evidence step: the operator reviews the row-level list before it is uploaded. The
+extraction lives in adbot.paid_list and is shared with scripts/build_lookalike_paid_list.py, so
+what is audited here is by construction the same set that gets uploaded there — only the country
+filter differs, and the country column is right there in the output to make that visible.
 
-WHAT CHANGED VS THE FIRST UPLOAD (option B)
--------------------------------------------
-The first run's tab-level audit surfaced two problems, and both are fixed by EXCLUDED_GIDS:
-
-  · Refund (gid 1847972349, 19 rows) and US Refund (gid 254146896, 15 rows) are people who
-    bought and then took their money back. They were swept in because their headers carry an
-    "Amount" column, which is one of the PAID markers. Modelling a lookalike on refunders asks
-    Meta to go find more people who will refund — the exact opposite of the goal.
-  · VIP upgrade (RM88) (gid 697093187, 512 rows) is a different customer from an RM1997 or
-    RM18k buyer, and at 26% of the seed it was diluting the high-value signal.
-
-WHY A COUNTRY COLUMN
---------------------
-The operator wants to confirm the list is SG only. Country is derived from the phone's country
-code, which is the same rule the CPA layer uses to isolate SG sales (+65). A row whose phone is
-missing cannot be placed in a country at all — those land in "unknown" rather than being quietly
-counted as SG, because guessing there would be the one error that makes an "SG only" audit
-worthless.
-
-Note the earlier "SG has only ~197" figure was computed from a TRUNCATED Drive text export and
-should not be trusted; this script counts from the live Sheets API, which is where the real
-number comes from.
+Option B exclusions (both Refund tabs + VIP upgrade RM88) come from adbot.paid_list.EXCLUDED_GIDS.
 
 OUTPUT
 ------
-Writes two tabs back into the SOURCE workbook so the operator can compare before deciding:
-    "AUDIT · SG only"      — rows whose phone is +65
+Two tabs written back into the SOURCE workbook:
+    "AUDIT · SG only"      — rows whose phone is +65, i.e. exactly what the SG seed uploads
     "AUDIT · All markets"  — every row that survived the exclusions, with its country
-It writes there rather than creating a fresh file because the service account owns no Drive
+It writes there rather than creating a new file because the service account owns no Drive
 storage — spreadsheets().create() returns 403 "The caller does not have permission". The source
 workbook is already shared with it and already belongs to the operator, so this needs no storage
-and no new sharing step.
+and no extra sharing step, and it already holds this exact customer data.
 
-Raw contact details are written ONLY into that workbook, which is the operator's own file and
-already holds this exact data. Nothing raw is logged here, written to state/, or committed —
-the repo is public.
+Nothing raw is logged here, written to state/, or committed — this repo is public.
 """
 from __future__ import annotations
 
-import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
+from adbot import paid_list
 from adbot.clients.drive import build_credentials
 from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
 
-# A workflow_dispatch input arrives as "" when left blank, and "" would silently share the
-# workbook with nobody — so fall back on the default rather than trusting the empty string.
 AUDIT_PREFIX = "AUDIT ·"
-
-# Option B: drop refunders and the RM88 upgrade tier.
-EXCLUDED_GIDS: Dict[int, str] = {
-    1847972349: "Refund — bought then refunded",
-    254146896:  "US Refund — bought then refunded",
-    697093187:  "VIP upgrade (RM88) — different tier, was 26% of the seed",
-}
-
-PAID_HEADER = re.compile(r"(Item purchase|Purchase amount|付費管道|Transaction Id|Amount)", re.I)
-EMAIL_COL = re.compile(r"mail", re.I)
-PHONE_COL = re.compile(r"phone|whatsapp|號碼|号码", re.I)
-NAME_COL = re.compile(r"^\s*(name|名字|姓名)\s*$", re.I)
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def norm_email(v: str) -> str:
-    v = (v or "").strip().lower().replace("\\", "")
-    return v if EMAIL_RE.match(v) else ""
-
-
-def norm_phone(v: str) -> str:
-    d = re.sub(r"\D", "", (v or "").replace("\\", ""))
-    if not d:
-        return ""
-    if len(d) == 8 and d[0] in "89":          # bare SG mobile written without +65
-        d = "65" + d
-    return d if 8 <= len(d) <= 15 else ""
-
-
-def country_of(phone: str) -> str:
-    """Country from the dialling code. No phone -> 'unknown', never a guess."""
-    if not phone:
-        return "unknown"
-    if phone.startswith("65") and len(phone) == 10:
-        return "SG"
-    if phone.startswith("60"):
-        return "MY"
-    if phone.startswith("852"):
-        return "HK"
-    if phone.startswith("886"):
-        return "TW"
-    if phone.startswith("1") and len(phone) == 11:
-        return "US/CA"
-    if phone.startswith("86"):
-        return "CN"
-    if phone.startswith("62"):
-        return "ID"
-    if phone.startswith("66"):
-        return "TH"
-    if phone.startswith("44"):
-        return "UK"
-    if phone.startswith("61"):
-        return "AU"
-    return "other"
+HEAD = ["Source Tab", "Name", "Email", "Phone (normalised)", "Country", "Country code"]
 
 
 def main() -> None:
@@ -117,101 +40,55 @@ def main() -> None:
         raise SystemExit("!! cpa.spreadsheet_id is not configured")
 
     from googleapiclient.discovery import build  # lazy
-    creds = build_credentials(s.secrets.google_sa_json)
-    sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    sheets = build("sheets", "v4", credentials=build_credentials(s.secrets.google_sa_json),
+                   cache_discovery=False)
 
-    meta = sheets.spreadsheets().get(spreadsheetId=sid, fields="sheets.properties").execute()
-    tabs = [(p["properties"]["title"], int(p["properties"]["sheetId"])) for p in meta["sheets"]]
-    log.info("spreadsheet has %d tab(s)", len(tabs))
-
-    seen: set[Tuple[str, str]] = set()
-    rows: List[List[str]] = []
-    paid_tabs = excluded_tabs = 0
-    for title, gid in tabs:
-        try:
-            values = (sheets.spreadsheets().values()
-                      .get(spreadsheetId=sid, range=f"'{title}'",
-                           valueRenderOption="FORMATTED_VALUE",
-                           dateTimeRenderOption="FORMATTED_STRING").execute()).get("values", [])
-        except Exception as exc:                                   # noqa: BLE001
-            log.warning("   ! could not read %r (gid %s): %s", title, gid, exc)
-            continue
-        if not values:
-            continue
-        hdr_i = next((i for i, r in enumerate(values[:10])
-                      if any(EMAIL_COL.search(c or "") for c in r)
-                      and any(PHONE_COL.search(c or "") for c in r)), None)
-        if hdr_i is None:
-            continue
-        hdr = values[hdr_i]
-        if not PAID_HEADER.search(" | ".join(hdr)):
-            continue
-        if gid in EXCLUDED_GIDS:
-            excluded_tabs += 1
-            log.info("   ⛔ %-40s gid=%-12s EXCLUDED — %s", title[:40], gid, EXCLUDED_GIDS[gid])
-            continue
-        ei = next((k for k, c in enumerate(hdr) if EMAIL_COL.search(c or "")), None)
-        pi = next((k for k, c in enumerate(hdr) if PHONE_COL.search(c or "")), None)
-        ni = next((k for k, c in enumerate(hdr) if NAME_COL.match(c or "")), None)
-        before = len(rows)
-        for r in values[hdr_i + 1:]:
-            em = norm_email(r[ei]) if ei is not None and ei < len(r) else ""
-            ph = norm_phone(r[pi]) if pi is not None and pi < len(r) else ""
-            if not (em or ph) or (em, ph) in seen:
-                continue
-            seen.add((em, ph))
-            nm = (r[ni].strip() if ni is not None and ni < len(r) else "")
-            rows.append([title, nm, em, ph, country_of(ph)])
-        paid_tabs += 1
-        log.info("   ✔ %-40s gid=%-12s +%d row(s)", title[:40], gid, len(rows) - before)
-
+    rows, kept, excluded = paid_list.extract(sheets, sid, log)
     if not rows:
-        raise SystemExit("!! nothing to audit — refusing to create an empty sheet")
-
-    counts: Dict[str, int] = {}
-    for r in rows:
-        counts[r[4]] = counts.get(r[4], 0) + 1
-    sg = [r for r in rows if r[4] == "SG"]
+        raise SystemExit("!! nothing to audit — refusing to write an empty sheet")
+    tally = paid_list.tally(rows)
+    sg = [r for r in rows if r.country == "SG"]
 
     log.info("═" * 88)
-    log.info("%d paid tab(s) kept, %d excluded → %d unique row(s)", paid_tabs, excluded_tabs, len(rows))
-    for k, v in sorted(counts.items(), key=lambda kv: -kv[1]):
+    log.info("%d paid tab(s) kept, %d excluded → %d unique row(s)", kept, excluded, len(rows))
+    for k, v in sorted(tally.items(), key=lambda kv: -kv[1]):
         log.info("   %-8s %5d", k, v)
-    log.info("SG-only rows: %d", len(sg))
+    inferred = [r for r in sg if r.cc == "inferred"]
+    log.info("SG-only rows: %d  (%d carried +65 explicitly, %d had 65 INFERRED from a bare "
+             "8-digit number)", len(sg), len(sg) - len(inferred), len(inferred))
+    if inferred:
+        # Hong Kong mobiles are also 8 digits and begin 5/6/9, so an inferred row is not proof of
+        # a Singapore customer. Sort the sheet by "Country code" to review these first.
+        log.warning("   ⚠ %d SG row(s) are INFERRED, not confirmed — a Hong Kong mobile typed "
+                    "without +852 is indistinguishable from a Singapore one", len(inferred))
     if len(sg) < 100:
         log.warning("!! SG-only is %d, under Meta's 100-matched-person floor — an SG-only seed "
-                    "would not be able to build a lookalike", len(sg))
+                    "could not build a lookalike", len(sg))
 
-    # ── write the audit tabs back into the SOURCE workbook ───────────────────────────
-    # The service account CANNOT create a new spreadsheet: it owns no Drive storage, so
-    # spreadsheets().create() returns 403 "The caller does not have permission". Writing into the
-    # workbook it already has access to needs no storage and no extra sharing step, and the
-    # operator sees it in a file they already own. Tabs are prefixed AUDIT so they read as
-    # disposable — deleting them loses nothing, this script regenerates them.
-    head = ["Source Tab", "Name", "Email", "Phone (normalised)", "Country"]
     out: Dict[str, List[List[str]]] = {
-        f"{AUDIT_PREFIX} SG only": [head] + sg,
-        f"{AUDIT_PREFIX} All markets": [head] + rows,
+        f"{AUDIT_PREFIX} SG only": [HEAD] + [list(r) for r in sg],
+        f"{AUDIT_PREFIX} All markets": [HEAD] + [list(r) for r in rows],
     }
-    existing = {t: gid for t, gid in tabs}
-    # Replace rather than append: a stale audit tab sitting next to a fresh one is how somebody
-    # ends up reviewing last week's list and approving the wrong seed.
-    reqs: List[Dict[str, Any]] = [{"deleteSheet": {"sheetId": existing[n]}} for n in out if n in existing]
+    meta = sheets.spreadsheets().get(spreadsheetId=sid, fields="sheets.properties").execute()
+    existing = {p["properties"]["title"]: int(p["properties"]["sheetId"]) for p in meta["sheets"]}
+    # Replace rather than append: a stale audit tab beside a fresh one is how somebody reviews
+    # last week's list and approves the wrong seed.
+    reqs: List[Dict[str, Any]] = [{"deleteSheet": {"sheetId": existing[n]}}
+                                  for n in out if n in existing]
     reqs += [{"addSheet": {"properties": {"title": n}}} for n in out]
     sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": reqs}).execute()
     sheets.spreadsheets().values().batchUpdate(spreadsheetId=sid, body={
         "valueInputOption": "RAW",       # RAW keeps phones as the text they are
         "data": [{"range": f"'{n}'!A1", "values": v} for n, v in out.items()]}).execute()
+
     url = f"https://docs.google.com/spreadsheets/d/{sid}/edit"
     log.info("audit tabs written into the source workbook: %s", url)
-
     final_summary(
-        log, f"AUDIT ONLY — no Meta object was created, updated or deleted, and the Meta seed still "
-             f"holds the ORIGINAL 1998 rows; nothing has been re-uploaded yet. Option B applied: "
-             f"{excluded_tabs} tab(s) excluded (both refund tabs + VIP upgrade RM88), leaving "
-             f"{len(rows)} unique rows across {paid_tabs} paid tab(s), of which {len(sg)} are SG "
-             f"(+65). Country comes from the dialling code; rows with no phone are 'unknown', not "
-             f"assumed SG. Review the two '{AUDIT_PREFIX}' tabs in {url}")
+        log, f"AUDIT ONLY — no Meta object was created, updated or deleted. {excluded} tab(s) "
+             f"excluded (both refund tabs + VIP upgrade RM88), leaving {len(rows)} unique rows "
+             f"across {kept} paid tab(s), of which {len(sg)} are SG (+65). Country comes from the "
+             f"dialling code; rows with no phone are 'unknown', not assumed SG. Review the two "
+             f"'{AUDIT_PREFIX}' tabs in {url}")
 
 
 if __name__ == "__main__":
