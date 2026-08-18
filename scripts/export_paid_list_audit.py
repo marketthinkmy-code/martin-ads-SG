@@ -28,7 +28,8 @@ from adbot.clients.drive import build_credentials
 from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
 
-AUDIT_PREFIX = "AUDIT ·"
+# Shared with the extractor, which skips tabs by this prefix so its own output never feeds back in.
+AUDIT_PREFIX = paid_list.AUDIT_TAB_PREFIX
 HEAD = ["Source Tab", "Name", "Email", "Phone (normalised)", "Country", "Country code"]
 
 

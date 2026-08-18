@@ -40,6 +40,12 @@ PHONE_COL = re.compile(r"phone|whatsapp|號碼|号码", re.I)
 NAME_COL = re.compile(r"^\s*(name|名字|姓名)\s*$", re.I)
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# The audit export writes its tabs back into this same workbook, so the extractor can read its
+# own output. Those tabs are skipped today only because they carry no PAID marker column —
+# incidental, not by design. Skipping them by title makes it deliberate: add an "Amount" column
+# to the audit output some day and without this the list would silently feed back into itself.
+AUDIT_TAB_PREFIX = "AUDIT ·"
+
 EXCLUDED_GIDS: Dict[int, str] = {
     1847972349: "Refund — bought then refunded",
     254146896:  "US Refund — bought then refunded",
@@ -123,6 +129,9 @@ def extract(sheets, spreadsheet_id: str, log) -> Tuple[List[Row], int, int]:
     rows: List[Row] = []
     kept = excluded = 0
     for title, gid in tabs:
+        if title.startswith(AUDIT_TAB_PREFIX):
+            log.info("   · %-40s gid=%-12s this script's own output — skipped", title[:40], gid)
+            continue
         try:
             values = (sheets.spreadsheets().values()
                       .get(spreadsheetId=spreadsheet_id, range=f"'{title}'",
