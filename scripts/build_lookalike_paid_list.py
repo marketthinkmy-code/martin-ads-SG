@@ -53,10 +53,10 @@ SEED_NAME = "Cust Paid List"
 TARGET_COUNTRY = "SG"
 # (starting_ratio, ratio). starting_ratio None = a plain top-N% audience; a pair = a RANGE
 # audience covering that band, which is what Meta calls "1% to 5%" and what the account's older
-# "Lookalike (SG, 1% to 2%)" audiences are. A range excludes the tighter band below it, so 1%-5%
-# does NOT overlap a separate 1% audience — they can run side by side without bidding against
-# each other for the same people.
-LOOKALIKES = [(None, 0.01), (None, 0.03), (0.01, 0.05)]
+# "Lookalike (SG, 1% to 2%)" audiences are.
+# The operator reviewed the first run and kept ONLY the 1%-5% range; the standalone 1% and 3%
+# were deleted. They are not listed here so a re-dispatch does not resurrect them.
+LOOKALIKES = [(0.01, 0.05)]
 BATCH = 500                              # rows per upload call; Meta allows 10k, 500 keeps errors legible
 
 PAID_HEADER = re.compile(r"(Item purchase|Purchase amount|付費管道|Transaction Id|Amount)", re.I)
