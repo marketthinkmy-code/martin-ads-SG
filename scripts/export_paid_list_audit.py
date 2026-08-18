@@ -29,16 +29,20 @@ number comes from.
 
 OUTPUT
 ------
-Creates a new spreadsheet owned by the service account and shares it with AUDIT_SHARE_TO, with
-two tabs so the operator can compare before deciding:
-    "SG only"      — rows whose phone is +65
-    "All markets"  — every row that survived the exclusions, with its country
-Raw contact details are written ONLY into that sheet, which lives in the operator's own Google
-account. Nothing raw is logged here, written to state/, or committed — the repo is public.
+Writes two tabs back into the SOURCE workbook so the operator can compare before deciding:
+    "AUDIT · SG only"      — rows whose phone is +65
+    "AUDIT · All markets"  — every row that survived the exclusions, with its country
+It writes there rather than creating a fresh file because the service account owns no Drive
+storage — spreadsheets().create() returns 403 "The caller does not have permission". The source
+workbook is already shared with it and already belongs to the operator, so this needs no storage
+and no new sharing step.
+
+Raw contact details are written ONLY into that workbook, which is the operator's own file and
+already holds this exact data. Nothing raw is logged here, written to state/, or committed —
+the repo is public.
 """
 from __future__ import annotations
 
-import os
 import re
 from typing import Any, Dict, List, Tuple
 
@@ -48,8 +52,7 @@ from adbot.settings import load_settings
 
 # A workflow_dispatch input arrives as "" when left blank, and "" would silently share the
 # workbook with nobody — so fall back on the default rather than trusting the empty string.
-AUDIT_SHARE_TO = (os.environ.get("ADBOT_AUDIT_EMAIL") or "").strip() or "marketthinkchatgpt@gmail.com"
-SHEET_TITLE = os.environ.get("ADBOT_AUDIT_TITLE", "Cust Paid List — 审核")
+AUDIT_PREFIX = "AUDIT ·"
 
 # Option B: drop refunders and the RM88 upgrade tier.
 EXCLUDED_GIDS: Dict[int, str] = {
@@ -116,7 +119,6 @@ def main() -> None:
     from googleapiclient.discovery import build  # lazy
     creds = build_credentials(s.secrets.google_sa_json)
     sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
-    drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
     meta = sheets.spreadsheets().get(spreadsheetId=sid, fields="sheets.properties").execute()
     tabs = [(p["properties"]["title"], int(p["properties"]["sheetId"])) for p in meta["sheets"]]
@@ -180,36 +182,36 @@ def main() -> None:
         log.warning("!! SG-only is %d, under Meta's 100-matched-person floor — an SG-only seed "
                     "would not be able to build a lookalike", len(sg))
 
-    # ── write the audit workbook ─────────────────────────────────────────────────────
+    # ── write the audit tabs back into the SOURCE workbook ───────────────────────────
+    # The service account CANNOT create a new spreadsheet: it owns no Drive storage, so
+    # spreadsheets().create() returns 403 "The caller does not have permission". Writing into the
+    # workbook it already has access to needs no storage and no extra sharing step, and the
+    # operator sees it in a file they already own. Tabs are prefixed AUDIT so they read as
+    # disposable — deleting them loses nothing, this script regenerates them.
     head = ["Source Tab", "Name", "Email", "Phone (normalised)", "Country"]
-    book = sheets.spreadsheets().create(body={
-        "properties": {"title": SHEET_TITLE},
-        "sheets": [{"properties": {"title": "SG only"}}, {"properties": {"title": "All markets"}}],
-    }, fields="spreadsheetId,spreadsheetUrl").execute()
-    bid, url = book["spreadsheetId"], book["spreadsheetUrl"]
-    sheets.spreadsheets().values().batchUpdate(spreadsheetId=bid, body={
-        "valueInputOption": "RAW",
-        "data": [
-            # Phones are text, not numbers — RAW would otherwise strip a leading digit visually.
-            {"range": "'SG only'!A1",     "values": [head] + [[c for c in r] for r in sg]},
-            {"range": "'All markets'!A1", "values": [head] + [[c for c in r] for r in rows]},
-        ]}).execute()
-
-    try:
-        drive.permissions().create(
-            fileId=bid, sendNotificationEmail=False,
-            body={"type": "user", "role": "writer", "emailAddress": AUDIT_SHARE_TO}).execute()
-        shared = f"shared with {AUDIT_SHARE_TO}"
-    except Exception as exc:                                       # noqa: BLE001
-        shared = f"‼ could not share with {AUDIT_SHARE_TO}: {exc} — open it with the link"
-    log.info("audit workbook: %s (%s)", url, shared)
+    out: Dict[str, List[List[str]]] = {
+        f"{AUDIT_PREFIX} SG only": [head] + sg,
+        f"{AUDIT_PREFIX} All markets": [head] + rows,
+    }
+    existing = {t: gid for t, gid in tabs}
+    # Replace rather than append: a stale audit tab sitting next to a fresh one is how somebody
+    # ends up reviewing last week's list and approving the wrong seed.
+    reqs: List[Dict[str, Any]] = [{"deleteSheet": {"sheetId": existing[n]}} for n in out if n in existing]
+    reqs += [{"addSheet": {"properties": {"title": n}}} for n in out]
+    sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": reqs}).execute()
+    sheets.spreadsheets().values().batchUpdate(spreadsheetId=sid, body={
+        "valueInputOption": "RAW",       # RAW keeps phones as the text they are
+        "data": [{"range": f"'{n}'!A1", "values": v} for n, v in out.items()]}).execute()
+    url = f"https://docs.google.com/spreadsheets/d/{sid}/edit"
+    log.info("audit tabs written into the source workbook: %s", url)
 
     final_summary(
-        log, f"AUDIT ONLY — no Meta object was created, updated or deleted. Option B applied: "
+        log, f"AUDIT ONLY — no Meta object was created, updated or deleted, and the Meta seed still "
+             f"holds the ORIGINAL 1998 rows; nothing has been re-uploaded yet. Option B applied: "
              f"{excluded_tabs} tab(s) excluded (both refund tabs + VIP upgrade RM88), leaving "
              f"{len(rows)} unique rows across {paid_tabs} paid tab(s), of which {len(sg)} are SG "
              f"(+65). Country comes from the dialling code; rows with no phone are 'unknown', not "
-             f"assumed SG. Review here: {url} ({shared}). Tabs: 'SG only' and 'All markets'.")
+             f"assumed SG. Review the two '{AUDIT_PREFIX}' tabs in {url}")
 
 
 if __name__ == "__main__":

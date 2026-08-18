@@ -1,22 +1,24 @@
 name: adbot · Export Cust Paid List for audit (manual, read-only)
 
-# READ-ONLY. Creates NO Meta object and changes nothing in the ad account — it only reads the
-# Paid Student List spreadsheet and writes an audit workbook into Google Drive for review.
+# READ-ONLY as far as Meta is concerned: this creates NO Meta object and changes nothing in the
+# ad account. It reads the Paid Student List spreadsheet and writes two "AUDIT ·" tabs back into
+# that same workbook for review.
+#
+# It writes into the source workbook rather than creating a new file because the service account
+# owns no Drive storage — spreadsheets().create() returns 403 "The caller does not have
+# permission". The source workbook is already shared with the SA and already belongs to the
+# operator, so no storage and no extra sharing step is needed. The AUDIT tabs are replaced on
+# every run and are safe to delete.
 #
 # Option B is applied: the two Refund tabs and VIP upgrade (RM88) are excluded. Every surviving
-# row is tagged with a country derived from its phone dialling code, and the workbook has a
-# "SG only" tab and an "All markets" tab so the seed can be checked before any re-upload.
+# row is tagged with a country derived from its phone dialling code, so the "SG only" tab can be
+# checked before any re-upload.
 #
-# Raw contact details go ONLY into that Drive workbook (shared with the operator). Nothing raw
-# is logged, written to state/, or committed — this repo is public.
+# Raw contact details go ONLY into that workbook — nothing raw is logged or committed, because
+# this repo is public.
 
 on:
-  workflow_dispatch:
-    inputs:
-      email:
-        description: "Google account to share the audit workbook with (blank = default)"
-        required: false
-        default: ""
+  workflow_dispatch: {}
 
 jobs:
   export:
@@ -27,11 +29,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install .
-      - name: Export audit workbook
+      - name: Export audit tabs
         env:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
-          ADBOT_AUDIT_EMAIL: ${{ github.event.inputs.email }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
