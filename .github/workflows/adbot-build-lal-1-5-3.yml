@@ -1,0 +1,48 @@
+name: adbot · Build LAL 1-5-3 band test (5 bands x 3 ads, manual)
+
+# LIVE build. Creates 5 lookalike audiences (1%, 1-2%, 2-3%, 3-4%, 4-5% of the SG paid seed),
+# 1 campaign, 5 ad sets and 15 ads in the SG account — all PAUSED, nothing spends until you
+# activate in Ads Manager.
+#
+# Budget is ABO: RM30/day on each ad set, RM150/day total, deliberately NOT campaign-level.
+# Under CBO Meta would push spend into whichever band looked cheapest first and starve the other
+# four, which is fine for performance but useless when the question is which band works.
+#
+# The bands are mutually exclusive slices (a range lookalike excludes everything tighter than its
+# starting_ratio), so the five ad sets do not bid against each other for the same people.
+#
+# New lookalikes need a few hours to size before anything can deliver.
+#
+# Idempotent: audience and entity ids persist to the branch, so a re-dispatch reuses them.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (band audience + campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the 1-5-3 band test (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_lal_1_5_3.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist LAL 1-5-3 band test ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
