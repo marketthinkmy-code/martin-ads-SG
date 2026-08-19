@@ -66,6 +66,13 @@ def clean(t: Dict[str, Any]) -> Dict[str, Any]:
         if t.get(k):
             # Meta returns these hydrated with name/rule/data_source; only the id is valid input.
             spec[k] = [{"id": str(a["id"])} for a in t[k] if a.get("id")]
+    # Meta emits instagram_positions containing explore_home without explore, then rejects that
+    # same list on the way back in: "To place ads in Instagram Explore home, please also select
+    # Instagram Explore." Valid as output, invalid as input — so repair it rather than echo it.
+    ig = list(spec.get("instagram_positions") or [])
+    if "explore_home" in ig and "explore" not in ig:
+        ig.insert(ig.index("explore_home"), "explore")
+        spec["instagram_positions"] = ig
     # Both switches, explicitly off.
     spec["targeting_automation"] = {"advantage_audience": 0}
     spec["targeting_relaxation_types"] = {"custom_audience": 0, "lookalike": 0}
@@ -90,7 +97,11 @@ def main() -> None:
     g = graph_client(s)
 
     summary: List[str] = []
-    bad: List[str] = []
+    # Two failure modes that must not be conflated: the write itself being rejected (our bug,
+    # fixable) versus Meta accepting the write and storing a different value (their override,
+    # only fixable by hand). Reporting them as one thing sent the wrong diagnosis last run.
+    errored: List[str] = []
+    overridden: List[str] = []
     for a in ADSETS:
         log.info("═" * 88)
         before = read(g, a["id"])
@@ -100,9 +111,9 @@ def main() -> None:
         try:
             g._request("POST", a["id"], data={"targeting": json.dumps(clean(before))})
         except Exception as exc:                                   # noqa: BLE001
-            log.error("   !! update failed: %s", exc)
-            summary.append(f"  ✗ {a['label']:20} update FAILED: {exc}")
-            bad.append(a["label"])
+            log.error("   !! update REJECTED: %s", exc)
+            summary.append(f"  ✗ {a['label']:20} write rejected: {exc}")
+            errored.append(a["label"])
             continue
 
         after = read(g, a["id"])
@@ -114,22 +125,31 @@ def main() -> None:
         else:
             # Meta silently re-enabling this is exactly the failure that prompted the script, so
             # it is reported rather than assumed fixed.
-            log.error("   !! Meta did NOT honour the setting (adv_ok=%s rel_ok=%s)", adv_ok, rel_ok)
-            summary.append(f"  ✗ {a['label']:20} Meta re-enabled expansion "
+            log.error("   !! write ACCEPTED but Meta stored a different value "
+                      "(adv_ok=%s rel_ok=%s)", adv_ok, rel_ok)
+            summary.append(f"  ✗ {a['label']:20} Meta OVERRODE the setting "
                            f"(advantage_audience ok={adv_ok}, relaxation ok={rel_ok})")
-            bad.append(a["label"])
+            overridden.append(a["label"])
 
     log.info("═" * 88)
     for line in summary:
         log.info(line)
-    final_summary(
-        log, ("Audience expansion locked off on all %d ad set(s); each was re-read after writing "
-              "so these are the stored values, not the sent ones." % len(ADSETS)) if not bad else
-             ("‼ %d of %d ad set(s) would not hold the setting: %s. Meta is forcing audience "
-              "expansion on them, so those ad sets cannot answer the question they were built to "
-              "answer — the bands will bleed into each other and the retargeting pool will leak. "
-              "Turn Advantage+ audience off by hand in Ads Manager before activating, or accept "
-              "that the comparison is not clean." % (len(bad), len(ADSETS), ", ".join(bad))))
+
+    parts: List[str] = []
+    ok = len(ADSETS) - len(errored) - len(overridden)
+    parts.append(f"Expansion verified OFF on {ok}/{len(ADSETS)} ad set(s) — re-read after writing, "
+                 f"so these are stored values rather than what was sent.")
+    if errored:
+        parts.append(f"‼ {len(errored)} write(s) were REJECTED and nothing changed on them "
+                     f"({', '.join(errored)}) — that is a bug in this script's request, not a Meta "
+                     f"policy decision, so it is fixable here and worth retrying.")
+    if overridden:
+        parts.append(f"‼ {len(overridden)} ad set(s) accepted the write and then stored a "
+                     f"different value ({', '.join(overridden)}) — Meta is forcing audience "
+                     f"expansion. Those ad sets cannot answer the question they were built to ask: "
+                     f"the bands will bleed into each other. Turn Advantage+ audience off by hand "
+                     f"in Ads Manager before activating, or accept the comparison is not clean.")
+    final_summary(log, " ".join(parts))
 
 
 if __name__ == "__main__":
