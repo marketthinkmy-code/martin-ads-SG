@@ -131,6 +131,13 @@ def main() -> None:
             "name": f"{PREFIX} | {CAMPAIGN_LABEL}",
             "objective": m.objective, "buying_type": "AUCTION", "status": "PAUSED",
             "special_ad_categories": m.special_ad_categories,
+            # Meta rejects an ABO campaign that does not state this: "You must specify True or
+            # False in the field is_adset_budget_sharing_enabled if you are not using campaign
+            # budget." False on purpose — sharing lets ad sets lend each other 20% of their
+            # budget, which erodes the per-band guarantee that is the whole reason for ABO here.
+            # Sent as the lowercase string because _encode passes bools straight to form data,
+            # where Python's True/False would serialise as "True"/"False".
+            "is_adset_budget_sharing_enabled": "false",
         })["id"]
         st["campaign_id"] = campaign_id
         save_state(st)
