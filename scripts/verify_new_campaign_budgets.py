@@ -25,10 +25,24 @@ CAMPAIGNS = [
     ("Retarget 30d VV50 | 1-1-1", "120257762100210093"),
 ]
 
-# The account publishes these per optimisation class. low_freq covers conversion-optimised ad sets
-# (a purchase or lead is a rare event), and is the one that binds here.
-ACCT_FIELDS = ("currency,min_daily_budget_high_freq,min_daily_budget_low_freq,"
-               "min_campaign_group_spend_cap,name")
+ACCT_FIELDS = "name,currency,min_daily_budget,min_campaign_group_spend_cap"
+
+
+def minimums(g, acct_path: str, log) -> dict:
+    """Per-optimisation-class floors. They live on the minimum_budgets EDGE — asking the account
+    node for min_daily_budget_high_freq returns "(#100) Tried accessing nonexisting field".
+
+    low_freq is the one that binds a conversion-optimised ad set: a purchase or a lead is a rare
+    event, so Meta demands a bigger daily budget than it does for clicks. This is a nice-to-have
+    for explaining a number, never a reason to lose the number itself, so a failure here is
+    logged and stepped over.
+    """
+    try:
+        rows = g._request("GET", f"{acct_path}/minimum_budgets").get("data") or []
+        return rows[0] if rows else {}
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("   (could not read minimum_budgets: %s)", exc)
+        return {}
 
 
 def money(v, cur: str) -> str:
@@ -45,11 +59,12 @@ def main() -> None:
 
     acct = g._request("GET", s.meta.account_path, params={"fields": ACCT_FIELDS})
     cur = acct.get("currency", "MYR")
+    mins = minimums(g, s.meta.account_path, log)
     log.info("account %s (%s) · %s", acct.get("name"), s.meta.account_path, cur)
     log.info("   min daily budget · high-freq (clicks/impressions): %s",
-             money(acct.get("min_daily_budget_high_freq"), cur))
+             money(mins.get("min_daily_budget_high_freq"), cur))
     log.info("   min daily budget · LOW-freq  (conversions)       : %s",
-             money(acct.get("min_daily_budget_low_freq"), cur))
+             money(mins.get("min_daily_budget_low_freq"), cur))
 
     grand = 0
     notes = []
@@ -81,7 +96,7 @@ def main() -> None:
     log.info("═" * 88)
     log.info("BOTH campaigns together: %s/day once activated", money(grand, cur))
 
-    low = acct.get("min_daily_budget_low_freq")
+    low = mins.get("min_daily_budget_low_freq")
     verdict = ""
     if low:
         verdict = (f" The account's minimum for a conversion-optimised ad set is "
