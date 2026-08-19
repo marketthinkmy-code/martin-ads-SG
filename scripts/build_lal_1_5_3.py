@@ -135,9 +135,12 @@ def main() -> None:
             # False in the field is_adset_budget_sharing_enabled if you are not using campaign
             # budget." False on purpose — sharing lets ad sets lend each other 20% of their
             # budget, which erodes the per-band guarantee that is the whole reason for ABO here.
-            # Sent as the lowercase string because _encode passes bools straight to form data,
-            # where Python's True/False would serialise as "True"/"False".
-            "is_adset_budget_sharing_enabled": "false",
+            "is_adset_budget_sharing_enabled": False,
+            # Singapore requires this on the campaign AND on every ad set carrying SG geo, or
+            # Meta refuses with "Regional regulated categories value required". build_1_1_10 sets
+            # it in both places; a hand-rolled builder has to do the same.
+            **({"regional_regulated_categories": m.regional_regulated_categories}
+               if m.regional_regulated_categories else {}),
         })["id"]
         st["campaign_id"] = campaign_id
         save_state(st)
@@ -169,6 +172,14 @@ def main() -> None:
                 "status": "PAUSED",
                 "daily_budget": int(DAILY_MYR_PER_ADSET * 100),
                 "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                # SG regulated-category declaration — Meta rejects an SG-geo ad set without it.
+                **({"regional_regulated_categories": m.regional_regulated_categories}
+                   if m.regional_regulated_categories else {}),
+                # SG ad transparency: the verified advertiser + payer must be declared as identity
+                # ids or Meta blocks delivery with "Advertiser is missing". Free-text
+                # dsa_beneficiary/payor names are not accepted for Singapore.
+                **({"regional_regulation_identities": m.regional_regulation_identities}
+                   if m.regional_regulation_identities else {}),
             })["id"]
             adsets[label] = adset_id
             st["adsets"] = adsets
