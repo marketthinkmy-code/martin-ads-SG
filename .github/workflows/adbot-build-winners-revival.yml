@@ -1,0 +1,46 @@
+name: adbot · Build Winners Revival 1-1-4 (manual)
+
+# LIVE build. Creates 1 CBO campaign (RM100/day) + 1 ad set + 4 ads in the SG account, all
+# PAUSED — nothing spends until you activate in Ads Manager.
+#
+# The 4 ads are the creatives the lead-quality audit found with >= 4 provably-SG paid students
+# at a lifetime CPA inside the RM740 target while taking RM0 of the last 30 days' budget:
+# APR VIDEO: HOOK 5 · MAR Single image 1：牛奶+面包 · Video 1: 流鼻涕咳嗽 allergy ·
+# Video 3：5岁到15岁的孩子. Each reuses the top-spend copy's creative (keeps its post
+# engagement) and its exact historical ad name (keeps the paid-list join continuous).
+#
+# Targeting is cloned from the account's best-converting ad set (Parents 3–17 + Engaged).
+#
+# Idempotent: entity ids persist to the branch, so a re-dispatch reuses instead of duplicating.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the Winners Revival 1-1-4 (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_winners_revival_1_1_4.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist winners-revival 1-1-4 ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
