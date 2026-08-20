@@ -41,6 +41,16 @@ are reported rather than hidden:
 Spend is aggregated per ad NAME KEY, not per ad id, so one creative running as several ads across
 campaigns is judged as one creative — which is how creative decisions are actually made.
 
+PROVABLY-SG SALES ONLY
+----------------------
+The Paid Student List is shared across markets, and the same creative names run in the MY account.
+The first run of this audit joined on ad name alone and produced lead→paid rates above 100% —
+more buyers than this account ever had leads — because MY buyers were being credited to SG spend.
+So every judgement below counts only provably-SG sales, the account's own attribution standard
+(UTM campaign contains '[sg]' / 'martin-sg' / 'martin sg', as in keep_or_pause_high_cpl.py).
+The all-market count is still shown per row as context, because a creative with many MY sales and
+no SG ones is a different situation from a creative with no sales anywhere.
+
 Read-only: this creates, changes and pauses nothing.
 """
 from __future__ import annotations
@@ -120,6 +130,17 @@ def match_sales(sale_keys: Dict[str, int], meta_keys: List[str]) -> Tuple[Dict[s
     return mapping, unmatched
 
 
+def sg_sale(campaign_norm: str) -> bool:
+    """Provably-SG sale — the account's own attribution standard (keep_or_pause_high_cpl.py).
+
+    Campaign values from parse_sales are already casefolded by cpa.norm, so plain substring
+    checks are enough. MY-shared-name sales never count for an SG judgement — in either
+    direction: not to keep an ad alive, and not to kill one.
+    """
+    c = campaign_norm or ""
+    return ("[sg]" in c) or ("martin-sg" in c) or ("martin sg" in c)
+
+
 def main() -> None:
     log = get_logger()
     s = load_settings()
@@ -140,15 +161,21 @@ def main() -> None:
     log.info("   sales by month: %s",
              "  ".join(f"{k}:{v}" for k, v in sorted(by_month.items())))
 
-    sale_count: Dict[str, int] = defaultdict(int)
+    sale_count: Dict[str, int] = defaultdict(int)       # all markets — context only
+    sale_sg: Dict[str, int] = defaultdict(int)          # provably-SG — every judgement uses this
     sale_value: Dict[str, float] = defaultdict(float)
     sale_recent: Dict[str, int] = defaultdict(int)
+    n_sg = 0
     for sale in sales:
         k = cpa.ad_key(sale.ad)
         sale_count[k] += 1
-        sale_value[k] += sale.amount
-        if sale.date and sale.date > today - dt.timedelta(days=RECENT_DAYS):
-            sale_recent[k] += 1
+        if sg_sale(sale.campaign):
+            n_sg += 1
+            sale_sg[k] += 1
+            sale_value[k] += sale.amount
+            if sale.date and sale.date > today - dt.timedelta(days=RECENT_DAYS):
+                sale_recent[k] += 1
+    log.info("   provably-SG (UTM campaign carries the SG marker): %d of %d rows", n_sg, len(sales))
 
     # ── spend ────────────────────────────────────────────────────────────────────
     g = graph_client(s)
@@ -163,15 +190,17 @@ def main() -> None:
              len(life), sum(1 for v in recent.values() if v["spend"] > 0), RECENT_DAYS)
 
     mapping, unmatched = match_sales(sale_count, list(life.keys()))
-    matched_sales = sum(sale_count[k] for k in mapping)
-    lost_sales = sum(sale_count[k] for k in unmatched)
+    matched_sales = sum(sale_sg[k] for k in mapping)          # SG lane — the account line
+    lost_sales = sum(sale_sg[k] for k in unmatched)           # SG sales the join loses
 
     # Fold sheet keys onto their Meta key so one creative carries all of its sales.
-    paid: Dict[str, int] = defaultdict(int)
+    paid: Dict[str, int] = defaultdict(int)             # provably-SG
+    paid_all: Dict[str, int] = defaultdict(int)         # all markets, context only
     paid_recent: Dict[str, int] = defaultdict(int)
     revenue: Dict[str, float] = defaultdict(float)
     for sk, mk in mapping.items():
-        paid[mk] += sale_count[sk]
+        paid[mk] += sale_sg[sk]
+        paid_all[mk] += sale_count[sk]
         paid_recent[mk] += sale_recent[sk]
         revenue[mk] += sale_value[sk]
 
@@ -184,7 +213,8 @@ def main() -> None:
             "key": k, "name": l["name"],
             "life_spend": l["spend"], "life_leads": l["leads"],
             "spend30": r30["spend"], "leads30": r30["leads"],
-            "paid": n_paid, "paid30": paid_recent.get(k, 0), "revenue": revenue.get(k, 0.0),
+            "paid": n_paid, "paid_all": paid_all.get(k, 0),
+            "paid30": paid_recent.get(k, 0), "revenue": revenue.get(k, 0.0),
             "cpa": cpa.cpa(l["spend"], n_paid),
             "cpl30": (r30["spend"] / r30["leads"]) if r30["leads"] else None,
             "l2p": (n_paid / l["leads"]) if l["leads"] else None,
@@ -197,14 +227,15 @@ def main() -> None:
     acct_l2p = (matched_sales / life_leads) if life_leads else 0.0
 
     log.info("═" * 108)
-    log.info("ACCOUNT — lifetime spend RM%s · %s leads · %d matched sales · lead→paid %s",
-             money(life_spend), money(life_leads), matched_sales, pct(matched_sales, life_leads))
+    log.info("ACCOUNT — lifetime spend RM%s · %s leads · %d matched provably-SG sales · "
+             "lead→paid %s", money(life_spend), money(life_leads), matched_sales,
+             pct(matched_sales, life_leads))
     log.info("          last %dd  spend RM%s · %s leads · blended CPL RM%s",
              RECENT_DAYS, money(tot30), money(leads30),
              money(tot30 / leads30) if leads30 else None)
     if lost_sales:
-        log.info("          ‼ %d sale(s) could NOT be matched to any Meta ad — every ranking below "
-                 "is missing them (renamed ads / blank UTM)", lost_sales)
+        log.info("          ‼ %d provably-SG sale(s) could NOT be matched to any Meta ad — every "
+                 "ranking below is missing them (renamed ads / blank UTM)", lost_sales)
 
     # ── 1) where the money went ──────────────────────────────────────────────────
     log.info("═" * 108)
@@ -218,8 +249,10 @@ def main() -> None:
         # Two different failures, and they need different fixes, so they are labelled apart:
         # spending with no sale in the account's whole history, versus selling but above the
         # price at which a sale still pays for itself.
-        if r["paid"] == 0:
-            flag = "  ← never sold"
+        if r["paid"] == 0 and r["paid_all"] == 0:
+            flag = "  ← never sold, any market"
+        elif r["paid"] == 0:
+            flag = f"  ← no SG sale ({r['paid_all']} elsewhere)"
         elif r["cpa"] != math.inf and r["cpa"] > hard:
             flag = "  ← above hard stop"
         else:
@@ -229,12 +262,12 @@ def main() -> None:
                  pct(r["paid"], r["life_leads"]), flag)
     for r in rows:
         if r["spend30"] > 0 and r["paid"] == 0:
-            burn_no_sales += r["spend30"]
+            burn_no_sales += r["spend30"]     # no provably-SG sale ever
 
     # ── 2) proven winners and what they are being paid ───────────────────────────
     log.info("═" * 108)
-    log.info("2) PROVEN WINNERS — real lifetime sales, ranked by CPA (best first)")
-    log.info("   %-38s %6s %9s %10s %11s %9s", "creative", "paid", "CPA", "lifetime",
+    log.info("2) PROVEN WINNERS — provably-SG lifetime sales, ranked by CPA (best first)")
+    log.info("   %-38s %6s %6s %9s %10s %11s %9s", "creative", "SG", "all", "CPA", "lifetime",
              f"{RECENT_DAYS}d spend", "share")
     winners = sorted([r for r in rows if r["paid"] > 0], key=lambda x: x["cpa"])
     starved: List[Dict[str, Any]] = []
@@ -244,8 +277,9 @@ def main() -> None:
         if r["cpa"] <= target and r["spend30"] < tot30 * 0.02:
             flag = "  ← STARVED"
             starved.append(r)
-        log.info("   %-38s %6d %9s %10s %11s %9s%s", r["name"][:38], r["paid"], money(r["cpa"]),
-                 money(r["life_spend"]), money(r["spend30"]), share, flag)
+        log.info("   %-38s %6d %6d %9s %10s %11s %9s%s", r["name"][:38], r["paid"],
+                 r["paid_all"], money(r["cpa"]), money(r["life_spend"]), money(r["spend30"]),
+                 share, flag)
 
     # ── 3) lead quality: cheap leads that never buy ──────────────────────────────
     log.info("═" * 108)
@@ -274,8 +308,8 @@ def main() -> None:
                  f"(blended CPL RM{money(tot30 / leads30) if leads30 else 0}).")
     if tot30 > 0:
         parts.append(f"RM{money(burn_no_sales)} of that ({pct(burn_no_sales, tot30)}) went to "
-                     f"creatives that have NEVER produced a paid student in this account's whole "
-                     f"history — that is the single biggest lever here, and it is a targeting and "
+                     f"creatives with NO provably-SG paid student in this account's whole history "
+                     f"— that is the single biggest lever here, and it is a targeting and "
                      f"creative problem, not a bidding one.")
     if starved:
         names = ", ".join(r["name"][:26] for r in starved[:4])
@@ -299,7 +333,7 @@ def main() -> None:
                      f"the account rate — those are the lead-quality problem by name, and a CPL "
                      f"guardrail alone will never catch them because they look cheap.")
     if lost_sales:
-        parts.append(f"CAVEAT: {lost_sales} of {len(sales)} sales carry a UTM that matches no "
+        parts.append(f"CAVEAT: {lost_sales} of {n_sg} provably-SG sales carry a UTM that matches no "
                      f"current Meta ad name (renamed ads or blank UTM), so every figure above "
                      f"understates somebody. Fix that before treating the ranking as final.")
     final_summary(log, " ".join(parts))
