@@ -187,7 +187,7 @@ def main() -> None:
             "paid": n_paid, "paid30": paid_recent.get(k, 0), "revenue": revenue.get(k, 0.0),
             "cpa": cpa.cpa(l["spend"], n_paid),
             "cpl30": (r30["spend"] / r30["leads"]) if r30["leads"] else None,
-            "l2p": (n_paid / l["life_leads"]) if l["life_leads"] else None,
+            "l2p": (n_paid / l["leads"]) if l["leads"] else None,
         })
 
     tot30 = sum(r["spend30"] for r in rows)
