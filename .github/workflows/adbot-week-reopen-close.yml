@@ -1,0 +1,36 @@
+name: adbot · Week reopen/close audit (Thu→today, read-only, manual)
+
+# READ-ONLY. Re-judges the week's switch-offs on MONEY instead of registrations:
+#
+#   · switched-off ads (paused in any way, spent in the last 7 days) with provably-SG sales at
+#     a lifetime CPA inside the acceptable line -> REOPEN candidates. These are exactly the
+#     "CPL high but CPA low" ads the CPL guardrail cannot see and wrongly kills.
+#   · running ads with a proven CPA above the hard stop, or matured + funded with zero sales
+#     anywhere -> CLOSE candidates.
+#   · over-CPL runners whose CPA is acceptable -> flagged KEEP so the guardrail doesn't take
+#     them next.
+#
+# Sales are provably-SG only; economics are per creative name (copies inherit their creative's
+# record). Nothing is changed — the output is a recommendation list for the operator.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Judge the week's opens and closes on money
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/week_reopen_close_audit.py
