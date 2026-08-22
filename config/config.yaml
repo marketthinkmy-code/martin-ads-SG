@@ -94,7 +94,9 @@ kpi:
   cpl_min_spend_myr: 100.00              # only judge an ad once it has spent >= this
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
-  cpl_hold: []                           # ad-name substrings temporarily exempt from auto-pause
+  cpl_hold:                              # ad-name substrings temporarily exempt from CPL auto-pause (CPA hard-stop still applies)
+    - "牛奶+面包"                          # reopened 22 Aug: 4 provably-SG sales · CPA 518, but sales sit outside the monitor's 60d window so CPA-rescue can't see them
+    - "女孩来了初经"                        # reopened 22 Aug: 1 SG sale · CPA 730, same 60d-window blindness
 
 cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet, SHARED with MY)
   enabled: true
