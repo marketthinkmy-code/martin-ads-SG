@@ -1,0 +1,38 @@
+name: adbot · Swap Video 5 copy to script-native body (manual)
+
+# LIVE write, operator-approved 24 Aug ("主文案 + Headline 1，换上去"): rebuilds the Video 5
+# 倒數計時 creative around the SAME uploaded video with the approved script-native body and
+# headline, and points the existing PAUSED ad at it. No re-upload, ad id/name unchanged, ad
+# stays PAUSED. Old creative id is kept in state for a one-run swap-back.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  swap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist the new creative id to state/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Swap the copy
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/swap_v5_copy.py
+      - name: Persist the new creative id back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Video 5 copy swap [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
