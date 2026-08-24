@@ -1,0 +1,45 @@
+name: adbot · Build Video 5 倒數計時 1-1-1 (manual)
+
+# LIVE build. Creates 1 CBO campaign (RM80/day) + 1 ad set + 1 ad in the SG account, PAUSED —
+# nothing spends until activated in Ads Manager.
+#
+# The new countdown-urgency video (Martin July 通用 北美V5#.mp4, 128MB) goes on the proving
+# ground: targeting cloned from Parents 3–17 + Engaged, the same audience every hook-edit and
+# bread-hook test ran in, so its CPL is directly comparable to those benchmarks. Body copy is
+# the proven evergreen text verbatim; only the headline is new.
+#
+# Idempotent: video/creative/entity ids persist to the branch, so a re-dispatch never
+# re-uploads the video or duplicates the campaign.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write          # persist state/ (video/creative/campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Video 5 倒數計時 (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_v5_countdown.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Video 5 countdown ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
