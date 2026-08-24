@@ -52,12 +52,14 @@ V15PLUS_NAME = "Video：孩子15岁以上还有机会长高吗？"
 DECHOOK13_AD = "120256984988360093"     # live H&W copy; creative + exact name resolved from it
 CLONE_ADSET_ID = "120256891851660093"   # Parents 3–17 + Engaged — already carries the teen segment
 
-# Canonical interest names to try, in priority order. Only EXACT (casefolded) name matches are
-# accepted — the free-text adinterest search returned "Vitamin C (singer)" as its best idea of
-# "Vitamin", which is how a supplement test nearly became a K-pop fan test.
-SUPPLEMENT_TERMS = ["Dietary supplement", "Dietary supplements", "Vitamin", "Vitamins",
-                    "Multivitamin", "Traditional Chinese medicine", "Chinese herbology",
-                    "Nutritional supplement", "Health supplement"]
+# Meta's 2022 sensitive-category purge removed health interests like "Dietary supplement" and
+# "Traditional Chinese medicine" from detailed targeting — adinterestvalid reports them invalid
+# and free-text search offers a singer instead. What survives are RETAILER brand interests, so
+# the audience is expressed as pharmacy/supplement-store shoppers: the same parents, reached
+# through where they buy instead of a deleted health label. Acceptance stays exact — a row
+# matches only if its name (minus a trailing "(store)"-style qualifier) equals the term.
+SUPPLEMENT_TERMS = ["Watsons", "Guardian", "GNC", "iHerb", "Multivitamin", "Vitamins",
+                    "Dietary supplement", "Traditional Chinese medicine", "Chinese herbology"]
 MAX_INTERESTS = 4
 
 
@@ -100,6 +102,11 @@ def resolve_interests(g, log) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     seen: set = set()
 
+    def base(name: str) -> str:
+        # "GNC (store)" → "gnc"; the qualifier disambiguates, the base is the identity.
+        import re as _re
+        return _re.sub(r"\s*\([^)]*\)\s*$", "", name or "").casefold()
+
     def take(r) -> None:
         rid = str(r.get("id") or "")
         if rid and rid not in seen and len(out) < MAX_INTERESTS:
@@ -113,7 +120,7 @@ def resolve_interests(g, log) -> List[Dict[str, Any]]:
             "type": "adinterestvalid", "interest_list": json.dumps(SUPPLEMENT_TERMS),
             "locale": "en_US"}).get("data", [])
         for r in rows:
-            if r.get("valid") and (r.get("name") or "").casefold() in \
+            if r.get("valid") and base(r.get("name") or "") in \
                     {t.casefold() for t in SUPPLEMENT_TERMS}:
                 take(r)
         log.info("adinterestvalid resolved %d/%d term(s)", len(out), len(SUPPLEMENT_TERMS))
@@ -125,7 +132,7 @@ def resolve_interests(g, log) -> List[Dict[str, Any]]:
             rows = g._request("GET", "search", params={
                 "type": "adinterest", "q": term, "limit": 10, "locale": "en_US"}).get("data", [])
             for r in rows:
-                if (r.get("name") or "").casefold() == term.casefold():
+                if base(r.get("name") or "") == term.casefold():
                     take(r)
                     break
     return out
@@ -200,20 +207,7 @@ def main() -> None:
     teen = find_teen_parents(g, s)
     log.info("family status: %s (%s)", teen.get("name"), teen.get("id"))
 
-    interests = resolve_interests(g, log)
-    for i in interests:
-        log.info("interest: %-32s (%s · audience ~%s)", i["name"], i["id"], i["size"])
-    if len(interests) < 2:
-        raise SystemExit("!! fewer than 2 supplement interests resolved — the audience would "
-                         "be too thin to mean anything; nothing was built.")
-
-    src = g._request("GET", DECHOOK13_AD, params={"fields": "name,creative{id},status"})
-    dec_name, dec_creative = src.get("name"), (src.get("creative") or {}).get("id")
-    if not dec_creative:
-        raise SystemExit("!! could not resolve DEC HOOK 13's creative — nothing was built.")
-    log.info("DEC HOOK 13 source: %r → creative %s", dec_name, dec_creative)
-
-    # ── test 1: 15岁以上 × Parents with teenagers (13-17) ────────────────────────
+    # ── test 1: 15岁以上 × Parents with teenagers (13-17) — never blocked by test 2 ─
     log.info("═" * 88)
     spec1 = base_targeting(m)
     spec1["flexible_spec"] = [{"family_statuses": [{"id": teen["id"], "name": teen.get("name")}]}]
@@ -222,25 +216,41 @@ def main() -> None:
                    state_key="entities_teen_parents_1_1_1", spec=spec1,
                    ad_name=V15PLUS_NAME, creative_id=V15PLUS_CREATIVE, log=log)
 
-    # ── test 2: DEC HOOK 13 × supplement/TCM interests ───────────────────────────
+    # ── test 2: DEC HOOK 13 × supplement-shopper interests (conditional) ─────────
     log.info("═" * 88)
-    spec2 = base_targeting(m)
-    spec2["flexible_spec"] = [{"interests": [{"id": i["id"], "name": i["name"]}
-                                             for i in interests]}]
-    r2 = build_one(g, s, label="Supplement Interests | 1-1-1",
-                   adset_name="Supplements & TCM | SG 25+",
-                   state_key="entities_supplement_int_1_1_1", spec=spec2,
-                   ad_name=dec_name, creative_id=dec_creative, log=log)
+    interests = resolve_interests(g, log)
+    for i in interests:
+        log.info("interest: %-40s (%s · audience ~%s)", i["name"], i["id"], i["size"])
+    r2 = None
+    if len(interests) < 2:
+        log.error("test 2 SKIPPED: fewer than 2 supplement-shopper interests resolve — Meta's "
+                  "2022 sensitive-category purge removed the health interests outright, and the "
+                  "retailer proxies did not resolve either. Test 1 is unaffected.")
+    else:
+        src2 = g._request("GET", DECHOOK13_AD, params={"fields": "name,creative{id},status"})
+        dec_name, dec_creative = src2.get("name"), (src2.get("creative") or {}).get("id")
+        if not dec_creative:
+            raise SystemExit("!! could not resolve DEC HOOK 13's creative.")
+        log.info("DEC HOOK 13 source: %r → creative %s", dec_name, dec_creative)
+        spec2 = base_targeting(m)
+        spec2["flexible_spec"] = [{"interests": [{"id": i["id"], "name": i["name"]}
+                                                 for i in interests]}]
+        r2 = build_one(g, s, label="Supplement Shoppers | 1-1-1",
+                       adset_name="Pharmacy & Supplement Shoppers | SG 25+",
+                       state_key="entities_supplement_int_1_1_1", spec=spec2,
+                       ad_name=dec_name, creative_id=dec_creative, log=log)
 
     log.info("═" * 88)
-    final_summary(
-        log, f"Two interest tests built PAUSED at RM{DAILY_MYR}/day CBO each: 15岁以上 on "
-             f"'{teen.get('name')}' (campaign {r1['campaign']}, expansion {r1['expansion']}) and "
-             f"DEC HOOK 13 on {len(interests)} supplement/TCM interests "
-             f"({', '.join(i['name'] for i in interests)}) (campaign {r2['campaign']}, expansion "
-             f"{r2['expansion']}). One unknown per test: proven creatives, new audiences. Both "
-             f"reuse the original creative and exact ad name, so engagement pools and the "
-             f"paid-list join stays continuous. Review previews, then activate.")
+    part1 = (f"Test 1 built PAUSED at RM{DAILY_MYR}/day CBO: 15岁以上 on '{teen.get('name')}' "
+             f"(campaign {r1['campaign']}, expansion {r1['expansion']}).")
+    part2 = (f" Test 2 built PAUSED at RM{DAILY_MYR}/day CBO: DEC HOOK 13 on "
+             f"{', '.join(i['name'] for i in interests)} (campaign {r2['campaign']}, expansion "
+             f"{r2['expansion']})." if r2 else
+             f" Test 2 NOT built: Meta removed supplement/TCM health interests in its 2022 "
+             f"sensitive-category purge and no retailer proxy resolved — the audience as "
+             f"approved does not exist in detailed targeting any more.")
+    final_summary(log, part1 + part2 + " Proven creatives, new audiences, exact historical ad "
+                                       "names. Review previews, then activate.")
 
 
 if __name__ == "__main__":
