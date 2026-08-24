@@ -50,18 +50,36 @@ SEED_ID = "120257737609370093"          # Cust Paid List (SG) — buyers never p
 V15PLUS_CREATIVE = "1769022650919449"   # 15岁以上 — the copy carrying the post engagement
 V15PLUS_NAME = "Video：孩子15岁以上还有机会长高吗？"
 DECHOOK13_AD = "120256984988360093"     # live H&W copy; creative + exact name resolved from it
+CLONE_ADSET_ID = "120256891851660093"   # Parents 3–17 + Engaged — already carries the teen segment
 
 SUPPLEMENT_TERMS = ["Dietary supplement", "Vitamin", "Traditional Chinese medicine"]
 
 
-def find_family_status(g, needle: str) -> Dict[str, Any]:
-    rows = g._request("GET", "search", params={
-        "type": "adTargetingCategory", "class": "family_statuses", "limit": 200}).get("data", [])
-    hits = [r for r in rows if needle.lower() in (r.get("name") or "").lower()]
+def find_teen_parents(g, s) -> Dict[str, Any]:
+    """The teenager-parents segment id, without trusting the search endpoint.
+
+    /search?type=adTargetingCategory&class=family_statuses returns nothing on current API
+    versions (that is how the first run of this build died, correctly refusing to guess). But
+    the account's own "Parents 3–17 + Engaged" ad set already targets the parent segments, so
+    the id is read from its stored targeting first; the account-scoped targetingbrowse tree is
+    the fallback. Still no guessing — zero or ambiguous candidates abort the build.
+    """
+    t = g._request("GET", CLONE_ADSET_ID, params={"fields": "targeting"}).get("targeting") or {}
+    for grp in (t.get("flexible_spec") or []):
+        for fs in (grp.get("family_statuses") or []):
+            n = (fs.get("name") or "").lower()
+            if "13-17" in n or "teenager" in n:
+                return {"id": str(fs["id"]), "name": fs.get("name")}
+    rows = g._request("GET", f"{s.meta.account_path}/targetingbrowse",
+                      params={"limit": 2000}).get("data", [])
+    hits = [r for r in rows if "13-17" in (r.get("name") or "")
+            and ("teen" in (r.get("name") or "").lower()
+                 or r.get("type") == "family_statuses")]
     if len(hits) != 1:
-        raise SystemExit(f"!! family_statuses search for {needle!r} returned {len(hits)} "
-                         f"candidate(s) ({[r.get('name') for r in hits]}) — refusing to guess.")
-    return hits[0]
+        raise SystemExit(f"!! teenager-parents segment: clone ad set had none and targetingbrowse "
+                         f"returned {len(hits)} candidate(s) "
+                         f"({[r.get('name') for r in hits]}) — refusing to guess.")
+    return {"id": str(hits[0]["id"]), "name": hits[0].get("name")}
 
 
 def find_interest(g, term: str) -> Optional[Dict[str, Any]]:
@@ -139,7 +157,7 @@ def main() -> None:
     s.meta.budget.daily_amount_myr = DAILY_MYR
 
     # ── resolve everything BEFORE building anything ──────────────────────────────
-    teen = find_family_status(g, "teenagers (13-17")
+    teen = find_teen_parents(g, s)
     log.info("family status: %s (%s)", teen.get("name"), teen.get("id"))
 
     interests: List[Dict[str, Any]] = []
