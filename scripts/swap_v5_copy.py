@@ -88,9 +88,17 @@ def main() -> None:
     acct = s.meta.account_path
 
     st: Dict[str, Any] = json.loads(STATE_PATH.read_text())
-    ad_id, video_id = st["ad_id"], st["video_id"]
-    old_creative = st["creative_id"]
-    thumb = st.get("thumb")
+    ad_id, old_creative = st["ad_id"], st["creative_id"]
+
+    # video_id comes from the OLD creative, not from state: build_1_1_10's state write clobbered
+    # the video_id/thumb keys the uploader persisted, and the creative is the one place the
+    # binding is guaranteed to exist.
+    old_spec = g._request("GET", old_creative, params={"fields": "object_story_spec"})
+    vd = ((old_spec.get("object_story_spec") or {}).get("video_data")) or {}
+    video_id = vd.get("video_id")
+    thumb = vd.get("image_url")
+    if not video_id:
+        raise SystemExit(f"!! creative {old_creative} carries no video_id — nothing was changed.")
 
     if st.get("copy_swapped"):
         log.info("copy already swapped (creative %s) — nothing to do", old_creative)
