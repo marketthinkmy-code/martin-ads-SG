@@ -1,0 +1,44 @@
+name: adbot · Build interest tests (Teen Parents + Supplements, manual)
+
+# LIVE build. Creates 2 CBO campaigns (RM50/day each) + 1 ad set + 1 ad apiece, all PAUSED:
+#   1. 15岁以上 (24 provably-SG sales) on "Parents with teenagers (13-17 years)" — the buyer
+#      demographic of this message, never targeted on its own.
+#   2. DEC HOOK 13 supplement 白花钱 (best lead→paid among funded ads) on supplement/TCM
+#      interests — the people the ad talks to, never targeted before.
+#
+# One unknown per test: proven creative, new audience. Interest/demographic ids resolve from
+# Meta's targeting search at build time; unresolvable terms abort the build. advantage_audience
+# is sent 0 and VERIFIED after creation (Meta silently stored 1 on the LAL bands), rewritten if
+# overridden. Idempotent via state/.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist state/ (campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the two interest tests (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_interest_tests.py
+      - name: Persist created entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist interest-test ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
