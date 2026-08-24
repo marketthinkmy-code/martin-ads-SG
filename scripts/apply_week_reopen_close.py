@@ -32,14 +32,21 @@ from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
 
 # action · name-key fragment · campaign-key fragment · how many ads this MUST match
+#
+# 24 Aug: this list became the ENFORCED approved state rather than a one-shot apply — between
+# Saturday and Monday someone reopened the closed Video 13 / 我不会买牛奶 copies in the LAL bands
+# (RM1,400 burned) and re-paused the revived sellers, so the script now asserts the whole
+# approved state and is safe to re-run whenever the account drifts from it.
 TARGETS: List[Dict[str, Any]] = [
     {"act": "reopen", "name": "MAR Single image 1：牛奶+面包", "camp": "Winners Revival", "n": 1},
+    {"act": "reopen", "name": "APR VIDEO: HOOK 5", "camp": "Winners Revival", "n": 1},
     {"act": "reopen", "name": "DEC HOOK 13：花了几千块买增高 supplement", "camp": "Health & Wellness", "n": 1},
     {"act": "reopen", "name": "Video 12：15歲以上試了五六種方法沒長高", "camp": "Interest: Family", "n": 1},
     {"act": "reopen", "name": "Carousel：别再逼孩子喝牛奶了", "camp": "迷思打破", "n": 1},
     {"act": "reopen", "name": "Single Image：女孩来了初经", "camp": "单图-迷思", "n": 1},
     {"act": "close", "name": "MAR Video 8（1）：新马版主打牛奶迷思", "camp": "Health & Wellness", "n": 1},
     {"act": "close", "name": "MAR Video 1：我不会买牛奶", "camp": "PURCHASE LAL 1-5%", "n": 5},
+    {"act": "close", "name": "Video 13：三年前他長了10公分", "camp": "PURCHASE LAL 1-5%", "n": 5},
 ]
 
 
