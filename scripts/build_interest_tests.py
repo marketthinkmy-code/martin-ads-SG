@@ -52,7 +52,13 @@ V15PLUS_NAME = "Video：孩子15岁以上还有机会长高吗？"
 DECHOOK13_AD = "120256984988360093"     # live H&W copy; creative + exact name resolved from it
 CLONE_ADSET_ID = "120256891851660093"   # Parents 3–17 + Engaged — already carries the teen segment
 
-SUPPLEMENT_TERMS = ["Dietary supplement", "Vitamin", "Traditional Chinese medicine"]
+# Canonical interest names to try, in priority order. Only EXACT (casefolded) name matches are
+# accepted — the free-text adinterest search returned "Vitamin C (singer)" as its best idea of
+# "Vitamin", which is how a supplement test nearly became a K-pop fan test.
+SUPPLEMENT_TERMS = ["Dietary supplement", "Dietary supplements", "Vitamin", "Vitamins",
+                    "Multivitamin", "Traditional Chinese medicine", "Chinese herbology",
+                    "Nutritional supplement", "Health supplement"]
+MAX_INTERESTS = 4
 
 
 def find_teen_parents(g, s) -> Dict[str, Any]:
@@ -82,13 +88,47 @@ def find_teen_parents(g, s) -> Dict[str, Any]:
     return {"id": str(hits[0]["id"]), "name": hits[0].get("name")}
 
 
-def find_interest(g, term: str) -> Optional[Dict[str, Any]]:
-    rows = g._request("GET", "search", params={
-        "type": "adinterest", "q": term, "limit": 10}).get("data", [])
-    for r in rows:                       # exact name match first, then prefix
-        if (r.get("name") or "").casefold() == term.casefold():
-            return r
-    return rows[0] if rows else None
+def resolve_interests(g, log) -> List[Dict[str, Any]]:
+    """Resolve supplement/TCM interests with two endpoints, exact-name matches only.
+
+    adinterestvalid is Meta's own "does this interest exist" validator and is tried first for
+    the whole candidate list; the free-text adinterest search is only a fallback, and even
+    then a row is accepted only when its name equals the term exactly — the search endpoint's
+    top hit for "Vitamin" was a singer, and no guard between that and a live audience is not
+    a real guard.
+    """
+    out: List[Dict[str, Any]] = []
+    seen: set = set()
+
+    def take(r) -> None:
+        rid = str(r.get("id") or "")
+        if rid and rid not in seen and len(out) < MAX_INTERESTS:
+            seen.add(rid)
+            out.append({"id": rid, "name": r.get("name"),
+                        "size": r.get("audience_size_lower_bound")
+                                or r.get("audience_size") or "?"})
+
+    try:
+        rows = g._request("GET", "search", params={
+            "type": "adinterestvalid", "interest_list": json.dumps(SUPPLEMENT_TERMS),
+            "locale": "en_US"}).get("data", [])
+        for r in rows:
+            if r.get("valid") and (r.get("name") or "").casefold() in \
+                    {t.casefold() for t in SUPPLEMENT_TERMS}:
+                take(r)
+        log.info("adinterestvalid resolved %d/%d term(s)", len(out), len(SUPPLEMENT_TERMS))
+    except Exception as exc:                                   # noqa: BLE001
+        log.info("adinterestvalid unavailable (%s) — falling back to adinterest search", exc)
+
+    if len(out) < 2:
+        for term in SUPPLEMENT_TERMS:
+            rows = g._request("GET", "search", params={
+                "type": "adinterest", "q": term, "limit": 10, "locale": "en_US"}).get("data", [])
+            for r in rows:
+                if (r.get("name") or "").casefold() == term.casefold():
+                    take(r)
+                    break
+    return out
 
 
 def base_targeting(m) -> Dict[str, Any]:
@@ -160,15 +200,9 @@ def main() -> None:
     teen = find_teen_parents(g, s)
     log.info("family status: %s (%s)", teen.get("name"), teen.get("id"))
 
-    interests: List[Dict[str, Any]] = []
-    for term in SUPPLEMENT_TERMS:
-        r = find_interest(g, term)
-        if r:
-            interests.append({"id": r["id"], "name": r.get("name")})
-            log.info("interest: %-32s → %s (audience ~%s)", term, r.get("name"),
-                     r.get("audience_size_lower_bound", "?"))
-        else:
-            log.info("interest: %-32s → NOT FOUND, skipped", term)
+    interests = resolve_interests(g, log)
+    for i in interests:
+        log.info("interest: %-32s (%s · audience ~%s)", i["name"], i["id"], i["size"])
     if len(interests) < 2:
         raise SystemExit("!! fewer than 2 supplement interests resolved — the audience would "
                          "be too thin to mean anything; nothing was built.")
