@@ -7,5 +7,8 @@
   "split_ad_id": "120257934457610093",
   "ad_name": "Video 14：身高停在小學",
   "creative_id": "1050765014385282",
-  "source_ad_id": "120256894654280093"
+  "source_ad_id": "120256894654280093",
+  "deleted": true,
+  "deleted_at": "2026-08-27T07:41:37+00:00",
+  "deleted_reason": "operator: 我不要新建，我要在 existing"
 }

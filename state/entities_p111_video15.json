@@ -7,5 +7,8 @@
   "split_ad_id": "120257934454490093",
   "ad_name": "Video 15：不到160慌了",
   "creative_id": "981570714910715",
-  "source_ad_id": "120256899218410093"
+  "source_ad_id": "120256899218410093",
+  "deleted": true,
+  "deleted_at": "2026-08-27T07:41:36+00:00",
+  "deleted_reason": "operator: 我不要新建，我要在 existing"
 }

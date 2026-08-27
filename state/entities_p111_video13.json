@@ -7,5 +7,8 @@
   "split_ad_id": "120257934451420093",
   "ad_name": "Video 13：三年前他長了10公分",
   "creative_id": "1384215930283487",
-  "source_ad_id": "120256891856130093"
+  "source_ad_id": "120256891856130093",
+  "deleted": true,
+  "deleted_at": "2026-08-27T07:41:34+00:00",
+  "deleted_reason": "operator: 我不要新建，我要在 existing"
 }

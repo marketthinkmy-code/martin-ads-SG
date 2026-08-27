@@ -7,5 +7,8 @@
   "split_ad_id": "120257934461270093",
   "ad_name": "Video 11：孩子來MC了",
   "creative_id": "2230871977707871",
-  "source_ad_id": "120256891853620093"
+  "source_ad_id": "120256891853620093",
+  "deleted": true,
+  "deleted_at": "2026-08-27T07:41:39+00:00",
+  "deleted_reason": "operator: 我不要新建，我要在 existing"
 }
