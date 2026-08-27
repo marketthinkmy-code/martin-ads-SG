@@ -1,0 +1,40 @@
+name: adbot · Rebuild Video 1 流鼻涕 with Learn More CTA (manual)
+
+# LIVE. Every historical Video 1 ad rides one immutable page post whose CTA opens WhatsApp.
+# Operator: "不要用 existing post，我要带去 learn more" — so this builds ONE fresh creative
+# (same video read live from the old creative, same proven copy verbatim, CTA LEARN_MORE →
+# the config lead page + UTM tags) and ONE PAUSED ad in the Winners Revival ad set, where
+# the old Video 1 sits paused. Nothing else is touched; nothing spends until activated.
+#
+# Idempotent: creative/ad ids persist to state/entities_v1_learnmore.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (creative/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Video 1 Learn More (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_v1_learnmore.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Video 1 Learn More ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
