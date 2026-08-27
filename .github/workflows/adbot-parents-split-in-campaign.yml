@@ -1,0 +1,43 @@
+name: adbot · Parents 兴趣定向 in-campaign split (manual)
+
+# LIVE. Operator's call: "我不要新建，我要在 existing" — so this stays entirely inside campaign
+# 120256891851180093:
+#   1) deletes the four rejected 1-1-1 pod campaigns built earlier the same day;
+#   2) creates FOUR new ad sets inside the existing campaign — each a targeting clone of its
+#      own Parents 3–17 + Engaged ad set, each holding one ad (exact historical name + live
+#      creative reused) — everything PAUSED;
+#   3) touches nothing else. The original ad set keeps running; the ABO/CBO flip, per-ad-set
+#      budgets, and the old-off/new-on swap are the operator's own manual moves in Ads Manager.
+#
+# Idempotent: ids persist to state/entities_parents_inplace.json — re-dispatch never duplicates.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (new adset/ad ids, pod deletion audit)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Delete rejected pods + split in place
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/parents_split_in_campaign.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist in-campaign split ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
