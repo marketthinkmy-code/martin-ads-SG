@@ -1,0 +1,55 @@
+name: adbot · Split ad set into 1-ad ad sets, same campaign (manual)
+
+# LIVE, generic. The operator's standing pattern, applied to whichever campaign they point at:
+# "全部 duplicate ads set in same campaign, 分成 1-1-1 abo RM50/ AD SET" + "我不要新建，我要在
+# existing". Creates one new ad set per ad INSIDE the given campaign (cloned targeting/goal
+# from the given source ad set, exact ad names + live creatives reused), everything PAUSED.
+# Never creates a campaign; never touches the source ad set or its ads. The ABO/CBO flip,
+# per-ad-set budgets (under CBO Meta rejects them at creation) and the old-off/new-on swap
+# are the operator's own manual moves in Ads Manager.
+#
+# Idempotent per campaign: ids persist to state/entities_inplace_split_<campaign_id>.json.
+
+on:
+  workflow_dispatch:
+    inputs:
+      campaign_id:
+        description: "Campaign to split inside (existing, never created)"
+        required: true
+      source_adset_id:
+        description: "The ad set whose ads get one new ad set each (must belong to the campaign)"
+        required: true
+      daily_myr:
+        description: "Per-ad-set RM/day — only applied if the campaign is already ABO"
+        default: "50"
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (new adset/ad ids per campaign)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Split ad set in place
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_CAMPAIGN_ID: ${{ inputs.campaign_id }}
+          ADBOT_SOURCE_ADSET_ID: ${{ inputs.source_adset_id }}
+          ADBOT_DAILY_MYR: ${{ inputs.daily_myr }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/split_adsets_in_campaign.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist in-campaign split ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
