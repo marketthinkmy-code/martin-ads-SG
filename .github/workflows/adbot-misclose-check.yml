@@ -1,0 +1,32 @@
+name: adbot · 誤關 check — 14d sold names vs switches (manual)
+
+# READ-ONLY. "我關了很多cpl很高的廣告 … 我有沒有誤關？" — every Paid Student List sale dated in
+# the last 14 days is resolved to its ad name key and checked against the account's switches
+# TODAY: provably-SG sold names with every copy off are the 誤關 suspects (with lifetime SG
+# sales / spend / CPA and each off copy's recent spend); names that sold without an SG UTM on
+# the shared sheet are reported separately, not as evidence. Nothing is switched.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: 14d sold names vs switches
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/misclose_check_14d.py
