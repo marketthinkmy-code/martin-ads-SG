@@ -1,0 +1,31 @@
+[
+  {
+    "ts": "2026-08-30T09:17:01+00:00",
+    "actions": [
+      {
+        "action": "reopen_chain",
+        "sale_date": "2026-08-19",
+        "campaign": "120250914933270093",
+        "adset": "120250914933290093",
+        "ad": "120250914933320093",
+        "effective": "IN_PROCESS"
+      },
+      {
+        "action": "reopen_chain",
+        "sale_date": "2026-08-26",
+        "campaign": "120239099098710093",
+        "adset": "120240921209550093",
+        "ad": "120240921209560093",
+        "effective": "ACTIVE"
+      },
+      {
+        "action": "reopen_chain",
+        "sale_date": "2026-08-26",
+        "campaign": "120257761432150093",
+        "adset": "120257761613910093",
+        "ad": "120257761614920093",
+        "effective": "IN_PROCESS"
+      }
+    ]
+  }
+]
