@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from adbot import cpa
+from adbot.clients.graph import GraphError
 from adbot.clients.sheets import SheetsClient
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
@@ -63,20 +64,52 @@ def _sgsale(x) -> bool:
     return ("[sg]" in x.campaign) or ("martin-sg" in x.campaign) or ("martin sg" in x.campaign)
 
 
-def match_one(key: str, pool: List[Dict[str, Any]], namefield: str = "name"):
-    """Exactly-one match by name key: equality first, containment fallback. None if 0 or >1."""
-    if not key:
+def resolve_campaign(camp_key: str, adset_key: str, ad_key_: str,
+                     campaigns: List[Dict[str, Any]],
+                     by_camp: Dict[str, List[Dict[str, Any]]],
+                     w7: Dict[str, float]):
+    """Resolve the sale's campaign UTM to exactly one campaign.
+
+    Campaign names repeat in this account (three campaigns are all called NEW WINNING ADS -
+    MAY 2026), so a name tie is broken by the rest of the sale's own UTM: keep candidates
+    that actually contain the sold ad, then those whose copy sits in the UTM's ad set, then
+    the one whose copy spent most in the last 7 days. Still ambiguous → None (skip, never
+    guess)."""
+    if not camp_key:
         return None, "empty key"
-    eq = [p for p in pool if cpa.ad_key(p.get(namefield) or "") == key]
-    if len(eq) == 1:
-        return eq[0], "exact"
-    if len(eq) > 1:
-        return None, f"{len(eq)} exact matches"
-    ct = [p for p in pool if key in cpa.ad_key(p.get(namefield) or "")
-          or cpa.ad_key(p.get(namefield) or "") in key]
-    if len(ct) == 1:
-        return ct[0], "containment"
-    return None, f"{len(ct)} containment matches"
+    cands = [c for c in campaigns if cpa.ad_key(c.get("name") or "") == camp_key]
+    how = "exact"
+    if not cands:
+        cands = [c for c in campaigns if camp_key in cpa.ad_key(c.get("name") or "")
+                 or cpa.ad_key(c.get("name") or "") in camp_key]
+        how = "containment"
+    if len(cands) > 1:
+        with_ad = [c for c in cands if any(
+            cpa.ad_key(a.get("name") or "") == ad_key_ for a in by_camp.get(str(c["id"]), []))]
+        if with_ad:
+            cands, how = with_ad, how + "+has-ad"
+    if len(cands) > 1 and adset_key:
+        in_adset = [c for c in cands if any(
+            cpa.ad_key(a.get("name") or "") == ad_key_
+            and adset_key == cpa.ad_key((a.get("adset") or {}).get("name") or "")
+            for a in by_camp.get(str(c["id"]), []))]
+        if not in_adset:
+            in_adset = [c for c in cands if any(
+                cpa.ad_key(a.get("name") or "") == ad_key_
+                and adset_key in cpa.ad_key((a.get("adset") or {}).get("name") or "")
+                for a in by_camp.get(str(c["id"]), []))]
+        if in_adset:
+            cands, how = in_adset, how + "+adset-utm"
+    if len(cands) > 1:
+        def camp_spend(c):
+            return sum(w7.get(a["id"], 0.0) for a in by_camp.get(str(c["id"]), [])
+                       if cpa.ad_key(a.get("name") or "") == ad_key_)
+        spends = sorted(cands, key=camp_spend, reverse=True)
+        if camp_spend(spends[0]) > camp_spend(spends[1]):
+            cands, how = [spends[0]], how + "+7d-spend"
+    if len(cands) == 1:
+        return cands[0], how
+    return None, f"{len(cands)} matches after all tie-breaks"
 
 
 def main() -> None:
@@ -118,11 +151,21 @@ def main() -> None:
         time_range={"since": d7.isoformat(), "until": today.isoformat()})}
 
     audit: List[Dict[str, Any]] = []
+    run_ts = now_iso()
+
+    def persist_audit() -> None:
+        # one entry per run, updated in place after every mutation so a crash loses nothing
+        prior = json.loads(LOG_PATH.read_text()) if LOG_PATH.exists() else []
+        prior = [e for e in prior if e.get("ts") != run_ts]
+        prior.append({"ts": run_ts, "actions": audit})
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LOG_PATH.write_text(json.dumps(prior, ensure_ascii=False, indent=2))
+
     opened, skipped, already = [], [], []
     done_chains = set()
     for camp_key, adset_key, ad_key_, date in wanted:
         log.info("═" * 96)
-        camp, how = match_one(camp_key, campaigns)
+        camp, how = resolve_campaign(camp_key, adset_key, ad_key_, campaigns, by_camp, w7)
         if camp is None:
             log.info("⚠️ %s: campaign UTM %r → %s — SKIPPED, nothing touched", date,
                      camp_key[:40], how)
@@ -162,23 +205,58 @@ def main() -> None:
             already.append(target.get("name") or target["id"])
             continue
 
-        # freeze every OTHER ad-level-ACTIVE ad in the campaign BEFORE anything wakes
+        # freeze exactly the ads my wake would RELEASE — nothing that is already delivering,
+        # nothing that stays frozen anyway. Waking the ad alone releases nothing; waking the
+        # ad set releases ad-level-ACTIVE siblings inside it; waking a paused campaign also
+        # releases ad-level-ACTIVE ads in other adset-ACTIVE ad sets. Legacy ads (2025-era)
+        # reject ANY edit with "website URL field is required" — a refusal on an ad that
+        # would deliver aborts the chain (with the muted ones restored), a refusal on one
+        # that cannot deliver is logged and ignored.
+        camp_live = camp.get("status") == "ACTIVE"
+        adset_live = adset.get("status") == "ACTIVE"
+        would_release: List[Dict[str, Any]] = []
         for a in camp_ads:
             if a["id"] == target["id"] or a.get("status") != "ACTIVE":
                 continue
-            g._request("POST", a["id"], data={"status": "PAUSED"})
-            chk = g._request("GET", a["id"], params={"fields": "status"})
-            log.info("   %s sibling %s %s → %s",
-                     "·" if chk.get("status") == "PAUSED" else "✗",
-                     a["id"], (a.get("name") or "")[:34], chk.get("status"))
-            audit.append({"action": "pause_sibling", "ad": a["id"], "name": a.get("name")})
+            sib_adset = a.get("adset") or {}
+            same_adset = str(sib_adset.get("id")) == str(adset.get("id"))
+            if same_adset:
+                if not (camp_live and adset_live):     # delivering already? then not released
+                    would_release.append(a)
+            elif not camp_live and sib_adset.get("status") == "ACTIVE":
+                would_release.append(a)
+        muted, blocked = [], None
+        for a in would_release:
+            try:
+                g._request("POST", a["id"], data={"status": "PAUSED"})
+                muted.append(a)
+                log.info("   · sibling %s %s → PAUSED", a["id"], (a.get("name") or "")[:34])
+                audit.append({"action": "pause_sibling", "ad": a["id"], "name": a.get("name")})
+            except GraphError as e:
+                blocked = (a, e)
+                break
+        if blocked is not None:
+            a, e = blocked
+            for m in muted:                            # restore — the wake is not happening
+                try:
+                    g._request("POST", m["id"], data={"status": "ACTIVE"})
+                    audit.append({"action": "unpause_sibling_rollback", "ad": m["id"]})
+                except GraphError:
+                    log.info("   ✗ rollback of %s failed — it is left PAUSED", m["id"])
+            log.info("✗ %s: sibling %s %r rejects edits (%s) and WOULD deliver if this chain "
+                     "wakes — chain left untouched; open it by hand in Ads Manager", date,
+                     a["id"], (a.get("name") or "")[:34], e)
+            skipped.append(f"{(target.get('name') or '')[:24]} @ "
+                           f"{(camp.get('name') or '')[:28]} (legacy sibling unpausable)")
+            persist_audit()
+            continue
 
         # wake the chain bottom-up, only levels that are off
         if target.get("status") != "ACTIVE":
             g._request("POST", target["id"], data={"status": "ACTIVE"})
-        if adset.get("status") != "ACTIVE":
+        if not adset_live:
             g._request("POST", adset["id"], data={"status": "ACTIVE"})
-        if camp.get("status") != "ACTIVE":
+        if not camp_live:
             g._request("POST", camp["id"], data={"status": "ACTIVE"})
 
         fin = g._request("GET", target["id"], params={"fields": "status,effective_status"})
@@ -190,11 +268,10 @@ def main() -> None:
         audit.append({"action": "reopen_chain", "sale_date": date, "campaign": camp["id"],
                       "adset": adset.get("id"), "ad": target["id"],
                       "effective": fin.get("effective_status")})
+        persist_audit()
 
-    prior = json.loads(LOG_PATH.read_text()) if LOG_PATH.exists() else []
-    prior.append({"ts": now_iso(), "actions": audit})
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOG_PATH.write_text(json.dumps(prior, ensure_ascii=False, indent=2))
+    if audit:
+        persist_audit()
 
     log.info("═" * 96)
     final_summary(
