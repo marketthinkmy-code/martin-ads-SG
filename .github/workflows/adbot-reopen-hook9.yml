@@ -1,0 +1,38 @@
+name: adbot · Reopen Hook 9 at RM100/day (manual)
+
+# LIVE. Operator: "Hook 9 开回去就好, RM100/day" — the one 誤關 name whose record is
+# unambiguous (RM727 spend · 3 provably-SG sales · CPA RM242 vs RM740 target). Wakes ONLY
+# Hook 9's own sold chain (ad 120240921209560093 → its ad set → its campaign), sets that
+# chain's budget level to RM100/day, pauses any sibling the wake would release, touches
+# nothing else. Actions append to state/reopen_sold_chains_log.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist the action audit log under state/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Reopen Hook 9
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/reopen_hook9_rm100.py
+      - name: Persist action log back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist Hook 9 reopen log [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
