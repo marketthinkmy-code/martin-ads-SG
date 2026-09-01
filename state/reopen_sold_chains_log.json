@@ -27,5 +27,23 @@
         "effective": "IN_PROCESS"
       }
     ]
+  },
+  {
+    "ts": "2026-09-01T07:07:17+00:00",
+    "actions": [
+      {
+        "action": "set_budget",
+        "entity": "120240921209550093",
+        "daily_budget": "10000"
+      },
+      {
+        "action": "reopen_chain",
+        "ad": "120240921209560093",
+        "adset": "120240921209550093",
+        "campaign": "120239099098710093",
+        "effective": "IN_PROCESS",
+        "budget": "RM100/day (stored)"
+      }
+    ]
   }
 ]
