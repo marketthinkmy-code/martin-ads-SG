@@ -1,0 +1,32 @@
+name: adbot · SG worth-opening report (manual)
+
+# READ-ONLY. "統計給我知道，SG 新加坡 的 什麼 ad 值得我開？" — every ad name with a provably-SG
+# sale, ranked by lifetime name-key CPA against the account's thresholds, split into: worth
+# opening now (off + CPA ≤ acceptable, strong if ≤ target), edge (operator's call), already
+# running, not worth (CPA past hard stop), and sold names with no ad in this account. Thin
+# data and staleness are tagged. Nothing is switched.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: SG worth-opening report
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/sg_worth_opening_report.py
