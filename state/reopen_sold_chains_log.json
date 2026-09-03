@@ -45,5 +45,42 @@
         "budget": "RM100/day (stored)"
       }
     ]
+  },
+  {
+    "ts": "2026-09-03T02:46:24+00:00",
+    "actions": [
+      {
+        "action": "reopen_chain",
+        "chain": "Video 13 @ LAL 1-2%",
+        "campaign": "120257761432150093",
+        "adset": "120257761615520093",
+        "ad": "120257761615910093",
+        "effective": "IN_PROCESS"
+      },
+      {
+        "action": "reopen_chain",
+        "chain": "15岁以上 @ LAL 1%",
+        "campaign": "120257761432150093",
+        "adset": "120257761613910093",
+        "ad": "120257761614920093",
+        "effective": "IN_PROCESS"
+      },
+      {
+        "action": "reopen_chain",
+        "chain": "Hook 2 @ Grid B",
+        "campaign": "120257884620220093",
+        "adset": "120257884626570093",
+        "ad": "120257884629490093",
+        "effective": "IN_PROCESS"
+      },
+      {
+        "action": "reopen_chain",
+        "chain": "Hook Edit 04 @ Hook Edits A",
+        "campaign": "120257667232910093",
+        "adset": "120257667233630093",
+        "ad": "120257667234350093",
+        "effective": "ACTIVE"
+      }
+    ]
   }
 ]
