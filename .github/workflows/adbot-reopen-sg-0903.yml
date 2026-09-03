@@ -1,0 +1,39 @@
+name: adbot · Reopen SG sold chains from sheet (3 Sep, manual)
+
+# LIVE. Operator: "图里的 SG 的广告帮我开回去" — the Paid Student List's new SG sale rows name
+# six campaign ▸ ad set ▸ ad chains; this wakes exactly those (Video 13 @ LAL 1-2%, Hook 9,
+# 15岁以上 @ LAL 1%, Video 7 @ F&R A, Hook 2 @ Grid B, Hook Edit 04). Chains already
+# delivering are left alone; only ads a wake would release are paused first; budgets are
+# untouched; [MY] rows are not this account's. Unresolvable chains are skipped, not guessed.
+# Actions append to state/reopen_sold_chains_log.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist the action audit log under state/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Reopen the six SG chains
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/reopen_sg_sold_chains_0903.py
+      - name: Persist action log back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 3 Sep SG reopen log [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
