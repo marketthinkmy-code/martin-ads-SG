@@ -1,0 +1,40 @@
+name: adbot · Build new structure — 3 campaigns, 1 ad/ad set, 4 Sep 00:00 (manual)
+
+# LIVE build of the operator's new opening structure (spec confirmed step by step 3 Sep):
+#   Parents 3-17 + Engaged      → Video 12 · Hook 7 · Video 3
+#   F&R 興趣                     → Hook 9 · APR HOOK 5 · Video 1 (Learn More rebuild)
+#   Food & Drink + Milk + Bread → Hook Edit 04 · Hook 2 · Carousel 别再逼 · 牛奶+面包
+# ABO, one ad per ad set at RM50/day (RM500/day total), ad sets named by targeting, existing
+# posts reused (creative ids), everything scheduled to start 2026-09-04T00:00+08 — created
+# ACTIVE, Meta holds delivery until then. Idempotent via state/entities_new_structure_0904.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build the 4 Sep structure
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_new_structure_0904.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist 4 Sep structure ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
