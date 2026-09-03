@@ -1,0 +1,39 @@
+name: adbot · Six sold chains → RM80/day + 🌟 markers (manual)
+
+# LIVE. Operator: "这 6 条 全部先放 RM80/day" + "campaign 和 ad rename 加上 🌟 以免我误关".
+# Sets each of the six sold chains to RM80/day on the level that carries the budget (CBO
+# campaign or the chain's ad set), and prefixes 🌟 to the campaign and ad names (ad sets
+# untouched). Name-key matching strips symbols, so sheet attribution, provably-SG ("[SG]"
+# stays in the name), cpl_hold and every close rule are unaffected. Verified from stored
+# values; actions append to state/reopen_sold_chains_log.json. Idempotent.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  star:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist the action audit log under state/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Budgets + 🌟 renames
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/star_and_budget_sold_chains.py
+      - name: Persist action log back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist RM80 + star-marker log [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
