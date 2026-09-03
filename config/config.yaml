@@ -105,11 +105,14 @@ cpa:                                     # cost per real PAID acquisition (joins
   enabled: true
   spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"   # "Paid Student List" sheet (shared with MY; share with the SA email)
   sales_tab: "Paid Student List (RM1997)"   # cloned from MY
-  price_myr: 2591.00                     # default pax price (sheet's Amount column overrides per row)
-  target_myr: 740.00                     # primary target CPA
-  healthy_max_myr: 860.00                # end of healthy range (NOT an auto-pause line)
-  max_acceptable_myr: 1040.00            # above here -> pause candidate after diagnosis
-  hard_stop_myr: 1300.00                 # above here (with real sales) -> auto-pause
+  # 3 Sep: operator confirmed the SG price is RM2,399 and re-benchmarked the CPA bands on it
+  # (same 30/40/50%-of-revenue rule as before): target 720 = 3.33x ROAS, acceptable 960 = 40%,
+  # hard stop 1,200 = 50%. Matches the Apr-Jun weighted historical CPA of RM716.82.
+  price_myr: 2399.00                     # default pax price (sheet's Amount column overrides per row)
+  target_myr: 720.00                     # primary target CPA (RM2,399 / 3.33x)
+  healthy_max_myr: 800.00                # end of healthy range (NOT an auto-pause line)
+  max_acceptable_myr: 960.00             # above here -> pause candidate after diagnosis (40%)
+  hard_stop_myr: 1200.00                 # above here (with real sales) -> auto-pause (50%)
   conversion_days: 14                    # don't judge CPA / 'no sales' until this old
   min_spend_myr: 1000.00                 # need >= this spend before a CPA verdict is fair
 
