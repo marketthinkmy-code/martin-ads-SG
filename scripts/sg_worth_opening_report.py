@@ -136,8 +136,8 @@ def main() -> None:
     for r in running:
         log.info("   %s", line(r))
     log.info("═" * 110)
-    log.info("⚪ 关着但 CPA > hard stop — 不值得，共 %d 个（spend 合计 RM%,.0f）",
-             len(bad), sum(r["spend"] for r in bad))
+    log.info("⚪ 关着但 CPA > hard stop — 不值得，共 %d 个（spend 合计 RM%s）",
+             len(bad), f"{sum(r['spend'] for r in bad):,.0f}")
     for r in sorted(bad, key=lambda r: -r["spend"])[:5]:
         log.info("   %s", line(r))
     if nospend:
