@@ -96,5 +96,40 @@
         "note": "campaign-level wake via MCP; only deliverable chain inside was Hook 9 (verified: the 2 other ACTIVE ad sets hold only PAUSED ads); the 0903 workflow skipped it due to the same-name campaign without the 20/11/2025 suffix"
       }
     ]
+  },
+  {
+    "ts": "2026-09-03T03:03:04+00:00",
+    "actions": [
+      {
+        "action": "set_budget",
+        "entity": "120256985977820093",
+        "daily_budget": 8000
+      },
+      {
+        "action": "rename",
+        "entity": "120256985977820093",
+        "name": "🌟 [SG] 儿童长高方程式 | Family & Relationships A | 1-1-3"
+      },
+      {
+        "action": "rename",
+        "entity": "120256985982080093",
+        "name": "🌟 Video 7：15 岁还没抽高，是不是已经太迟？"
+      },
+      {
+        "action": "set_budget",
+        "entity": "120240921209550093",
+        "daily_budget": 8000
+      },
+      {
+        "action": "rename",
+        "entity": "120239099098710093",
+        "name": "🌟 [SG] 儿童长高方程式 - 3 - Interest: Family and Relationships - 20/11/2025"
+      },
+      {
+        "action": "rename",
+        "entity": "120240921209560093",
+        "name": "🌟 Hook 9：你有没有发现孩子没有以前那么活泼了？变得越来越安静？自卑？"
+      }
+    ]
   }
 ]
