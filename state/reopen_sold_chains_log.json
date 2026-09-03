@@ -82,5 +82,19 @@
         "effective": "ACTIVE"
       }
     ]
+  },
+  {
+    "ts": "2026-09-03T02:49:14+00:00",
+    "actions": [
+      {
+        "action": "reopen_chain",
+        "chain": "Hook 9 @ Interest F&R (20/11/2025)",
+        "campaign": "120239099098710093",
+        "adset": "120240921209550093",
+        "ad": "120240921209560093",
+        "effective": "ACTIVE",
+        "note": "campaign-level wake via MCP; only deliverable chain inside was Hook 9 (verified: the 2 other ACTIVE ad sets hold only PAUSED ads); the 0903 workflow skipped it due to the same-name campaign without the 20/11/2025 suffix"
+      }
+    ]
   }
 ]
