@@ -1,0 +1,41 @@
+name: adbot · Video 6 我也是爸爸 into all three structure campaigns (manual)
+
+# LIVE. Copy approved by the operator ("上", credential line per their call: 馬丁醫師 as on
+# the video's own title card). Downloads the Drive video once, builds ONE shared creative
+# (主文案 + Headline 1, likes pool on a single post), then adds ONE RM50/day ad set + ad to
+# each of the three 4-Sep structure campaigns (Parents / F&R / Food), named by targeting,
+# targeting cloned from the same sources, ACTIVE immediately (+RM150/day total).
+# Idempotent via state/entities_video6_dad.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write          # persist state/ (video/creative/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Video 6 into the structure
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_video6_dad.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Video 6 ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
