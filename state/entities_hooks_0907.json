@@ -1,0 +1,89 @@
+{
+  "creatives": {
+    "hook1": {
+      "video_id": "2061996347758778",
+      "thumb": "https://scontent-sea1-1.xx.fbcdn.net/v/t15.5256-10/799782203_1616440920104876_7990066091070731765_n.jpg?_nc_cat=100&ccb=1-7&_nc_sid=e3495b&_nc_ohc=JiaubHPpnvwQ7kNvwGGsCO6&_nc_oc=AdraVJQCsNUVQa864-C7DvEqXUXOThPimoFtqszmC9OSgNKEO5eFaCPNazUUJHZHZFs&_nc_zt=23&_nc_ht=scontent-sea1-1.xx&edm=AF0wKlEEAAAA&_nc_gid=18l-CxVjJQFqRyudjD9t1Q&_nc_tpa=Q5bMBQJ86W__uMmqO2wDz-15UBzyCO1_qDInfp4bxqgmF6nXObOuVOrAwNYKqv1_uacLf6xmGG73jmcv6w&oh=00_AQKXa0PCmzHtR48ifpkRHo8fVSQizMO3ztOIwRGMnj_u9g&oe=6AA4562E",
+      "creative_id": "2431967510663147"
+    },
+    "hook2": {
+      "video_id": "925094413526627",
+      "thumb": "https://scontent-sea5-1.xx.fbcdn.net/v/t15.5256-10/799333518_952270267204197_4602331723322114743_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=e3495b&_nc_ohc=OoJOchfoF2wQ7kNvwEDXTkM&_nc_oc=AdqitMfOWhcTNk6b1QBp3UTZj1EIKAjkBIMqnhXhQb1YUzQPoMCUVWZVJFNzFW25DAE&_nc_zt=23&_nc_ht=scontent-sea5-1.xx&edm=AF0wKlEEAAAA&_nc_gid=c9JGwxiMx9arto1spsbwhw&_nc_tpa=Q5bMBQLckSO2H4Z_zexrEA-YcFuYxvA1M4i2B1bufzhPpTMDd3r75J9HNBti-LEWEGhqtt2aptb3ilmc1g&oh=00_AQKZgaVyd1s_qleSP0Am2eIKZmnVU98nJbqueVQ7L8RAJg&oe=6AA4512A",
+      "creative_id": "932480549382038"
+    },
+    "hook6": {
+      "video_id": "1097560802985935",
+      "thumb": "https://scontent-sea5-1.xx.fbcdn.net/v/t15.5256-10/799661067_941318489013588_3905000961307795168_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=e3495b&_nc_ohc=dZMuBk5NANQQ7kNvwH0UWLx&_nc_oc=Adq0PuMLbU0_ah-T1L4p8dEkesj6FYqFfax9CpBxdRupvQTuvA6p6Btb2QDl7tK2cPo&_nc_zt=23&_nc_ht=scontent-sea5-1.xx&edm=AF0wKlEEAAAA&_nc_gid=mZqPQHMTKNdzBFrOOnkLiQ&_nc_tpa=Q5bMBQIWbGg7bGYMmQ8E5IUrl9ZXx5Y9ypxzTW3_WMom-dsK9jQYH1LFAfy3oJceY5DA_JaGRghf2XR-jw&oh=00_AQKcX67XQ_esbp_7wj1CISZPr19ybJBaLl3yIdYe6PQi7g&oe=6AA4552E",
+      "creative_id": "2528282574345063"
+    },
+    "video7": {
+      "video_id": "28583107961322382",
+      "thumb": "https://scontent-sea1-1.xx.fbcdn.net/v/t15.5256-10/798626984_1087434627111906_779045237213411202_n.jpg?_nc_cat=100&ccb=1-7&_nc_sid=e3495b&_nc_ohc=x7SXlG8Yv1EQ7kNvwFCMagi&_nc_oc=Adrt9uiR2ZYX0wbj4rNUxyLzB0G--SIBT5CxE3DzFnvXOsHOcRrrrXc2bHGYk7b9Fgo&_nc_zt=23&_nc_ht=scontent-sea1-1.xx&edm=AF0wKlEEAAAA&_nc_gid=Zy9IA79cFEMgVVCHbv7htQ&_nc_tpa=Q5bMBQKziQhoR-i9v0drwcdgNcbi8ji9-Xv7vp3LphBvkpY0nwypS0g9r1u_Iw3NbgOkwujpdVQsmCuk8w&oh=00_AQKLDsyx_40rGTAFbk3DN8tJWxty0_JGX554OwPeaBKfLQ&oe=6AA45BD7",
+      "creative_id": "956961220770998"
+    }
+  },
+  "campaigns": {
+    "parents": {
+      "campaign_id": "120258189792440093",
+      "units": {
+        "hook1": {
+          "adset_id": "120258189793260093",
+          "ad_id": "120258189794710093"
+        },
+        "hook2": {
+          "adset_id": "120258189795610093",
+          "ad_id": "120258189797230093"
+        },
+        "hook6": {
+          "adset_id": "120258189797780093",
+          "ad_id": "120258189798980093"
+        },
+        "video7": {
+          "adset_id": "120258189799500093",
+          "ad_id": "120258189800070093"
+        }
+      }
+    },
+    "fr": {
+      "campaign_id": "120258189800520093",
+      "units": {
+        "hook1": {
+          "adset_id": "120258189800810093",
+          "ad_id": "120258189801960093"
+        },
+        "hook2": {
+          "adset_id": "120258189803000093",
+          "ad_id": "120258189804460093"
+        },
+        "hook6": {
+          "adset_id": "120258189804940093",
+          "ad_id": "120258189806390093"
+        },
+        "video7": {
+          "adset_id": "120258189807260093",
+          "ad_id": "120258189809490093"
+        }
+      }
+    },
+    "food": {
+      "campaign_id": "120258189810070093",
+      "units": {
+        "hook1": {
+          "adset_id": "120258189810580093",
+          "ad_id": "120258189811980093"
+        },
+        "hook2": {
+          "adset_id": "120258189812960093",
+          "ad_id": "120258189814070093"
+        },
+        "hook6": {
+          "adset_id": "120258189814800093",
+          "ad_id": "120258189816260093"
+        },
+        "video7": {
+          "adset_id": "120258189817420093",
+          "ad_id": "120258189819400093"
+        }
+      }
+    }
+  }
+}
