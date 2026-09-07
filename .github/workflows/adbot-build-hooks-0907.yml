@@ -1,0 +1,42 @@
+name: adbot · Hooks 0907 — 3 new campaigns × 4 ad sets (manual)
+
+# LIVE, runs immediately (operator: "okk 直接跑", synced line by line). Downloads the four
+# Martin July videos (Hook 1 今晚回家 / Hook 2 旧鞋当尺 / Hook 6 只剩两到三年 / Video 7
+# 我13岁173), builds one creative per video with the four approved copies, then THREE brand-new
+# ABO campaigns (Parents 3-17 + Engaged / F&R 興趣 / Food & Drink + Milk + Bread, batch tag
+# Hooks 0907) with four ad sets each — one ad per ad set at RM50/day, ad sets named by
+# targeting, creatives shared across campaigns. 12 ad sets, 12 ads, +RM600/day. The 4-Sep
+# structure campaigns are not touched. Idempotent via state/entities_hooks_0907.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write          # persist state/ (video/creative/campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build Hooks 0907
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_hooks_0907.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Hooks 0907 ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
