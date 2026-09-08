@@ -1,0 +1,38 @@
+name: adbot · Hooks 0907 fact fix — 10,000+ 位孩子 (manual)
+
+# LIVE. Operator: "10000位孩子，不是 7000个家庭 / 5-17岁孩子，不是3-15岁". Creatives are
+# immutable, so each of the four Hooks 0907 videos gets a new creative (same video, same
+# headline, proof line corrected to 10,000+ 位孩子) and its three campaign ads are rebound.
+# Exact-string replacement only, verified from stored values; no 3-15 range exists in these
+# bodies (asserted); old creatives kept in state for a one-run swap-back.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (new creative ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Swap corrected creatives
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/fix_hooks_0907_facts.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist Hooks 0907 fact-fix ids [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
