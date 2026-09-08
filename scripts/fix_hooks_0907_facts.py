@@ -108,12 +108,12 @@ def main() -> None:
         STATE_PATH.write_text(json.dumps(st, ensure_ascii=False, indent=2))
         swapped.append(key)
 
+    done = ", ".join(swapped) if swapped else "none — all already fixed"
     final_summary(
-        log, f"Fact fix live on {len(swapped)}/4 videos ({', '.join(swapped) or 'none — all "
-             f"already fixed'}): proof line now 10,000+ 位孩子, all 12 ads rebound to the "
-             f"corrected creatives (same videos, same headlines; old creatives kept in state "
-             f"for swap-back). No 3-15 age range exists in these bodies; 5-17岁 is the "
-             f"standing rule for future copy.")
+        log, f"Fact fix live on {len(swapped)}/4 videos ({done}): proof line now 10,000+ "
+             f"位孩子, all 12 ads rebound to the corrected creatives (same videos, same "
+             f"headlines; old creatives kept in state for swap-back). No 3-15 age range "
+             f"exists in these bodies; 5-17岁 is the standing rule for future copy.")
 
 
 if __name__ == "__main__":
