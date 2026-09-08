@@ -1,0 +1,36 @@
+name: adbot · Roll back Hooks 0907 fact fix (manual)
+
+# LIVE. Operator: "不用，以后才改" — the 10,000-位孩子 swap had already completed, so this
+# rebinds all 12 ads to their ORIGINAL creatives; the corrected creatives stay in state as
+# corrected_creative_id so switching later is one rebind pass. Verified from stored bindings.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write          # persist state/ (binding bookkeeping)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Rebind originals
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/rollback_hooks_0907_facts.py
+      - name: Persist state back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist Hooks 0907 rollback [skip ci]" || echo "no state change"
+          git push || echo "push skipped"
