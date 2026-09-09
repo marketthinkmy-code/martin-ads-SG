@@ -23,7 +23,21 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install .
+      # 9 Sep operator call ("明天才直播 今天不要关"): webinar week — the Wed 10 Sep 2026
+      # pause is skipped so ads run straight into the webinar. Self-expiring: after that
+      # date this guard never matches again and the weekly rhythm continues untouched.
+      - name: Webinar-week skip check (self-expiring)
+        id: skipcheck
+        run: |
+          today=$(TZ=Asia/Kuala_Lumpur date +%F)
+          if [ "$today" = "2026-09-10" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping weekly OFF for the 10 Sep webinar window"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Pause all managed ads (weekly OFF)
+        if: steps.skipcheck.outputs.skip != 'true'
         env:
           # pip install . is non-editable, so settings.py lands in site-packages and its
           # __file__-relative repo-root guess misses config/config.yaml. Point it at the checkout.
