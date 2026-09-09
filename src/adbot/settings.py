@@ -150,6 +150,7 @@ class KpiCfg(BaseModel):
     cpl_lookback: str = "last_3d"  # 'week_thu' = week-to-date from Thursday, or any Meta date_preset
     pause_zero_lead_after_spend: bool = True
     cpl_hold: List[str] = Field(default_factory=list)  # ad-name substrings temporarily exempt from auto-pause
+    monitor_paused_until: str = ""  # ISO date: monitor pauses NOTHING while today < this (self-expiring webinar hold)
 
 
 class CpaCfg(BaseModel):

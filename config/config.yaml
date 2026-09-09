@@ -96,6 +96,7 @@ kpi:
   # at ~RM120 CPM, RM60 is ~450 impressions and proves nothing; early kills reset learning.
   cpl_threshold_myr: 100.00              # auto-pause line (scale target remains RM65, judged by hand)
   cpl_min_spend_myr: 150.00              # only judge an ad once it has spent >= this (or >= 3 leads)
+  monitor_paused_until: "2026-09-11"     # 9 Sep operator: "今晚不要關，明天晚上才開直播" — monitor closes NOTHING Tue/Wed nights, resumes Thu 9/11 by itself
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
   cpl_hold:                              # ad-name substrings temporarily exempt from CPL auto-pause (CPA hard-stop still applies)

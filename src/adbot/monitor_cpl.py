@@ -216,6 +216,21 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
 def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
     log = get_logger()
     event = settings.meta.conversion_event
+
+    # Operator hold: kpi.monitor_paused_until (ISO date) silences ALL auto-pausing while
+    # today (MYT) is before that date — used around webinar nights ("今晚不要關"). The
+    # switch expires by itself; no revert commit needed.
+    hold_until = (settings.kpi.monitor_paused_until or "").strip()
+    if hold_until:
+        today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+        until = cpa.parse_date(hold_until)
+        if until and today < until:
+            summary = (f"CPL monitor on operator hold until {until} (webinar window) — "
+                       f"nothing evaluated, nothing paused.")
+            final_summary(log, summary)
+            return {"evaluated": 0, "paused": 0, "remaining": 0, "dry_run": dry_run,
+                    "held_until": str(until)}
+
     decisions = evaluate_account(graph, settings)
     to_pause = [d for d in decisions if d.should_pause]
 
