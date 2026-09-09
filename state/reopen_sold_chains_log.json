@@ -131,5 +131,28 @@
         "name": "🌟 Hook 9：你有没有发现孩子没有以前那么活泼了？变得越来越安静？自卑？"
       }
     ]
+  },
+  {
+    "ts": "2026-09-09T10:04:32+00:00",
+    "actions": [
+      {
+        "action": "reopen_chain",
+        "chain": "Hook 9 @ Interest F&R",
+        "ad": "120240921209560093",
+        "effective": "IN_PROCESS"
+      },
+      {
+        "action": "reopen_campaign",
+        "campaign": "120258189792440093",
+        "pods_live": 4,
+        "pods": 4
+      },
+      {
+        "action": "reopen_campaign",
+        "campaign": "120258189800520093",
+        "pods_live": 4,
+        "pods": 4
+      }
+    ]
   }
 ]
