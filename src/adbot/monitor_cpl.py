@@ -75,8 +75,13 @@ def parse_metrics(insight: Optional[Dict[str, Any]], token: str) -> Tuple[float,
 
 
 def decide(spend: float, results: float, kpi: KpiCfg) -> Tuple[bool, str, Optional[float]]:
-    """(should_pause, reason, cpl). cpl is None when undefined, inf when results==0."""
-    if spend < kpi.cpl_min_spend_myr:
+    """(should_pause, reason, cpl). cpl is None when undefined, inf when results==0.
+
+    Verdict gate (operator policy, 9 Sep): an ad earns a verdict only once it has spent
+    >= cpl_min_spend_myr OR produced >= 3 results — RM60 at RM120 CPM is ~450 impressions,
+    which proves nothing, and early kills reset learning and waste the spend entirely.
+    """
+    if spend < kpi.cpl_min_spend_myr and results < 3:
         return False, INSUFFICIENT_SPEND, None
     if results <= 0:
         if kpi.pause_zero_lead_after_spend:
