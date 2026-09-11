@@ -26,6 +26,8 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write     # push the best-effort audit ledger (repo default token is read-only)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,10 +45,10 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python -m adbot monitor ${{ inputs.dry_run && '--dry-run' || '' }}
-      # The once-per-day budget-cut ledger (state/budget_cuts.json) must survive to the next
-      # run or the same chain would be cut again every 20 minutes. Push tolerates races: a
-      # lost push at worst allows one duplicate cut the same day, floored at RM50.
-      - name: Persist budget-cut ledger
+      # The REAL once-per-day guard is stateless on Meta (an ADBOT_BUDGET_CUT_<date> label
+      # stamped on each cut entity) — this ledger push is best-effort audit only, and a
+      # 403 here (org token policy) is harmless.
+      - name: Persist budget-cut ledger (best-effort audit)
         if: ${{ !inputs.dry_run }}
         run: |
           git config user.name "adbot"
