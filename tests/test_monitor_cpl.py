@@ -4,12 +4,13 @@ import datetime as dt
 
 from adbot import cpa
 from adbot.monitor_cpl import (INSUFFICIENT_SPEND, MANUAL_HOLD, NO_RESULTS_YET, OVER_THRESHOLD,
-                               WITHIN_THRESHOLD, ZERO_RESULTS, cpl_window, decide, evaluate_account,
-                               extract_results, parse_metrics, result_action_type,
-                               _week_start_thursday)
+                               WITHIN_THRESHOLD, ZERO_RESULTS, AdDecision, cpl_window, decide,
+                               evaluate_account, extract_results, parse_metrics,
+                               plan_budget_cuts, result_action_type, _week_start_thursday)
 from adbot.settings import CpaCfg, KpiCfg, MetaCfg, Settings
 
-KPI = KpiCfg(cpl_threshold_myr=40, cpl_min_spend_myr=80, pause_zero_lead_after_spend=True)
+KPI = KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
+             pause_zero_lead_after_spend=True)
 
 
 def test_insufficient_spend_is_skipped():
@@ -23,14 +24,15 @@ def test_zero_results_after_min_spend_pauses():
 
 
 def test_zero_results_kept_when_disabled():
-    kpi = KpiCfg(cpl_threshold_myr=40, cpl_min_spend_myr=80, pause_zero_lead_after_spend=False)
+    kpi = KpiCfg(cpl_target_myr=40, cpl_min_spend_myr=80, pause_zero_lead_after_spend=False)
     should, reason, _ = decide(100, 0, kpi)
     assert not should and reason == NO_RESULTS_YET
 
 
-def test_cpl_over_threshold_pauses():
+def test_cpl_over_target_is_flagged_but_never_pauses():
+    # 11 Sep rules: high CPL with real leads gets a budget cut, not a kill.
     should, reason, cpl = decide(100, 1, KPI)
-    assert should and reason == OVER_THRESHOLD and round(cpl) == 100
+    assert not should and reason == OVER_THRESHOLD and round(cpl) == 100
 
 
 def test_cpl_within_threshold_keeps():
@@ -97,7 +99,7 @@ def _reg_insight(spend, results):
 
 def test_evaluate_account_is_whole_account_ad_level_and_registration_only():
     settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
-                        kpi=KpiCfg(cpl_threshold_myr=40, cpl_min_spend_myr=80,
+                        kpi=KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
                                    cpl_lookback="last_3d", pause_zero_lead_after_spend=True))
     campaigns = [
         {"id": "A", "name": "MTC - Watches", "effective_status": "ACTIVE"},
@@ -105,7 +107,7 @@ def test_evaluate_account_is_whole_account_ad_level_and_registration_only():
     ]
     ads = {
         "A": [
-            _ad("over"),                          # spend 100 / 1 reg -> CPL 100 -> PAUSE
+            _ad("over"),                          # spend 100 / 1 reg -> CPL 100 -> flag, no pause
             _ad("within"),                        # spend 100 / 4 reg -> CPL 25 -> keep
             _ad("paused_ad", status="PAUSED"),    # not ACTIVE -> skipped
             _ad("purchase", event="PURCHASE"),    # wrong optimized event -> guard skips
@@ -120,23 +122,24 @@ def test_evaluate_account_is_whole_account_ad_level_and_registration_only():
     decisions = evaluate_account(_FakeGraph(campaigns, ads, insights), settings)
 
     assert {d.name for d in decisions} == {"over", "within", "zero"}
-    assert {d.name for d in decisions if d.should_pause} == {"over", "zero"}
+    assert {d.name for d in decisions if d.should_pause} == {"zero"}
+    assert {d.name: d.reason for d in decisions}["over"] == OVER_THRESHOLD
 
 
 def test_evaluate_account_hold_list_exempts_over_ceiling_ad():
     settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
-                        kpi=KpiCfg(cpl_threshold_myr=40, cpl_min_spend_myr=80,
+                        kpi=KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
                                    cpl_lookback="last_3d", pause_zero_lead_after_spend=True,
                                    cpl_hold=["街头突击"]))
     campaigns = [{"id": "A", "name": "MTC", "effective_status": "ACTIVE"}]
-    ads = {"A": [_ad("Video 6：街头突击采访"), _ad("plain_over")]}
-    insights = {"Video 6：街头突击采访": _reg_insight(300, 5),  # CPL 60 > 40, but held
-                "plain_over": _reg_insight(100, 1)}            # CPL 100 -> still paused
+    ads = {"A": [_ad("Video 6：街头突击采访"), _ad("plain_zero")]}
+    insights = {"Video 6：街头突击采访": _reg_insight(300, 0),  # 0 reg over line, but held
+                "plain_zero": _reg_insight(100, 0)}            # 0 reg over line -> paused
     by_name = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings)}
 
     assert by_name["Video 6：街头突击采访"].should_pause is False
     assert by_name["Video 6：街头突击采访"].reason == MANUAL_HOLD
-    assert by_name["plain_over"].should_pause is True
+    assert by_name["plain_zero"].should_pause is True
 
 
 def test_week_to_date_cpl_window_from_thursday():
@@ -152,13 +155,13 @@ def test_week_to_date_cpl_window_from_thursday():
 def test_evaluate_account_cpa_rescues_and_hard_stops():
     # CPA folded into the CPL decision (60-day window), via an injected context.
     settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
-                        kpi=KpiCfg(cpl_threshold_myr=40, cpl_min_spend_myr=80,
+                        kpi=KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
                                    cpl_lookback="last_3d", pause_zero_lead_after_spend=True),
                         cpa=CpaCfg(enabled=True, hard_stop_myr=1200, conversion_days=14,
                                    min_spend_myr=1000))
     campaigns = [{"id": "A", "name": "MTC - News", "effective_status": "ACTIVE"}]
     ads = {"A": [_ad("rescue_me"), _ad("kill_me")]}
-    insights = {"rescue_me": _reg_insight(300, 3),   # CPL 100 > 40 -> CPL would pause
+    insights = {"rescue_me": _reg_insight(300, 0),   # 0 reg past the kill line -> would pause
                 "kill_me": _reg_insight(100, 4)}      # CPL 25 -> CPL keeps
     sold = {cpa.ad_key("rescue_me"): 10, cpa.ad_key("kill_me"): 2}   # ad-name keyed (campaign-agnostic)
     spend60 = {"rescue_me": 7000.0, "kill_me": 4000.0}  # CPA 700 (rescue) / 2000 (hard stop)
@@ -167,6 +170,46 @@ def test_evaluate_account_cpa_rescues_and_hard_stops():
         _FakeGraph(campaigns, ads, insights), settings, cpa_ctx=(sold, spend60))}
 
     assert by_name["rescue_me"].should_pause is False
-    assert by_name["rescue_me"].reason == cpa.CPL_RESCUED          # over-CPL but profitable
+    assert by_name["rescue_me"].reason == cpa.CPL_RESCUED          # 0-reg kill, but profitable name
     assert by_name["kill_me"].should_pause is True
     assert by_name["kill_me"].reason == cpa.HARD_STOP              # CPA>1200, matured -> pause
+
+
+def test_plan_budget_cuts_daily_rules():
+    kpi = KpiCfg(cpl_target_myr=95, cpl_reduce_pct=30, cpl_min_spend_myr=142.5)
+    D = AdDecision
+    decisions = [
+        # set1 (ABO RM100): agg 300 spend / 2 reg -> CPL 150 > 95 -> cut to RM70
+        D("a1", "a1", 200, 1, 200, False, OVER_THRESHOLD, adset_id="set1"),
+        D("a2", "a2", 100, 1, 100, False, OVER_THRESHOLD, adset_id="set1"),
+        # set2 (ABO RM100): CPL 50 -> no cut
+        D("b1", "b1", 150, 3, 50, False, WITHIN_THRESHOLD, adset_id="set2"),
+        # set3 (ABO RM60): over target but already at/below the RM50 floor path -> floored
+        D("c1", "c1", 300, 2, 150, False, OVER_THRESHOLD, adset_id="set3"),
+        # set4 (CBO -> campX RM200): folds to the campaign, CPL 160 -> cut to RM140
+        D("d1", "d1", 320, 2, 160, False, OVER_THRESHOLD, adset_id="set4"),
+        # set5: held ad in the set -> operator territory, never cut
+        D("e1", "e1", 400, 2, 200, False, MANUAL_HOLD, adset_id="set5"),
+        # set6: over target but already cut today -> skipped
+        D("f1", "f1", 300, 2, 150, False, OVER_THRESHOLD, adset_id="set6"),
+        # set7: under the verdict gate -> skipped
+        D("g1", "g1", 100, 1, 100, False, INSUFFICIENT_SPEND, adset_id="set7"),
+    ]
+    adsets = {
+        "set1": {"id": "set1", "name": "set1", "daily_budget": "10000", "campaign_id": "campA"},
+        "set2": {"id": "set2", "name": "set2", "daily_budget": "10000", "campaign_id": "campA"},
+        "set3": {"id": "set3", "name": "set3", "daily_budget": "6000", "campaign_id": "campA"},
+        "set4": {"id": "set4", "name": "set4", "daily_budget": None, "campaign_id": "campX"},
+        "set5": {"id": "set5", "name": "set5", "daily_budget": "10000", "campaign_id": "campA"},
+        "set6": {"id": "set6", "name": "set6", "daily_budget": "10000", "campaign_id": "campA"},
+        "set7": {"id": "set7", "name": "set7", "daily_budget": "10000", "campaign_id": "campA"},
+    }
+    campaigns = {"campA": {"id": "campA", "name": "campA", "daily_budget": None},
+                 "campX": {"id": "campX", "name": "campX", "daily_budget": "20000"}}
+    plans = {p["id"]: p for p in plan_budget_cuts(
+        decisions, adsets, campaigns, kpi, 5000, {"set6": "2026-09-11"}, "2026-09-11")}
+
+    assert set(plans) == {"set1", "set3", "campX"}
+    assert plans["set1"]["new_cents"] == 7000 and not plans["set1"]["at_floor"]
+    assert plans["set3"]["new_cents"] == 5000            # 60 * 0.7 = 42 -> floored at RM50
+    assert plans["campX"]["type"] == "campaign" and plans["campX"]["new_cents"] == 14000

@@ -102,10 +102,11 @@ stay off (they aren't tagged).
 
 ## Budget & CPL (this project)
 
-Set the CBO daily budget, per-ad-set minimum, and the CPL threshold / min-spend in
-`config/config.yaml` (`meta.budget.*`, `kpi.*`). <!-- TODO(martin): document the chosen
-numbers here once confirmed. --> The monitor pauses an ad once its CPL exceeds
-`kpi.cpl_threshold_myr`, judged only after it has spent at least `kpi.cpl_min_spend_myr`.
+Set the CBO daily budget, per-ad-set minimum, and the CPL rules in `config/config.yaml`
+(`meta.budget.*`, `kpi.*`). Daily rules (operator, 11 Sep): the monitor pauses an ad only
+when it has spent `kpi.cpl_min_spend_myr` (1.5 x target) with zero registrations; a budget
+chain whose window CPL exceeds `kpi.cpl_target_myr` gets its daily budget cut by
+`kpi.cpl_reduce_pct`% (once per day, floored at the ad-set minimum).
 
 ## Safety & compliance
 

@@ -201,6 +201,10 @@ class GraphClient:
         """status is ACTIVE or PAUSED."""
         return self._request("POST", entity_id, data={"status": status})
 
+    def update_daily_budget(self, entity_id: str, cents: int) -> Dict[str, Any]:
+        """Set an ad set's or CBO campaign's daily_budget (minor units)."""
+        return self._request("POST", entity_id, data={"daily_budget": str(int(cents))})
+
     # ── reads for monitoring / scoping ─────────────────────────────────────────
     def list_campaigns(self, account_path: str) -> List[Dict[str, Any]]:
         """Every campaign in the account — whole-account scope for the monitor + weekly OFF."""
