@@ -1,0 +1,28 @@
+name: adbot · Read 成交名单 tab gid 1805763216 (manual, read-only)
+
+# READ-ONLY. The operator handed a new sales-list spreadsheet; the Drive text export missed
+# the target tab, so this resolves gid 1805763216 via the Sheets API and attributes buyer
+# rows to ads by UTM. No personal data is logged — dates, Source and UTM values only.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Read and attribute
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/read_sales_list_0911.py
