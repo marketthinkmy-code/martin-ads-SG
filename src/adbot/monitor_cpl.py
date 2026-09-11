@@ -292,22 +292,41 @@ def plan_budget_cuts(decisions: List[AdDecision], adsets: Dict[str, Dict[str, An
     return plans
 
 
+def _label_names(entity: Dict[str, Any]) -> List[str]:
+    """adlabels come back as a bare list or as {data: [...]} depending on the edge."""
+    labels = entity.get("adlabels") or []
+    if isinstance(labels, dict):
+        labels = labels.get("data") or []
+    return [(l.get("name") or "") for l in labels if isinstance(l, dict)]
+
+
 def _budget_cut_pass(graph, settings: Settings, decisions: List[AdDecision],
                      *, dry_run: bool) -> int:
-    """Fetch budgets, plan today's cuts, apply them, persist the daily ledger."""
+    """Fetch budgets, plan today's cuts, apply them.
+
+    The once-per-day guard is STATELESS on Meta: a cut stamps the entity with today's
+    "ADBOT_BUDGET_CUT_<date>" ad label, and labeled entities are skipped. (The workflow's
+    GITHUB_TOKEN cannot push the repo ledger, and this monitor runs every ~20 minutes —
+    a repo-state guard would silently fail and compound the 30% cut thrice an hour.)
+    The state/budget_cuts ledger is kept as a best-effort local audit only.
+    """
     log = get_logger()
     kpi = settings.kpi
     if kpi.cpl_reduce_pct <= 0:
         return 0
     acct = settings.meta.account_path
     adsets = {a["id"]: a for a in graph._get_all(
-        f"{acct}/adsets", {"fields": "id,name,campaign_id,daily_budget", "limit": 500})}
+        f"{acct}/adsets", {"fields": "id,name,campaign_id,daily_budget,adlabels", "limit": 500})}
     campaigns = {c["id"]: c for c in graph._get_all(
-        f"{acct}/campaigns", {"fields": "id,name,daily_budget", "limit": 200})}
+        f"{acct}/campaigns", {"fields": "id,name,daily_budget,adlabels", "limit": 200})}
     today_iso = ((dt.datetime.utcnow() + dt.timedelta(hours=8)).date()).isoformat()
+    cut_label = f"ADBOT_BUDGET_CUT_{today_iso}"
     cut_dates: Dict[str, str] = state.load("budget_cuts", default={})
     if not isinstance(cut_dates, dict):
         cut_dates = {}
+    for ent in list(adsets.values()) + list(campaigns.values()):
+        if cut_label in _label_names(ent):
+            cut_dates[ent["id"]] = today_iso          # label on Meta = already cut today
     plans = plan_budget_cuts(decisions, adsets, campaigns, kpi,
                              settings.meta.budget.adset_min_spend_cents, cut_dates, today_iso)
     applied = 0
@@ -323,6 +342,12 @@ def _budget_cut_pass(graph, settings: Settings, decisions: List[AdDecision],
             continue
         graph.update_daily_budget(p["id"], p["new_cents"])
         cut_dates[p["id"]] = today_iso
+        try:                                       # stamp the entity: today's cut is done
+            label_id = graph.get_or_create_label(acct, cut_label)
+            graph.set_ad_labels(p["id"], [label_id])
+        except Exception as exc:  # noqa: BLE001 — cut stands; next run may re-cut, floored
+            log.warning("  !! could not label %s with %s (%s) — daily guard weakened",
+                        p["id"], cut_label, exc)
         state.append_pause_log(p["id"], p["type"], BUDGET_CUT,
                                {"old_daily_myr": p["old_cents"] / 100.0,
                                 "new_daily_myr": p["new_cents"] / 100.0,
