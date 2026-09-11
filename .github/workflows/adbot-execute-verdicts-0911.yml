@@ -1,0 +1,34 @@
+name: adbot · Execute 11 Sep verdicts — close + turn down Video 13 (manual)
+
+# MUTATING, operator-approved ("执行"): pause the non-🌟 Video 13 ad + ad set in the
+# PURCHASE LAL campaign, and set the 🌟 Video 13 ad set to RM50/day. Exactly two actions,
+# strict verification, aborts untouched on any ambiguity. Idempotent.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Execute the two approved actions
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/execute_verdicts_0911.py
+      - name: Persist audit log
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 11 Sep verdict execution log [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"

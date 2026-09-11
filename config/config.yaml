@@ -90,12 +90,16 @@ notion:                                  # Notion content DB = single source of 
   require_status: ""                      # use the Notion row regardless of Status (operator: no Approved gate — use directly)
 
 kpi:
-  # 9 Sep operator policy (the "关太快" fix): the KILL line is 100 = the RM65 scale target
-  # x1.5 learning allowance — RM65 stays the bar for scaling decisions and reports, but the
-  # monitor only auto-pauses above RM100. A verdict needs RM150 spent (or 3 leads, in code):
-  # at ~RM120 CPM, RM60 is ~450 impressions and proves nothing; early kills reset learning.
-  cpl_threshold_myr: 100.00              # auto-pause line (scale target remains RM65, judged by hand)
-  cpl_min_spend_myr: 150.00              # only judge an ad once it has spent >= this (or >= 3 leads)
+  # 11 Sep operator 每日广告规则 (supersedes the 9 Sep RM100 kill line):
+  #   · SG 窗口 CPL > RM95  -> 该预算链日预算降 30%（ABO 降 ad set，CBO 降 campaign，按链条
+  #     合计 CPL 判；每天每链最多降一次 — state/budget_cuts ledger；地板 RM50/day）
+  #   · 花到 1.5 x 95 = RM142.50 仍 0 注册 -> 关该广告
+  #   带 leads 的高 CPL 不再被直接关；cpl_hold 名单照旧不动，60d 真实成交的 CPA 救援/硬线照旧。
+  #   (MY 市场的同款规则是 RM60 / RM90，住在 martin-ads-MY repo。)
+  cpl_target_myr: 95.00                  # SG 目标 CPL — 超过就降预算
+  cpl_reduce_pct: 30                     # 每日降幅 %
+  cpl_threshold_myr: 95.00               # legacy display ceiling for report scripts (= target; no longer a pause line)
+  cpl_min_spend_myr: 142.50              # 1.5 x target: verdict gate AND the 0-registration kill line
   monitor_paused_until: "2026-09-11"     # 9 Sep operator: "今晚不要關，明天晚上才開直播" — monitor closes NOTHING Tue/Wed nights, resumes Thu 9/11 by itself
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause

@@ -1,9 +1,10 @@
 name: adbot · CPL+CPA monitor (hourly)
 
-# Pauses any ACTIVE ad whose cost-per-Complete-Registration exceeds the KPI ceiling
-# (kpi.cpl_threshold_myr), folded with the real-sales CPA gate (cpa.*): a healthy 60-day
-# CPA rescues an over-CPL ad, and a proven CPA hard stop (>RM1,200, matured) is paused.
-# Whole-account scope (MTC + STOCKBLOOM), judged one ad at a time; registration-optimized only.
+# 11 Sep 每日广告规则 (SG): an ad that spends 1.5x the target CPL with 0 registrations is
+# paused; a budget chain whose window CPL is above kpi.cpl_target_myr (RM95) gets its daily
+# budget cut by 30% (once per MYT day, floored at RM50; ABO = ad set, CBO = campaign).
+# Folded with the real-sales CPA gate (cpa.*): a healthy 60-day CPA rescues a pause, and a
+# proven CPA hard stop (>RM1,200, matured) is paused. Whole-account, registration-optimized only.
 
 on:
   schedule:
@@ -42,3 +43,15 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python -m adbot monitor ${{ inputs.dry_run && '--dry-run' || '' }}
+      # The once-per-day budget-cut ledger (state/budget_cuts.json) must survive to the next
+      # run or the same chain would be cut again every 20 minutes. Push tolerates races: a
+      # lost push at worst allows one duplicate cut the same day, floored at RM50.
+      - name: Persist budget-cut ledger
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "monitor: persist daily budget-cut ledger [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"

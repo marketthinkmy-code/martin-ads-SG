@@ -145,6 +145,11 @@ class GoogleDocsCfg(BaseModel):
 
 
 class KpiCfg(BaseModel):
+    # 11 Sep 每日规则: over-target window CPL -> daily budget cut; 1.5x target spent with
+    # zero registrations -> ad pause. cpl_threshold_myr survives as the display ceiling
+    # for report scripts (keep it equal to cpl_target_myr).
+    cpl_target_myr: float = 95.0    # SG target CPL (MY repo runs 60)
+    cpl_reduce_pct: float = 30.0    # daily budget cut size; 0 disables the cut pass
     cpl_threshold_myr: float = 40.0
     cpl_min_spend_myr: float = 80.0
     cpl_lookback: str = "last_3d"  # 'week_thu' = week-to-date from Thursday, or any Meta date_preset
