@@ -96,11 +96,17 @@ def main() -> None:
             live.append((camp, aset, a))
     log.info("Live ads right now: %d", len(live))
 
-    # ── insights: window (since last Thursday) and lifetime, per ad ────────────
+    # ── insights per ad: week-to-date (since Thu reset), 14d fallback, lifetime ─
+    # The Thu reset was YESTERDAY, so most live ads can't clear the RM150/3-leads gate
+    # on week-to-date alone; the 14d window judges the same creative's current run.
     win_rows = g.account_insights(acct, level="ad", fields="ad_id,ad_name,spend,actions",
                                   time_range={"since": last_thu.isoformat(),
                                               "until": today.isoformat()})
     win_by_ad = {r.get("ad_id"): r for r in win_rows}
+    d14_rows = g.account_insights(acct, level="ad", fields="ad_id,ad_name,spend,actions",
+                                  time_range={"since": (today - dt.timedelta(days=14)).isoformat(),
+                                              "until": today.isoformat()})
+    d14_by_ad = {r.get("ad_id"): r for r in d14_rows}
     life_rows = g.account_insights(acct, level="ad", fields="ad_id,ad_name,spend",
                                    date_preset="maximum")
     key_spend_life: Dict[str, float] = defaultdict(float)
@@ -122,47 +128,64 @@ def main() -> None:
     for camp, aset, a in sorted(live, key=lambda t: (t[0].get("name") or "", t[1].get("name") or "")):
         k = cpa.ad_key(a.get("name") or "")
         w = win_by_ad.get(a["id"]) or {}
-        spend = _f(w.get("spend"))
-        leads = extract_results(w.get("actions"), token)
-        cpl = spend / leads if leads else 0.0
+        w_spend = _f(w.get("spend"))
+        w_leads = extract_results(w.get("actions"), token)
+        w_cpl = w_spend / w_leads if w_leads else 0.0
+        f14 = d14_by_ad.get(a["id"]) or {}
+        f_spend = _f(f14.get("spend"))
+        f_leads = extract_results(f14.get("actions"), token)
+        f_cpl = f_spend / f_leads if f_leads else 0.0
         n_life, n_60, n_30 = sg_life.get(k, 0), sg_60.get(k, 0), sg_30.get(k, 0)
         kspend = key_spend_life.get(k, 0.0)
         kcpa = kspend / n_life if n_life else 0.0
         budget = _myr(aset.get("daily_budget")) or _myr(camp.get("daily_budget"))
 
-        has_verdict = spend >= s.kpi.cpl_min_spend_myr or leads >= 3
+        # judge on week-to-date if it clears the gate, else on the 14d window
+        if w_spend >= s.kpi.cpl_min_spend_myr or w_leads >= 3:
+            spend, leads, cpl, wtag = w_spend, w_leads, w_cpl, "本周"
+            has_verdict = True
+        elif f_spend >= s.kpi.cpl_min_spend_myr or f_leads >= 3:
+            spend, leads, cpl, wtag = f_spend, f_leads, f_cpl, "14d"
+            has_verdict = True
+        else:
+            spend, leads, cpl, wtag = f_spend, f_leads, f_cpl, "14d"
+            has_verdict = False
         if not has_verdict:
-            verdict, b = f"⏳ 再等（spend RM{spend:,.0f} < 150 且 leads {int(leads)} < 3）", "wait"
+            verdict, b = (f"⏳ 再等（14d 也才 spend RM{spend:,.0f} · {int(leads)} leads，"
+                          f"未到 RM150/3-leads 门槛）", "wait")
         elif leads == 0:
             if n_60 > 0 and (kcpa <= acc_max or kcpa == 0):
-                verdict, b = "🟠 调低到 RM50（0 leads 但 60d 内有 SG 成交）", "down"
+                verdict, b = f"🟠 调低到 RM50（{wtag} 0 leads 但 60d 内有 SG 成交）", "down"
             else:
-                verdict, b = f"🔴 关（RM{spend:,.0f} 花完 0 leads）", "close"
+                verdict, b = f"🔴 关（{wtag} RM{spend:,.0f} 花完 0 leads）", "close"
         elif cpl > s.kpi.cpl_threshold_myr:
             if n_60 > 0 and kcpa <= acc_max:
-                verdict, b = f"🟠 调低到 RM50（CPL RM{cpl:,.0f} 贵，但 CPA RM{kcpa:,.0f} 还能接受）", "down"
+                verdict, b = (f"🟠 调低到 RM50（{wtag} CPL RM{cpl:,.0f} 贵，"
+                              f"但 CPA RM{kcpa:,.0f} 还能接受）", "down")
             else:
-                verdict, b = f"🔴 关（CPL RM{cpl:,.0f} > 100 kill 线，无近期成交底）", "close"
+                verdict, b = f"🔴 关（{wtag} CPL RM{cpl:,.0f} > 100 kill 线，无近期成交底）", "close"
         elif cpl > 65.0:
             if n_60 > 0:
-                verdict, b = f"✅ 保持（CPL RM{cpl:,.0f} 偏贵但 60d 有成交）", "keep"
+                verdict, b = f"✅ 保持（{wtag} CPL RM{cpl:,.0f} 偏贵但 60d 有成交）", "keep"
             elif budget > 50:
-                verdict, b = f"🟡 调低到 RM50（CPL RM{cpl:,.0f} 在 65–100 学习带，无成交底）", "down"
+                verdict, b = f"🟡 调低到 RM50（{wtag} CPL RM{cpl:,.0f} 在 65–100 学习带，无成交底）", "down"
             else:
-                verdict, b = f"🟡 保持观察（CPL RM{cpl:,.0f}，已是 RM50）", "keep"
+                verdict, b = f"🟡 保持观察（{wtag} CPL RM{cpl:,.0f}，已是 RM50）", "keep"
         else:
             extra = " · 有成交底，加码候选" if n_60 > 0 else ""
-            verdict, b = f"✅ 保持（CPL RM{cpl:,.0f} ≤ 65{extra}）", "keep"
+            verdict, b = f"✅ 保持（{wtag} CPL RM{cpl:,.0f} ≤ 65{extra}）", "keep"
         if n_life > 0 and kcpa > hard:
             verdict += f" ⚠️ key CPA RM{kcpa:,.0f} 超硬线 {hard:,.0f}"
 
         cname = (camp.get("name") or "")[:44]
         aname = (a.get("name") or "")[:44]
-        cpl_txt = f"RM{cpl:,.0f}" if leads else "∞"
+        wcpl_txt = f"RM{w_cpl:,.0f}" if w_leads else "∞"
+        fcpl_txt = f"RM{f_cpl:,.0f}" if f_leads else "∞"
         cpa_txt = f"RM{kcpa:,.0f}" if n_life else "—"
         log.info("▸ %s", cname)
-        log.info("    ad %-44s  RM%-3.0f/day · 窗口 RM%-6.0f %2d leads · CPL %-6s · SG %d/%d · CPA %-8s",
-                 aname, budget, spend, int(leads), cpl_txt, n_life, n_60, cpa_txt)
+        log.info("    ad %-44s  RM%-3.0f/day · 本周 RM%-5.0f %dL %-6s · 14d RM%-6.0f %2dL %-6s · SG %d/%d · CPA %s",
+                 aname, budget, w_spend, int(w_leads), wcpl_txt,
+                 f_spend, int(f_leads), fcpl_txt, n_life, n_60, cpa_txt)
         log.info("    %s", verdict)
         buckets[b].append(f"{aname}  ({cname[:30]}…)" if len(cname) > 30 else f"{aname}  ({cname})")
 
