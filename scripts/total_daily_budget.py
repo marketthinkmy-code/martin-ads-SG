@@ -73,7 +73,7 @@ def main() -> None:
 
     log.info("═" * 96)
     log.info("目前每日预算承诺（只算能实际花钱的链条） · account %s · currency %s",
-             acct, s.meta.currency)
+             acct, s.meta.budget.currency)
     log.info("═" * 96)
 
     for c in sorted(campaigns, key=lambda x: (x.get("name") or "")):
