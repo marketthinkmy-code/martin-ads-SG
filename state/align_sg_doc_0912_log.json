@@ -1,0 +1,274 @@
+{
+  "2026-09-12T08:30:17": [
+    {
+      "ts": "2026-09-12T08:30:24",
+      "entity": "120257761615520093",
+      "action": "daily_budget=12000",
+      "what": "lal12v13"
+    },
+    {
+      "ts": "2026-09-12T08:30:28",
+      "entity": "120257761614920093",
+      "action": "ACTIVE",
+      "what": "lal1_15:ad"
+    },
+    {
+      "ts": "2026-09-12T08:30:29",
+      "entity": "120257761613910093",
+      "action": "ACTIVE",
+      "what": "lal1_15:adset"
+    },
+    {
+      "ts": "2026-09-12T08:30:31",
+      "entity": "120257761432150093",
+      "action": "ACTIVE",
+      "what": "lal1_15:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:30:32",
+      "entity": "120257761613910093",
+      "action": "daily_budget=10000",
+      "what": "lal1_15"
+    },
+    {
+      "ts": "2026-09-12T08:30:35",
+      "entity": "120257934304610093",
+      "action": "ACTIVE",
+      "what": "broad_h3:ad"
+    },
+    {
+      "ts": "2026-09-12T08:30:36",
+      "entity": "120257934304620093",
+      "action": "ACTIVE",
+      "what": "broad_h3:adset"
+    },
+    {
+      "ts": "2026-09-12T08:30:38",
+      "entity": "120256599020240093",
+      "action": "ACTIVE",
+      "what": "broad_h3:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:30:39",
+      "entity": "120257934304620093",
+      "action": "daily_budget=5000",
+      "what": "broad_h3"
+    },
+    {
+      "ts": "2026-09-12T08:30:41",
+      "entity": "120257934214180093",
+      "action": "ACTIVE",
+      "what": "broad_bd:ad"
+    },
+    {
+      "ts": "2026-09-12T08:30:42",
+      "entity": "120257934214360093",
+      "action": "ACTIVE",
+      "what": "broad_bd:adset"
+    },
+    {
+      "ts": "2026-09-12T08:30:43",
+      "entity": "120256599020240093",
+      "action": "ACTIVE",
+      "what": "broad_bd:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:30:46",
+      "entity": "120257934214360093",
+      "action": "daily_budget=3500",
+      "what": "broad_bd"
+    },
+    {
+      "ts": "2026-09-12T08:30:49",
+      "entity": "120257934214290093",
+      "action": "ACTIVE",
+      "what": "broad_15:ad"
+    },
+    {
+      "ts": "2026-09-12T08:30:50",
+      "entity": "120257934214320093",
+      "action": "ACTIVE",
+      "what": "broad_15:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:22",
+      "entity": "120256599020240093",
+      "action": "ACTIVE",
+      "what": "broad_15:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:31:24",
+      "entity": "120257934214320093",
+      "action": "daily_budget=3500",
+      "what": "broad_15"
+    },
+    {
+      "ts": "2026-09-12T08:31:26",
+      "entity": "120257761618950093",
+      "action": "ACTIVE",
+      "what": "lal23_15:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:27",
+      "entity": "120257761616950093",
+      "action": "ACTIVE",
+      "what": "lal23_15:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:28",
+      "entity": "120257761432150093",
+      "action": "ACTIVE",
+      "what": "lal23_15:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:31:32",
+      "entity": "120257761616950093",
+      "action": "daily_budget=3000",
+      "what": "lal23_15"
+    },
+    {
+      "ts": "2026-09-12T08:31:33",
+      "entity": "120258109010810093",
+      "action": "daily_budget=1500",
+      "what": "par_v12"
+    },
+    {
+      "ts": "2026-09-12T08:31:35",
+      "entity": "120256891856130093",
+      "action": "ACTIVE",
+      "what": "par_v13:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:36",
+      "entity": "120256891851660093",
+      "action": "ACTIVE",
+      "what": "par_v13:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:37",
+      "entity": "120256891851660093",
+      "action": "daily_budget=1500",
+      "what": "par_v13"
+    },
+    {
+      "ts": "2026-09-12T08:31:38",
+      "entity": "120257934863810093",
+      "action": "daily_budget=1500",
+      "what": "par_v11"
+    },
+    {
+      "ts": "2026-09-12T08:31:39",
+      "entity": "120258189812960093",
+      "action": "daily_budget=1500",
+      "what": "food_h2"
+    },
+    {
+      "ts": "2026-09-12T08:31:41",
+      "entity": "120258109018520093",
+      "action": "PAUSED",
+      "what": "off_v3:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:42",
+      "entity": "120258109017620093",
+      "action": "PAUSED",
+      "what": "off_v3:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:44",
+      "entity": "120258206581810093",
+      "action": "PAUSED",
+      "what": "off_v7_13:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:45",
+      "entity": "120258206581780093",
+      "action": "PAUSED",
+      "what": "off_v7_13:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:46",
+      "entity": "120258189811980093",
+      "action": "PAUSED",
+      "what": "off_h1:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:48",
+      "entity": "120258189810580093",
+      "action": "PAUSED",
+      "what": "off_h1:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:50",
+      "entity": "120256416500550093",
+      "action": "PAUSED",
+      "what": "off_h18:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:51",
+      "entity": "120256415714200093",
+      "action": "PAUSED",
+      "what": "off_h18:adset"
+    },
+    {
+      "ts": "2026-09-12T08:31:53",
+      "entity": "120257269401020093",
+      "action": "PAUSED",
+      "what": "off_ifr:ad"
+    },
+    {
+      "ts": "2026-09-12T08:31:54",
+      "entity": "120257269400010093",
+      "action": "PAUSED",
+      "what": "off_ifr:campaign"
+    },
+    {
+      "ts": "2026-09-12T08:31:55",
+      "entity": "120258299532530093",
+      "action": "daily_budget=1100",
+      "what": "155:v15plus"
+    },
+    {
+      "ts": "2026-09-12T08:31:56",
+      "entity": "120258299533910093",
+      "action": "daily_budget=1100",
+      "what": "155:hook3bread"
+    },
+    {
+      "ts": "2026-09-12T08:31:57",
+      "entity": "120258299534790093",
+      "action": "daily_budget=1100",
+      "what": "155:v5lin"
+    },
+    {
+      "ts": "2026-09-12T08:31:58",
+      "entity": "120258299535460093",
+      "action": "daily_budget=1100",
+      "what": "155:v1learn"
+    },
+    {
+      "ts": "2026-09-12T08:31:59",
+      "entity": "120258299536650093",
+      "action": "daily_budget=1100",
+      "what": "155:hook7"
+    },
+    {
+      "ts": "2026-09-12T08:32:01",
+      "entity": "120257934214340093",
+      "action": "PAUSED",
+      "what": "freeze:adset(AdSet (Broad SG 35-65+))"
+    },
+    {
+      "ts": "2026-09-12T08:32:03",
+      "entity": "120257934214240093",
+      "action": "PAUSED",
+      "what": "freeze:adset(AdSet (Broad SG 35-65+))"
+    },
+    {
+      "ts": "2026-09-12T08:32:04",
+      "entity": "120256599020440093",
+      "action": "PAUSED",
+      "what": "freeze:adset(AdSet (Broad SG 35-65+))"
+    }
+  ]
+}
