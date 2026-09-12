@@ -44,6 +44,10 @@ ADS: List[Dict[str, str]] = [   # proven sellers — creative reused from the re
     {"key": "hook3bread", "src_ad": "120227243598650093"},  # Hook 3 准备早餐面包 · 13 SG
     {"key": "v5lin", "src_ad": "120247184595700093"},     # Video 5 林書豪story · 11 SG
     {"key": "hook7", "src_ad": "120242606093200093"},     # Hook 7 担心高度没跟上 · 10 SG
+    # 12 Sep "A & B": Hook 7's old post is WhatsApp-bound (number banned) — option A adds
+    # the CLEAN Video 1 Learn More rebuild (6 SG sales · CPA RM623, CTA → SG landing);
+    # option B (Hook 7 rebuilt with a fresh Learn More creative) lands after copy approval.
+    {"key": "v1learn", "src_ad": "120257935200220093"},   # V1 流鼻涕 Learn More 版 · 6 SG
 ]
 
 ADSETS: List[Dict[str, Any]] = [
@@ -115,6 +119,24 @@ def main() -> None:
         log.info("   %s: legacy creative rejected → new post-wrap creative %s",
                  key, rec["fallback_creative_id"])
         return rec["fallback_creative_id"]
+
+    # ── probe the blocked Hook 7 source so the operator can approve a rebuild ───
+    # (option B: same video, fresh Learn More creative — copy needs operator preview)
+    if (srcs.get("hook7") or {}).get("blocked") and not srcs["hook7"].get("probe"):
+        try:
+            cr = g.get_object(srcs["hook7"]["creative_id"],
+                              "object_story_spec,effective_object_story_id")
+            spec0 = cr.get("object_story_spec") or {}
+            vid = (spec0.get("video_data") or {}).get("video_id") or ""
+            msg = (spec0.get("video_data") or {}).get("message") or ""
+            title0 = (spec0.get("video_data") or {}).get("title") or ""
+            cta0 = ((spec0.get("video_data") or {}).get("call_to_action") or {}).get("type")
+            srcs["hook7"]["probe"] = {"video_id": vid, "title": title0, "cta": cta0}
+            persist()
+            log.info("── hook7 rebuild probe: video_id=%s cta=%s title=%r", vid, cta0, title0)
+            log.info("── hook7 original body ↓↓↓\n%s\n↑↑↑ body ends", msg)
+        except Exception as exc:  # noqa: BLE001
+            log.info("── hook7 probe failed: %s", exc)
 
     # ── campaign ────────────────────────────────────────────────────────────────
     if st.get("campaign_id"):
