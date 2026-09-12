@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "ts": "2026-09-12T01:20:18+00:00",
+    "entity_id": "120258189810580093",
+    "entity_type": "adset",
+    "reason": "cpl_over_target_budget_cut",
+    "old_daily_myr": 100.0,
+    "new_daily_myr": 70.0,
+    "cpl": 158.75,
+    "spend": 158.75,
+    "results": 1.0
+  }
+]
