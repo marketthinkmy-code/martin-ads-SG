@@ -1,0 +1,39 @@
+name: adbot · Cycle adjust report (read-only, manual)
+
+# READ-ONLY. Scores every funded chain by the doc formula (Fresh Buyer / buyer CPA /
+# poor-cycle streaks) and prints the NEXT-cycle budget proposal for the operator to
+# approve. Nothing is changed on Meta; cycle history persists for the streak rules.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Score the cycle, propose next budgets
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/cycle_adjust_report.py
+      - name: Persist cycle history
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist cycle history [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
