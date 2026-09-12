@@ -50,6 +50,45 @@ ADS: List[Dict[str, str]] = [   # proven sellers — creative reused from the re
     {"key": "v1learn", "src_ad": "120257935200220093"},   # V1 流鼻涕 Learn More 版 · 6 SG
 ]
 
+# 12 Sep operator approved ("上") — option B: Hook 7 rebuilt on its original video with a
+# fresh Learn More creative (the old post's WhatsApp CTA is banned). Current copy rules:
+# 马丁医师 · 10,000+ 位孩子 · 5-17岁 · no URL in body · no hashtags · no price.
+HOOK7_TITLE = "🔴 孩子的身高，跟上年龄了吗？"
+HOOK7_BODY = """📏 担心孩子的高度，没跟得上年龄该有的高度？
+
+尤其适合这些家长：
+🛑 孩子一年长不到 6cm
+🛑 骨龄超前 / 落后
+🛑 性早熟
+🛑 睡不深、注意力不集中
+🛑 课业压力大，越坐越"矮"
+
+大家好，我是马丁医师 🇹🇼
+台湾儿童长高专家，中西医整合经验超过 10 年。
+
+🌍 我已经帮助台湾、新加坡、马来西亚、澳洲、加拿大等地
+超过 10,000+ 位孩子健康长高——
+其中很多，是被认为"很难再长高"的孩子。
+
+💡 如果你：
+👉 担心父母不高，孩子跟着长不高
+👉 试过网上的偏方、保健品、运动，都没动静
+👉 中医西医都看了，还是不见效
+
+放心，作为一位父亲，我懂你的心情。
+❌ 不打针、不逼孩子吞难吃的补品
+✅ 只用简单、健康、有科学根据的方法——
+先把身体调好，营养吸收得进去，身高自然跟上来。
+
+✨ 我把整套方法放进一堂免费的线上课程：
+✅ 5-17 岁孩子的黄金长高期，到底在什么时候
+✅ 怎么科学管理身高，不错过关键节点
+✅ 哪些营养和运动真正有效，让长高变简单
+✅ 成长金三角：身高、注意力、睡眠一起管
+
+⏳ 生长板一旦闭合，就再也追不回来了。
+👇 点击下方按钮，立即免费报名，我们课程见！"""
+
 ADSETS: List[Dict[str, Any]] = [
     {"key": "shoppers", "name": "Engaged Shoppers",
      "flex": [{"behaviors": [{"id": "6071631541183", "name": "Engaged shoppers"}]}]},
@@ -100,9 +139,11 @@ def main() -> None:
                  rec["creative_id"], rec.get("post_id") or "?")
 
     def creative_for(key: str) -> str:
-        """The creative to bind — the fallback (post-wrap) one if it exists, else source."""
+        """The creative to bind — operator-approved rebuild first, then post-wrap fallback,
+        else the source ad's own creative."""
         rec = srcs[key]
-        return rec.get("fallback_creative_id") or rec["creative_id"]
+        return (rec.get("rebuild_creative_id") or rec.get("fallback_creative_id")
+                or rec["creative_id"])
 
     def make_fallback(key: str) -> str:
         rec = srcs[key]
@@ -156,6 +197,29 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001
             log.info("── hook7 probe failed: %s", exc)
 
+    # ── option B (operator "上"): rebuild Hook 7 — original video, approved Learn More copy
+    h7 = srcs.get("hook7") or {}
+    if h7.get("blocked") and (h7.get("probe") or {}).get("video_id") \
+            and not h7.get("rebuild_creative_id"):
+        vid = h7["probe"]["video_id"]
+        thumb = g.get_video_thumbnail(vid)
+        vdata: Dict[str, Any] = {
+            "video_id": vid, "title": HOOK7_TITLE, "message": HOOK7_BODY,
+            "call_to_action": {"type": m.call_to_action,
+                               "value": {"link": m.lead_destination.link_url}}}
+        if thumb:
+            vdata["image_url"] = thumb
+        story: Dict[str, Any] = {"page_id": m.page_id, "video_data": vdata}
+        if m.instagram_user_id:
+            story["instagram_user_id"] = m.instagram_user_id
+        fields = {"name": f"{h7['name']} (Learn More rebuild)", "object_story_spec": story}
+        if m.url_tags:
+            fields["url_tags"] = m.url_tags
+        h7["rebuild_creative_id"] = g.create_adcreative(acct, **fields)["id"]
+        persist()
+        log.info("── hook7: + Learn More rebuild creative %s (video %s)",
+                 h7["rebuild_creative_id"], vid)
+
     # ── campaign ────────────────────────────────────────────────────────────────
     if st.get("campaign_id"):
         log.info("── reuse campaign %s", st["campaign_id"])
@@ -201,7 +265,7 @@ def main() -> None:
         log.info("▸ %-20s adset %s · RM50/day", aset["name"], rec["adset_id"])
         ads_rec: Dict[str, Any] = rec.setdefault("ads", {})
         for a in ADS:
-            if srcs[a["key"]].get("blocked"):
+            if srcs[a["key"]].get("blocked") and not srcs[a["key"]].get("rebuild_creative_id"):
                 log.info("     %-10s SKIPPED — %s", a["key"], srcs[a["key"]]["blocked"])
                 continue
             if not ads_rec.get(a["key"]):
