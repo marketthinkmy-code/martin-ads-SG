@@ -23,16 +23,17 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install .
-      # 9 Sep operator call ("明天才直播 今天不要关"): webinar week — the Wed 10 Sep 2026
-      # pause is skipped so ads run straight into the webinar. Self-expiring: after that
-      # date this guard never matches again and the weekly rhythm continues untouched.
+      # 12 Sep operator call ("下一次关广告是下个星期四，星期四晚上开直播"): ads run
+      # continuously into the Thu 17 Sep webinar, so the Wed 16 Sep pause is skipped and
+      # the operator closes by hand on Thursday. Self-expiring: after that date this guard
+      # never matches again and the weekly rhythm continues untouched.
       - name: Webinar-week skip check (self-expiring)
         id: skipcheck
         run: |
           today=$(TZ=Asia/Kuala_Lumpur date +%F)
-          if [ "$today" = "2026-09-10" ]; then
+          if [ "$today" = "2026-09-16" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping weekly OFF for the 10 Sep webinar window"
+            echo "Skipping weekly OFF for the 17 Sep webinar window"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
