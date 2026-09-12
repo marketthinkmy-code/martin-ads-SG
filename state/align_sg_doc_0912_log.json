@@ -290,5 +290,43 @@
       "action": "daily_budget=6500",
       "what": "gridb_h2"
     }
+  ],
+  "2026-09-12T09:07:55": [
+    {
+      "ts": "2026-09-12T09:08:06",
+      "entity": "120257667233630093",
+      "action": "ACTIVE",
+      "what": "he04:adset"
+    },
+    {
+      "ts": "2026-09-12T09:08:07",
+      "entity": "120257667232910093",
+      "action": "ACTIVE",
+      "what": "he04:campaign"
+    },
+    {
+      "ts": "2026-09-12T09:08:10",
+      "entity": "120257667232910093",
+      "action": "daily_budget=18000",
+      "what": "he04"
+    },
+    {
+      "ts": "2026-09-12T09:08:13",
+      "entity": "120256985982080093",
+      "action": "ACTIVE",
+      "what": "v7pull:ad"
+    },
+    {
+      "ts": "2026-09-12T09:08:14",
+      "entity": "120256985977820093",
+      "action": "ACTIVE",
+      "what": "v7pull:campaign"
+    },
+    {
+      "ts": "2026-09-12T09:08:15",
+      "entity": "120256985977820093",
+      "action": "daily_budget=13000",
+      "what": "v7pull"
+    }
   ]
 }
