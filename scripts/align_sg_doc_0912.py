@@ -45,10 +45,12 @@ S155 = Path("state") / "entities_shopper_health_155.json"
 PLAN: List[Dict[str, Any]] = [
     # camp_id pins from the build-state files — the display names use "&"/casing the name
     # filters missed on the first pass (he04/v7pull/gridb_h2 skipped as no-match).
+    # Both 🌟 campaigns are CBO — the doc budget goes on the CAMPAIGN and only the target
+    # ad runs inside (siblings muted by the freeze pass), so all budget flows to it.
     {"key": "he04",     "act": "open", "budget": 18000, "names": ["hook edit 04"],
-     "camp_id": "120257667232910093"},                       # Hook Edits A
+     "camp_id": "120257667232910093", "cbo": True},          # Hook Edits A
     {"key": "v7pull",   "act": "open", "budget": 13000, "names": ["还没抽高", "還沒抽高"],
-     "camp_id": "120256985977820093"},                       # F&R A (1-1-3 fam a)
+     "camp_id": "120256985977820093", "cbo": True},          # F&R A (1-1-3 fam a)
     {"key": "lal12v13", "act": "budget", "budget": 12000, "names": ["三年前他長了10公分"],
      "camp": ["purchase lal"], "adset": ["lal 1-2%"]},
     {"key": "lal1_15",  "act": "open", "budget": 10000, "names": ["15岁以上还有机会", "15歲以上還有機會"],
@@ -155,7 +157,7 @@ def main() -> None:
             return False
 
     def set_budget(aset_id: str, cents: int, what: str) -> bool:
-        cur = int((aset_by_id.get(aset_id) or {}).get("daily_budget") or 0)
+        cur = int((aset_by_id.get(aset_id) or camp_by_id.get(aset_id) or {}).get("daily_budget") or 0)
         if cur == cents:
             return True
         try:
@@ -198,7 +200,8 @@ def main() -> None:
             (done if ok else skipped).append(e["key"])
             continue
 
-        if int(camp.get("daily_budget") or 0) > 0 and e["act"] in ("open", "budget"):
+        is_cbo = int(camp.get("daily_budget") or 0) > 0
+        if is_cbo and not e.get("cbo") and e["act"] in ("open", "budget"):
             log.info("   !! %s 的 campaign 是 CBO，无法按 ad set 设预算 — 跳过，需人工", e["key"])
             skipped.append(f"{e['key']}(CBO)")
             continue
@@ -210,7 +213,8 @@ def main() -> None:
             if camp.get("status") != "ACTIVE":
                 ok = set_status(camp["id"], "ACTIVE", f"{e['key']}:campaign") and ok
                 woken_campaigns.setdefault(camp["id"], [])
-        ok = set_budget(aset["id"], e["budget"], e["key"]) and ok
+        budget_target = camp["id"] if is_cbo else aset["id"]
+        ok = set_budget(budget_target, e["budget"], e["key"]) and ok
         touched_adsets[aset["id"]] = ad["id"]
         woken_campaigns.setdefault(camp["id"], []).append(aset["id"])
         (done if ok else skipped).append(e["key"])
