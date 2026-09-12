@@ -145,6 +145,16 @@ def main() -> None:
                  st["hook7_creative_id"], HOOK7_VIDEO)
 
     # ── 3) campaign ─────────────────────────────────────────────────────────────
+    # 12 Sep: the operator deleted the first 1-5-5 by hand while clearing the mis-build
+    # ("应该被我删掉了，重建一个新的") — if the stored campaign is gone, drop the stale ids
+    # and build a brand-new one instead of trying to attach ad sets to a deleted parent.
+    if st.get("campaign_id"):
+        alive = g.get_object(st["campaign_id"], "status").get("status")
+        if alive in ("DELETED", "ARCHIVED"):
+            log.info("── stored campaign %s is %s — rebuilding fresh", st["campaign_id"], alive)
+            st.pop("campaign_id", None)
+            st.pop("units", None)
+            persist()
     if st.get("campaign_id"):
         log.info("── reuse campaign %s", st["campaign_id"])
     else:
