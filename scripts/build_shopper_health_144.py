@@ -122,15 +122,33 @@ def main() -> None:
 
     # ── probe the blocked Hook 7 source so the operator can approve a rebuild ───
     # (option B: same video, fresh Learn More creative — copy needs operator preview)
-    if (srcs.get("hook7") or {}).get("blocked") and not srcs["hook7"].get("probe"):
+    if (srcs.get("hook7") or {}).get("blocked") \
+            and not (srcs["hook7"].get("probe") or {}).get("video_id"):
         try:
             cr = g.get_object(srcs["hook7"]["creative_id"],
-                              "object_story_spec,effective_object_story_id")
+                              "video_id,body,title,object_story_spec,asset_feed_spec,"
+                              "effective_object_story_id")
             spec0 = cr.get("object_story_spec") or {}
-            vid = (spec0.get("video_data") or {}).get("video_id") or ""
-            msg = (spec0.get("video_data") or {}).get("message") or ""
-            title0 = (spec0.get("video_data") or {}).get("title") or ""
-            cta0 = ((spec0.get("video_data") or {}).get("call_to_action") or {}).get("type")
+            vd = spec0.get("video_data") or {}
+            afs = cr.get("asset_feed_spec") or {}
+            vid = (cr.get("video_id") or vd.get("video_id")
+                   or ((afs.get("videos") or [{}])[0].get("video_id")) or "")
+            msg = (cr.get("body") or vd.get("message")
+                   or ((afs.get("bodies") or [{}])[0].get("text")) or "")
+            title0 = (cr.get("title") or vd.get("title")
+                      or ((afs.get("titles") or [{}])[0].get("text")) or "")
+            cta0 = ((vd.get("call_to_action") or {}).get("type")
+                    or (afs.get("call_to_action_types") or [None])[0])
+            if not msg:                      # last resort: the page post itself
+                try:
+                    post = g.get_object(srcs["hook7"]["post_id"],
+                                        "message,attachments{media_type,target{id}}")
+                    msg = post.get("message") or ""
+                    att = ((post.get("attachments") or {}).get("data") or [{}])[0]
+                    if not vid and (att.get("media_type") == "video"):
+                        vid = (att.get("target") or {}).get("id") or ""
+                except Exception as exc2:  # noqa: BLE001
+                    log.info("── hook7 post read failed: %s", exc2)
             srcs["hook7"]["probe"] = {"video_id": vid, "title": title0, "cta": cta0}
             persist()
             log.info("── hook7 rebuild probe: video_id=%s cta=%s title=%r", vid, cta0, title0)
