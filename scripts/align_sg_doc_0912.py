@@ -43,16 +43,18 @@ S155 = Path("state") / "entities_shopper_health_155.json"
 
 # name_subs match cpa.norm(ad name); camp/adset subs match cpa.norm(entity name)
 PLAN: List[Dict[str, Any]] = [
+    # camp_id pins from the build-state files — the display names use "&"/casing the name
+    # filters missed on the first pass (he04/v7pull/gridb_h2 skipped as no-match).
     {"key": "he04",     "act": "open", "budget": 18000, "names": ["hook edit 04"],
-     "camp": ["hook edits a"]},
+     "camp_id": "120257667232910093"},                       # Hook Edits A
     {"key": "v7pull",   "act": "open", "budget": 13000, "names": ["还没抽高", "還沒抽高"],
-     "camp": ["family and relationships a"]},
+     "camp_id": "120256985977820093"},                       # F&R A (1-1-3 fam a)
     {"key": "lal12v13", "act": "budget", "budget": 12000, "names": ["三年前他長了10公分"],
      "camp": ["purchase lal"], "adset": ["lal 1-2%"]},
     {"key": "lal1_15",  "act": "open", "budget": 10000, "names": ["15岁以上还有机会", "15歲以上還有機會"],
      "camp": ["purchase lal"], "adset": ["lal 1%"]},
     {"key": "gridb_h2", "act": "open", "budget": 6500, "names": ["把面包当早餐", "把麵包當早餐"],
-     "camp": ["grid b"]},
+     "camp_id": "120257884620220093", "adset_id": "120257884626570093"},   # Grid 3x3 › set B
     {"key": "broad_h3", "act": "open", "budget": 5000, "names": ["准备早餐面包", "準備早餐麵包"],
      "camp": ["broad"], "camp_not": ["hooks 0907"]},
     {"key": "broad_bd", "act": "open", "budget": 3500, "names": ["鼻窦炎", "鼻竇炎"],
@@ -115,6 +117,10 @@ def main() -> None:
             n = cpa.norm(ad.get("name") or "")
             if not any(v in n for v in entry["names"]):
                 continue
+            if entry.get("camp_id") and ad.get("campaign_id") != entry["camp_id"]:
+                continue
+            if entry.get("adset_id") and ad.get("adset_id") != entry["adset_id"]:
+                continue
             cn = cpa.norm((camp_by_id.get(ad.get("campaign_id")) or {}).get("name") or "")
             if not all(v in cn for v in entry.get("camp", [])):
                 continue
@@ -127,7 +133,18 @@ def main() -> None:
             out.append(ad)
         return out
 
+    def status_of(eid: str) -> Optional[str]:
+        ent = camp_by_id.get(eid) or aset_by_id.get(eid)
+        if ent:
+            return ent.get("status")
+        for ad in ads:
+            if ad["id"] == eid:
+                return ad.get("status")
+        return None
+
     def set_status(eid: str, status: str, what: str) -> bool:
+        if status_of(eid) == status:      # re-run economy: never rewrite what already holds
+            return True
         try:
             g.update_status(eid, status)
             note(entity=eid, action=status, what=what)
@@ -135,6 +152,20 @@ def main() -> None:
         except GraphError as exc:
             log.info("   !! %s %s refused: %s", what, eid, exc)
             note(entity=eid, action=f"REFUSED {status}", what=what, error=str(exc)[:160])
+            return False
+
+    def set_budget(aset_id: str, cents: int, what: str) -> bool:
+        cur = int((aset_by_id.get(aset_id) or {}).get("daily_budget") or 0)
+        if cur == cents:
+            return True
+        try:
+            g.update_daily_budget(aset_id, cents)
+            note(entity=aset_id, action=f"daily_budget={cents}", what=what)
+            log.info("   budget → RM%d/day", cents // 100)
+            return True
+        except GraphError as exc:
+            log.info("   !! budget refused: %s", exc)
+            note(entity=aset_id, action="REFUSED budget", what=what, error=str(exc)[:160])
             return False
 
     done, skipped = [], []
@@ -179,14 +210,7 @@ def main() -> None:
             if camp.get("status") != "ACTIVE":
                 ok = set_status(camp["id"], "ACTIVE", f"{e['key']}:campaign") and ok
                 woken_campaigns.setdefault(camp["id"], [])
-        try:
-            g.update_daily_budget(aset["id"], e["budget"])
-            note(entity=aset["id"], action=f"daily_budget={e['budget']}", what=e["key"])
-            log.info("   budget → RM%d/day", e["budget"] // 100)
-        except GraphError as exc:
-            log.info("   !! budget refused: %s", exc)
-            note(entity=aset["id"], action="REFUSED budget", what=e["key"], error=str(exc)[:160])
-            ok = False
+        ok = set_budget(aset["id"], e["budget"], e["key"]) and ok
         touched_adsets[aset["id"]] = ad["id"]
         woken_campaigns.setdefault(camp["id"], []).append(aset["id"])
         (done if ok else skipped).append(e["key"])
@@ -195,13 +219,9 @@ def main() -> None:
     if S155.exists():
         st155 = json.loads(S155.read_text())
         for k, u in (st155.get("units") or {}).items():
-            try:
-                g.update_daily_budget(u["adset_id"], TEST_155_CENTS)
-                note(entity=u["adset_id"], action=f"daily_budget={TEST_155_CENTS}", what=f"155:{k}")
-                log.info("▸ 1-5-5 %-10s → RM11/day", k)
+            if set_budget(u["adset_id"], TEST_155_CENTS, f"155:{k}"):
                 done.append(f"155:{k}")
-            except GraphError as exc:
-                log.info("▸ 1-5-5 %s budget refused: %s", k, exc)
+            else:
                 skipped.append(f"155:{k}")
 
     # scoped release-only freeze: inside woken campaigns, silence what the wake released
