@@ -17,7 +17,6 @@ PII discipline: no names/phones/emails in logs — dates, UTM values and counts 
 from __future__ import annotations
 
 import datetime as dt
-import re
 from collections import Counter, defaultdict
 from typing import Any, Dict, List
 
@@ -69,41 +68,28 @@ def main() -> None:
     log.info("── tab %r: %d data rows", title, max(0, len(rows) - 1))
     if not rows:
         raise SystemExit("!! tab empty")
-    header = rows[0]
 
-    def col(*names):
-        for i, h in enumerate(header):
-            k = re.sub(r"\W+", "", (h or "").lower())
-            for n in names:
-                if re.sub(r"\W+", "", n.lower()) in k:
-                    return i
-        return None
-
-    c_date = col("created date", "date", "created")
-    c_camp = col("utm campaign")
-    c_ad = col("utm ads name", "utm ad name", "utm ad")
-    log.info("── header: %s · cols date=%s campaign=%s ad=%s", header, c_date, c_camp, c_ad)
+    # This gid resolves to the Paid Student List itself — use the proven parser (it knows
+    # this tab's 報名日期 / Campaign Name / UTM Ads Name headers) instead of re-guessing.
+    sales, _cols, _hdr = cpa.parse_sales(rows, s.cpa.price_myr)
+    log.info("── parsed %d sale rows", len(sales))
 
     disp: Dict[str, str] = {}
     life_all: Counter = Counter()
     life_sg: Counter = Counter()
     sg60: Counter = Counter()
     sg30: Counter = Counter()
-    for r in rows[1:]:
-        def get(i):
-            return (r[i] if i is not None and i < len(r) else "") or ""
-        ad = get(c_ad).strip()
-        k = cpa.ad_key(ad)
+    for x in sales:
+        k = cpa.ad_key(x.ad)
         if not k:
             continue
-        disp.setdefault(k, ad)
+        disp.setdefault(k, (x.ad or "").strip())
         life_all[k] += 1
-        if _sg(get(c_camp)):
+        if _sg(x.campaign):
             life_sg[k] += 1
-            d = cpa.parse_date(get(c_date))
-            if d and d >= d60:
+            if x.date and x.date >= d60:
                 sg60[k] += 1
-            if d and d >= d30:
+            if x.date and x.date >= d30:
                 sg30[k] += 1
 
     # name-key lifetime spend -> CPA + representative (highest-spend) ad per key
