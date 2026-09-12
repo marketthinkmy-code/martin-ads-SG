@@ -1,0 +1,37 @@
+name: adbot · Build Shopper & Health Interests 1-4-4 (manual)
+
+# MUTATING, operator-approved ("① 换 Hook 7 ② A ③ 直接跑"): one new ABO campaign, four
+# interest ad sets (RM50/day each), the same four proven sellers in every set (existing
+# creatives reused), ACTIVE immediately. Idempotent via state; re-dispatch resumes.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write     # persist entity ids
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build campaign · 4 ad sets · 16 ads
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/build_shopper_health_144.py
+      - name: Persist entity ids
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Shopper & Health 1-4-4 ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
