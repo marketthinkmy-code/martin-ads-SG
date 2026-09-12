@@ -9,5 +9,16 @@
     "cpl": 158.75,
     "spend": 158.75,
     "results": 1.0
+  },
+  {
+    "ts": "2026-09-12T10:38:39+00:00",
+    "entity_id": "120256985982080093",
+    "entity_type": "ad",
+    "reason": "cpa_hard_stop",
+    "spend": 6.52,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": 1210.38,
+    "cpa_sales": 1
   }
 ]
