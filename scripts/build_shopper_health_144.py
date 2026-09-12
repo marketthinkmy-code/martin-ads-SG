@@ -161,6 +161,9 @@ def main() -> None:
         log.info("▸ %-20s adset %s · RM50/day", aset["name"], rec["adset_id"])
         ads_rec: Dict[str, Any] = rec.setdefault("ads", {})
         for a in ADS:
+            if srcs[a["key"]].get("blocked"):
+                log.info("     %-10s SKIPPED — %s", a["key"], srcs[a["key"]]["blocked"])
+                continue
             if not ads_rec.get(a["key"]):
                 name = srcs[a["key"]]["name"]
                 try:
@@ -168,7 +171,16 @@ def main() -> None:
                                      creative={"creative_id": creative_for(a["key"])},
                                      status="ACTIVE", conversion_domain=conv)
                 except GraphError as exc:
-                    if "url" not in str(exc).lower():
+                    msg = str(exc).lower()
+                    if "whatsapp" in msg:
+                        # the source post's CTA is WhatsApp-bound (number banned) — this
+                        # creative cannot be reused at all; skip the slot in EVERY set and
+                        # let the operator pick a replacement (same class as old Video 1).
+                        srcs[a["key"]]["blocked"] = f"WhatsApp-bound source: {exc}"
+                        persist()
+                        log.info("     %-10s BLOCKED — %s", a["key"], exc)
+                        continue
+                    if "url" not in msg:
                         raise
                     ad = g.create_ad(acct, name=name, adset_id=rec["adset_id"],
                                      creative={"creative_id": make_fallback(a["key"])},
