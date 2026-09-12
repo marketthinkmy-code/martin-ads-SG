@@ -1,0 +1,37 @@
+name: adbot · Align SG to the cycle doc (12 Sep, manual)
+
+# MUTATING, operator-ordered ("全部暂时性跟着文档的 · 执行"): reopens/rebudgets/closes the
+# SG chains to match the RM6,000/cycle plan (budgets follow buyers, not CPL). Ambiguous or
+# refused chains are skipped with reasons, never guessed. Idempotent.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Align SG chains to the doc plan
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/align_sg_doc_0912.py
+      - name: Persist audit log
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 12 Sep SG doc-alignment audit [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"

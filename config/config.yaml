@@ -103,12 +103,19 @@ kpi:
   monitor_paused_until: "2026-09-11"     # 9 Sep operator: "今晚不要關，明天晚上才開直播" — monitor closes NOTHING Tue/Wed nights, resumes Thu 9/11 by itself
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
-  cpl_hold:                              # ad-name substrings temporarily exempt from CPL auto-pause (CPA hard-stop still applies)
-    - "牛奶+面包"                          # reopened 22 Aug: 4 provably-SG sales · CPA 518, but sales sit outside the monitor's 60d window so CPA-rescue can't see them
-    - "女孩来了初经"                        # reopened 22 Aug: 1 SG sale · CPA 730, same 60d-window blindness
-    - "APR VIDEO: HOOK 5"                  # Winners Revival: 5 SG sales · CPA 513, sales predate the 60d window — the monitor killed it on 23 Aug
-    - "5岁到15岁的孩子"                     # Winners Revival: 7 SG sales · CPA 732, same blindness (substring covers both colon variants)
-    - "流鼻涕"                             # Winners Revival: 5 SG sales · CPA 664, same blindness
+  cpl_hold:                              # ad-name substrings exempt from CPL auto-actions (0-reg kill + CPA hard-stop still apply)
+    # 12 Sep doc regime ("Budget 跟着 Buyer，不是跟着 CPL"): every SCALE/KEEP chain in the
+    # operator's cycle plan is held so the daily -30% cut can't fight the plan. REDUCE/TEST
+    # chains sit at RM11-15/day, under the RM50 cut floor, so they never needed holds.
+    - "Hook Edit 04"                       # SCALE RM180/day — SG's strongest buyer machine
+    - "还没抽高"                            # KEEP RM130/day (Video7, F&R A) — simplified
+    - "還沒抽高"                            #   ... traditional spelling of the same name
+    - "三年前他長了10公分"                    # KEEP RM120/day (Purchase LAL 1-2%)
+    - "15岁以上还有机会"                     # KEEP RM100+35+30/day (LAL 1% / Broad SG / LAL 2-3%)
+    - "15歲以上還有機會"                     #   ... traditional variant
+    - "把面包当早餐"                         # KEEP RM65/day (Grid B) — CPL~379 but it buys; doc's flagship example
+    - "准备早餐面包"                         # KEEP RM50/day (Broad SG Hook3)
+    - "鼻窦炎"                              # KEEP RM35/day (Broad SG) — hottest converting angle cross-market
 
 cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet, SHARED with MY)
   enabled: true
