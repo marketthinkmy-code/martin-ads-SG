@@ -270,5 +270,25 @@
       "action": "PAUSED",
       "what": "freeze:adset(AdSet (Broad SG 35-65+))"
     }
+  ],
+  "2026-09-12T09:04:40": [
+    {
+      "ts": "2026-09-12T09:04:46",
+      "entity": "120257884629490093",
+      "action": "ACTIVE",
+      "what": "gridb_h2:ad"
+    },
+    {
+      "ts": "2026-09-12T09:04:47",
+      "entity": "120257884620220093",
+      "action": "ACTIVE",
+      "what": "gridb_h2:campaign"
+    },
+    {
+      "ts": "2026-09-12T09:04:48",
+      "entity": "120257884626570093",
+      "action": "daily_budget=6500",
+      "what": "gridb_h2"
+    }
   ]
 }
