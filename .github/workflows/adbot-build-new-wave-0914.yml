@@ -1,0 +1,45 @@
+name: adbot · New Wave 0914 — 3 campaigns × 15 ad sets, PAUSED (manual)
+
+# MUTATING but built PAUSED (operator: "45，paused"). Downloads the 13 new Martin July
+# videos (新马 V1-V4 + H3/H4/H6/H7/H8, 北美 H3/H4/H5/H6), builds one creative per video with
+# the approved copies, then THREE new ABO campaigns cloned from the Paid-Student-List
+# top-3 converting ad sets (Food & Drink + Milk / Family & Relationships with Adv+ OFF
+# locked / Health & Wellness) — 15 single-ad ad sets each at RM30/day; the 15th/14th ads
+# reuse the corrected 10,000-version Hook 1 / Hook 2 creatives with their exact historical
+# ad names. Campaigns are created PAUSED: nothing spends until the operator flips them on.
+# Idempotent via state/entities_new_wave_0914.json — on a Meta rate limit the job exits 75
+# with state saved; re-dispatch ~30 min later to resume.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write          # persist state/ (video/creative/campaign/adset/ad ids)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build New Wave 0914 (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_new_wave_0914.py
+      - name: Persist entity IDs back to the branch
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist New Wave 0914 ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
