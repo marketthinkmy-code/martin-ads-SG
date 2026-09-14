@@ -1,0 +1,39 @@
+name: adbot · New Wave 0914 — lock F&R Advantage Audience OFF (manual)
+
+# MUTATING, corrective: the 15 Family & Relationships ad sets of the New Wave 0914 build
+# were created with advantage_audience=1 (the source ad set returns no targeting_automation
+# field and the clone default treated absent as ON), violating the operator's approved
+# "Adv+OFF 照抄，锁死" spec. Rewrites each ad set's targeting with an explicit
+# advantage_audience=0 and verifies. Idempotent; exits 75 on a Meta rate limit.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Lock Adv+ OFF on the 15 F&R ad sets
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/fix_fr_adv_0914.py
+      - name: Persist state
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "fix: record F&R Adv+ OFF lock [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"

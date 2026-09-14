@@ -40,11 +40,13 @@ PREFIX = "[SG] 儿童长高方程式"
 DAILY_MINOR = 3000                      # RM30/day per ad set, operator-fixed
 PACE_SECONDS = 1.0                      # gentle pacing between entity creations
 
-CAMPAIGNS: List[Dict[str, str]] = [
+CAMPAIGNS: List[Dict[str, Any]] = [
     {"key": "food", "label": "Food & Drink + Milk | New Wave 0914 | 1-15-15",
      "clone": "120250912724510093"},
+    # F&R source returns NO targeting_automation field (legacy set, no expansion) — the
+    # operator's spec is "Adv+OFF 照抄，锁死", so force it rather than let None default to 1.
     {"key": "fr", "label": "Family & Relationships | New Wave 0914 | 1-15-15",
-     "clone": "120257269400410093"},
+     "clone": "120257269400410093", "force_adv": 0},
     {"key": "hw", "label": "Health & Wellness | New Wave 0914 | 1-15-15",
      "clone": "120256984987300093"},
 ]
@@ -601,6 +603,8 @@ def build() -> None:
         src = g.get_object(c["clone"], "id,name")
         adset_name = src.get("name") or c["label"]
         spec = clone_targeting(g, c["clone"], s)
+        if c.get("force_adv") is not None:
+            spec["targeting_automation"] = {"advantage_audience": int(c["force_adv"])}
         adv = int((spec.get("targeting_automation") or {}).get("advantage_audience") or 1)
         cst["source_adset"] = {"id": c["clone"], "name": adset_name, "adv": adv}
         log.info("── targeting source %s %r (Adv+ %s · %s-%s)", c["clone"], adset_name,
