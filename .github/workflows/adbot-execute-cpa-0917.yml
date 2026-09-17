@@ -1,0 +1,38 @@
+name: adbot · Execute CPA verdicts 0917 (manual)
+
+# MUTATING, operator-ordered ("停掉 你建议要关的。照建议开。全部照你建议"): pause the
+# 鼻窦炎 and V11 chains (ad + ad set, campaigns untouched), reopen 🌟Hook 9 / Video 12 /
+# V1 流鼻涕 / Carousel 别再逼孩子喝牛奶 at RM50/day each — newest intact copy whose revival
+# wakes only its own chain. Idempotent; audit in state/execute_cpa_0917_log.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Close 2, open 4 at RM50/day
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/execute_cpa_0917.py
+      - name: Persist audit
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist CPA 0917 execution audit [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
