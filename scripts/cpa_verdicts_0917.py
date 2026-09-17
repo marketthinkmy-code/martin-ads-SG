@@ -167,10 +167,11 @@ def main() -> None:
     log.info("② 现在没开、但历史 CPA 值得开的（paused 池，60d 内有成交优先）")
     log.info("═" * 112)
     cand = [k for k in every_key
-            if not n_live.get(k) and life.get(k, 0) > 0
+            if k and not n_live.get(k) and life.get(k, 0) > 0
+            and spend_life.get(k, 0) >= 200.0          # drop UTM junk / unmatched names
             and (spend_life.get(k, 0) / life[k]) <= hard]
-    cand.sort(key=lambda k: spend_life.get(k, 0) / life[k])
-    for k in cand[:14]:
+    cand.sort(key=lambda k: (s60.get(k, 0) == 0, spend_life.get(k, 0) / life[k]))
+    for k in cand[:30]:
         sp, n = spend_life.get(k, 0.0), life[k]
         cpa_v = sp / n
         tag = "💡 开 候选" if cpa_v <= acc else "🤔 边缘（960-1200）"
