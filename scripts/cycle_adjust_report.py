@@ -95,8 +95,27 @@ def main() -> None:
         return sp, ld, fb
 
     hist: Dict[str, Any] = json.loads(HISTORY.read_text()) if HISTORY.exists() else {}
-    cyc_id = f"{CYCLE_START.isoformat()}→{today.isoformat()}"
-    hrec = hist.setdefault("cycles", {}).setdefault(cyc_id, {})
+    # One record per CYCLE (keyed by start date) so a re-run inside the same cycle —
+    # e.g. after the webinar's sales are finally entered — OVERWRITES instead of
+    # counting the cycle poor twice. Legacy "start→end" keys fold to their start.
+    cycles_by_start: Dict[str, Dict[str, Any]] = {}
+    for key, rec in (hist.get("cycles") or {}).items():
+        cycles_by_start[key.split("→")[0]] = rec
+    cyc_id = CYCLE_START.isoformat()
+    hrec = cycles_by_start.setdefault(cyc_id, {})
+    hist["cycles"] = cycles_by_start
+
+    def prior_streak(label: str) -> int:
+        """Consecutive poor cycles STRICTLY BEFORE the current one."""
+        n = 0
+        for start in sorted(cycles_by_start, reverse=True):
+            if start >= cyc_id:
+                continue
+            rec = (cycles_by_start.get(start) or {}).get(label)
+            if rec is None or not rec.get("poor"):
+                break
+            n += 1
+        return n
 
     log.info("═" * 100)
     log.info("CYCLE ADJUST 提案 · 窗口 %s → %s · Budget 跟着 Buyer，不是 CPL", CYCLE_START, today)
@@ -111,7 +130,7 @@ def main() -> None:
         cpl = sp / ld if ld else 0.0
         bcpa = sp / fb if fb else 0.0
         poor = (fb == 0)
-        streak = int((hist.get("poor_streak") or {}).get(ch["label"], 0)) + (1 if poor else 0)
+        streak = prior_streak(ch["label"]) + (1 if poor else 0)
         if not poor:
             streak = 0
 
