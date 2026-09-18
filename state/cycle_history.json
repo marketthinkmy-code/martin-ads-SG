@@ -1,0 +1,106 @@
+{
+  "cycles": {
+    "2026-09-12→2026-09-18": {
+      "HE04 不买牛奶 (Hook Edits A · CBO)": {
+        "spend": 116.68,
+        "leads": 1.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "V7 15岁还没抽高 (F&R A · CBO)": {
+        "spend": 23.75,
+        "leads": 0.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "V13 三年前长10cm (LAL 1-2%)": {
+        "spend": 642.11,
+        "leads": 7.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "15岁以上 (LAL 1%)": {
+        "spend": 450.94,
+        "leads": 3.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "Hook2 面包当早餐 (Grid B)": {
+        "spend": 145.14,
+        "leads": 1.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "Hook3 准备早餐面包 (Broad)": {
+        "spend": 575.61,
+        "leads": 4.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "鼻窦炎 (Broad)": {
+        "spend": 267.39,
+        "leads": 4.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "15岁以上 (Broad)": {
+        "spend": 0.0,
+        "leads": 0.0,
+        "fresh": 0.0,
+        "poor": true
+      },
+      "15岁以上 (LAL 2-3%)": {
+        "spend": 0.0,
+        "leads": 0.0,
+        "fresh": 0.0,
+        "poor": true
+      },
+      "V12 试了五六种方法 (Parents·REDUCE)": {
+        "spend": 118.19,
+        "leads": 0.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "V13 (Parents·REDUCE)": {
+        "spend": 0.0,
+        "leads": 0.0,
+        "fresh": 0.0,
+        "poor": true
+      },
+      "V11 孩子来MC (Parents·REDUCE)": {
+        "spend": 346.79,
+        "leads": 5.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "Hook2 旧鞋当尺 (TEST)": {
+        "spend": 307.01,
+        "leads": 1.0,
+        "fresh": 0,
+        "poor": true
+      },
+      "1-5-5 合并定向 ×5 (TEST)": {
+        "spend": 320.92,
+        "leads": 4.0,
+        "fresh": 0,
+        "poor": true
+      }
+    }
+  },
+  "poor_streak": {
+    "HE04 不买牛奶 (Hook Edits A · CBO)": 1,
+    "V7 15岁还没抽高 (F&R A · CBO)": 1,
+    "V13 三年前长10cm (LAL 1-2%)": 1,
+    "15岁以上 (LAL 1%)": 1,
+    "Hook2 面包当早餐 (Grid B)": 1,
+    "Hook3 准备早餐面包 (Broad)": 1,
+    "鼻窦炎 (Broad)": 1,
+    "15岁以上 (Broad)": 1,
+    "15岁以上 (LAL 2-3%)": 1,
+    "V12 试了五六种方法 (Parents·REDUCE)": 1,
+    "V13 (Parents·REDUCE)": 1,
+    "V11 孩子来MC (Parents·REDUCE)": 1,
+    "Hook2 旧鞋当尺 (TEST)": 1,
+    "1-5-5 合并定向 ×5 (TEST)": 1
+  }
+}
