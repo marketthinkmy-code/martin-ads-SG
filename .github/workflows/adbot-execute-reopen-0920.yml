@@ -1,0 +1,37 @@
+name: adbot · Reopen V1 流鼻涕 + Hook 9 (manual)
+
+# MUTATING, operator-ordered ("开"): reopen the two 30d-CPA-qualified names — V1 流鼻涕
+# at RM50/day, Hook 9 at RM30/day (no cpl_hold exemption) — on chains whose revival wakes
+# only themselves. Idempotent; audit in state/execute_reopen_0920_log.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Reopen at RM50 / RM30
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/execute_reopen_0920.py
+      - name: Persist audit
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 0920 reopen audit [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
