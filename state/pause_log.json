@@ -42,5 +42,16 @@
     "cpl": null,
     "cpa": null,
     "cpa_sales": 0
+  },
+  {
+    "ts": "2026-09-20T01:42:12+00:00",
+    "entity_id": "120258340098350093",
+    "entity_type": "adset",
+    "reason": "cpl_over_target_budget_cut",
+    "old_daily_myr": 80.0,
+    "new_daily_myr": 56.0,
+    "cpl": 95.88,
+    "spend": 287.65,
+    "results": 3.0
   }
 ]
