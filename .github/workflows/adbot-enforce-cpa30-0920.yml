@@ -1,0 +1,40 @@
+name: adbot · Enforce 30d-CPA board discipline 0920 (manual)
+
+# MUTATING, operator-ordered: every live SG ad must be 30d-CPA qualified (30d spend ÷ 30d
+# provably-SG sales ≤ RM960), or a new creative (<14d copies, under the RM1,000 judgment
+# floor). Everything else is paused (ad + emptied ad set, campaigns untouched).
+# Idempotent; audit in state/enforce_cpa30_0920_log.json.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Enforce 30d-CPA rule on the live board
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/enforce_cpa30_0920.py
+      - name: Persist audit
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 30d-CPA enforcement audit [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
