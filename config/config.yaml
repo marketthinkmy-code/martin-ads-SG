@@ -116,6 +116,13 @@ kpi:
     - "把面包当早餐"                         # KEEP RM65/day (Grid B) — CPL~379 but it buys; doc's flagship example
     - "准备早餐面包"                         # KEEP RM50/day (Broad SG Hook3)
     - "鼻窦炎"                              # KEEP RM35/day (Broad SG) — hottest converting angle cross-market
+    # 21 Sep operator: 新片 5 支测试 (1-1-5, RM100/day) 跑 7 天不动 — the five test names
+    # are held so the daily cut / zero-reg kill cannot touch the test. REMOVE ON 9/28.
+    - "今晚回家检查三件事"                    # 测试 5 支之一 · 到期 2026-09-28
+    - "保健品叫你丢掉"                       # 测试 5 支之一 · 到期 2026-09-28
+    - "算给你看"                            # 测试 5 支之一 · 到期 2026-09-28
+    - "倒掉牛奶"                            # 测试 5 支之一 · 到期 2026-09-28
+    - "没有人会告诉你"                       # 测试 5 支之一 · 到期 2026-09-28
 
 cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet, SHARED with MY)
   enabled: true
