@@ -1,0 +1,27 @@
+name: adbot · Verify 新片 5 支测试 build (manual, read-only)
+
+# READ-ONLY audit answering "你有没有建错": campaign/adset fields and targeting vs the
+# F&R winner source, each ad's creative → video id vs the 9/14 upload records (plus video
+# title/length so similar thumbnails can't hide a mixup), and the two restored old chains.
+# Exits non-zero if anything mismatches.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Verify
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/verify_test155_0921.py
