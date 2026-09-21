@@ -11,9 +11,9 @@ Operator's spec, verbatim:
     7 天不动 —— the five names go into config cpl_hold (committed separately) so the daily
     CPL cut and zero-reg kill cannot touch the test until 9/28.
 
-Also pauses any stray LIVE copy of these five names outside the new campaign (the two
-RM40 F&R chains), so the test is the only place they run. Idempotent via
-state/entities_test155_fr_0921.json; audit within.
+21 Sep operator "不要关": the old RM40 F&R chains (Hook 1 / Hook 7) KEEP running alongside
+the test — this build touches nothing outside its own campaign. Idempotent via
+state/entities_test155_fr_0921.json.
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-from adbot import cpa
 from adbot.clients.graph import GraphError, TransientGraphError
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
@@ -127,34 +126,17 @@ def main() -> None:
         log.info("+ ad %s %r", ad["id"], a["ad_name"])
         time.sleep(1.0)
 
-    # ── the test is now the ONLY place these five run: pause stray live copies ──
-    all_ads = g._get_all(f"{acct}/ads",
-                         {"fields": "id,name,status,effective_status,adset_id,campaign_id",
-                          "limit": 500})
-    test_ids = set(st["ads"].values())
-    keys = {cpa.ad_key(a["ad_name"]) for a in ADS}
-    strays = [x for x in all_ads
-              if x["id"] not in test_ids and cpa.ad_key(x.get("name") or "") in keys
-              and x.get("effective_status") == "ACTIVE"]
-    for x in strays:
-        g.update_status(x["id"], "PAUSED")
-        x["status"] = "PAUSED"
-        others = [y for y in all_ads if y.get("adset_id") == x.get("adset_id")
-                  and y["id"] != x["id"] and y.get("status") == "ACTIVE"]
-        if x.get("adset_id") and not others:
-            g.update_status(x["adset_id"], "PAUSED")
-        log.info("stray copy paused: ad %s (adset %s)", x["id"], x.get("adset_id"))
-        time.sleep(1.0)
+    # 21 Sep operator: "不要关" — the old RM40 F&R chains (Hook 1 / Hook 7) keep running
+    # alongside the test; undo_stray_pause_0921.py restored the two the first run paused.
 
     rows = []
     for a in ADS:
         eff = g.get_object(st["ads"][a["key"]], "effective_status").get("effective_status")
         rows.append(f"{a['key']}:{eff}")
-    st["strays_paused"] = [x["id"] for x in strays]
     persist()
     final_summary(log, f"新片 5 支测试 live: campaign {st['campaign_id']} · adset "
                        f"{st['adset_id']} RM100/day · 5 ads ({'; '.join(rows)}) · "
-                       f"{len(strays)} stray live copies paused. 7-day hands-off runs on "
+                       f"old chains left running per 不要关. 7-day hands-off runs on "
                        f"the cpl_hold entries committed with this build.")
 
 
