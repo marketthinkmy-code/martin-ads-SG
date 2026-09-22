@@ -1,0 +1,41 @@
+{
+  "run": "2026-09-22T01:53:20.312486Z",
+  "mutations": [
+    {
+      "act": "budget",
+      "type": "adset",
+      "id": "120258109010810093",
+      "old_cents": 10000,
+      "new_cents": 15000
+    },
+    {
+      "act": "budget",
+      "type": "adset",
+      "id": "120258340160680093",
+      "old_cents": 4000,
+      "new_cents": 6000
+    },
+    {
+      "act": "budget",
+      "type": "adset",
+      "id": "120258109021710093",
+      "old_cents": 5000,
+      "new_cents": 8000
+    },
+    {
+      "act": "budget",
+      "type": "campaign",
+      "id": "120257496414280093",
+      "new_cents": 5000
+    },
+    {
+      "act": "activate_ad",
+      "id": "120257496415810093"
+    },
+    {
+      "act": "opened",
+      "ad": "120257496415810093",
+      "eff": "IN_PROCESS"
+    }
+  ]
+}
