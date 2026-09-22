@@ -1,0 +1,37 @@
+name: adbot · Execute 0922 scale plan ①+② (manual)
+
+# MUTATING, operator-ordered ("①+②"): V12 to RM150, Hook 1 old chain to RM60, V1 流鼻涕
+# to RM80, and reopen Carousel 别再逼孩子喝牛奶 at RM50 (operator's exception to his own
+# 30d-CPA rule). The 新片测试 ad set (7 天不动, shared RM100) is protected and untouched.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Scale 3 chains, reopen Carousel
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/execute_scale_0922.py
+      - name: Persist audit
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 0922 scale audit [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
