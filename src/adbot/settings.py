@@ -107,6 +107,9 @@ class MetaCfg(BaseModel):
     budget: Budget = Field(default_factory=Budget)
     targeting: Targeting = Field(default_factory=Targeting)
     build: BuildCfg = Field(default_factory=BuildCfg)
+    # Extra ad accounts the hourly monitor also patrols (operator: 「扩」, 25 Sep).
+    # Same rules, same sheet, judged per account; ids may be bare digits or act_*.
+    monitor_extra_accounts: List[str] = Field(default_factory=list)
 
     @property
     def account_path(self) -> str:

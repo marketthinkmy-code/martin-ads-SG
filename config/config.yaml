@@ -60,6 +60,9 @@ meta:
       - "120226672882380093"             # "15 days complete registration" (SG website/pixel CA)
       - "120246547080720093"             # "马丁 1997 Paid Student" (SG customer list)
 
+  monitor_extra_accounts:                # 25 Sep operator 「扩」: hourly monitor also patrols these
+    - "act_1179668409969241"           # 【HK】MTC X Martin New 2 — the A/B test account
+
   build:
     creatives_per_adset: 10              # the "N" in 1-1-N
     activate_after_build: false          # SAFETY: batch builds create everything PAUSED — you activate after review (no spend until then)
