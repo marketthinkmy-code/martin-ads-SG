@@ -55,17 +55,27 @@ CHAINS: List[Dict[str, Any]] = [
 TEST_BUDGET = 10000
 
 
-def strip_audiences(t: Dict[str, Any], log, label: str) -> Dict[str, Any]:
+def strip_audiences(t: Dict[str, Any], log, label: str,
+                    available: set | None = None) -> Dict[str, Any]:
+    """Keep audience entries the NEW account can see (operator shared them); drop the rest."""
     t = dict(t)
-    dropped = []
+    available = available or set()
     for f in ("custom_audiences", "excluded_custom_audiences"):
-        if t.pop(f, None):
-            dropped.append(f)
-    if dropped:
-        log.info("   ⚠️ %s: 去掉了 %s（受众是老账户资产，新账户没有）", label, ", ".join(dropped))
-        rest = [k for k in ("flexible_spec", "interests", "behaviors") if t.get(k)]
-        if not rest:
-            log.info("   ⚠️ %s: 去掉受众后没有兴趣定向了 — 这条在新账户等于 Broad", label)
+        entries = t.get(f) or []
+        if not entries:
+            continue
+        kept = [e for e in entries if str(e.get("id")) in available]
+        dropped = [str(e.get("id")) for e in entries if str(e.get("id")) not in available]
+        if kept:
+            t[f] = kept
+        else:
+            t.pop(f, None)
+        if dropped:
+            log.info("   ⚠️ %s: %s 里去掉了未共享的受众 %s（其余 %d 个保留）",
+                     label, f, ", ".join(dropped), len(kept))
+    if not any(t.get(k) for k in ("flexible_spec", "interests", "behaviors",
+                                  "custom_audiences")):
+        log.info("   ⚠️ %s: 没有兴趣/受众定向 — 这条在新账户等于 Broad", label)
     return t
 
 
@@ -100,6 +110,17 @@ def main() -> None:
                      src_po.get("pixel_id"))
     except Exception as exc:  # noqa: BLE001
         log.info("pixel 预检读不了（%s）— 建 adset 时见真章", str(exc)[:100])
+
+    try:
+        avail_aud = {str(a.get("id")) for a in g._get_all(
+            f"{NEW_ACCT}/customaudiences", {"fields": "id,name", "limit": 200})}
+        log.info("新账户可见受众 %d 个 · 排除名单两枚在不在: 15d报名 %s · Paid Student %s",
+                 len(avail_aud),
+                 "✓" if "120226672882380093" in avail_aud else "✗ 未共享",
+                 "✓" if "120246547080720093" in avail_aud else "✗ 未共享")
+    except Exception as exc:  # noqa: BLE001
+        avail_aud = set()
+        log.info("受众列表读不了（%s)—— 全部按未共享处理", str(exc)[:100])
 
     st: Dict[str, Any] = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
 
@@ -193,7 +214,7 @@ def main() -> None:
         units = st.setdefault("units", {})
         rec = units.setdefault(cache_key, {})
         if not rec.get("adset_id"):
-            targeting = strip_audiences(srcinfo["targeting"], log, srcinfo["adset_name"])
+            targeting = strip_audiences(srcinfo["targeting"], log, srcinfo["adset_name"], avail_aud)
             fields = {"name": srcinfo["adset_name"], "campaign_id": campaign_id,
                       "optimization_goal": srcinfo["optimization_goal"],
                       "billing_event": srcinfo["billing_event"],
