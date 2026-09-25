@@ -1,0 +1,20 @@
+{
+  "creatives": {
+    "sepv1": {
+      "video_id": "1393574945684725",
+      "thumb": "https://scontent-lga3-2.xx.fbcdn.net/v/t15.5256-10/825020787_1769581550845187_1913642295633933166_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=e3495b&_nc_ohc=iDFsL9zprYkQ7kNvwGok7XR&_nc_oc=AdqI-JU7nTFY9O5ZbTc7VyMFnnqxYKWQJYA_X9f1O74zqJw-UciPjssxT7Yz8C7t0OY&_nc_zt=23&_nc_ht=scontent-lga3-2.xx&edm=AF0wKlEEAAAA&_nc_gid=WxwqNS1sIFPM1ZLMCM8YZg&_nc_tpa=Q5bMBQJO5TD2uVvTPTV2-Ap-kfZP2FuSId_znnpPpHOxGnxs4cIVfuDo-N5juofcxzm2BgerI3_10_Pm4Q&oh=00_AQKWgHbhJXDnM2Uvh_UQ98TgvP-eCDJOW-ysx_OgpZCI8A&oe=6ABC315E",
+      "creative_id": "2137839733822918"
+    },
+    "sepv3": {
+      "video_id": "1055244563941321",
+      "thumb": "https://scontent-lga3-2.xx.fbcdn.net/v/t15.5256-10/820529200_1633851948367445_6541982881868522208_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=e3495b&_nc_ohc=d3moZ1ATQv4Q7kNvwEayhLW&_nc_oc=AdqfrZazVkaxCC5_Wdg3yAN4lLB084fe8lxpeCO3h1Dn_Jg5jZRWB5a6mnsC8hGt05s&_nc_zt=23&_nc_ht=scontent-lga3-2.xx&edm=AF0wKlEEAAAA&_nc_gid=_idhvnWN9ULWalbM0n2bYA&_nc_tpa=Q5bMBQKBfbL6dppoxFUxIUm-mbyywq1utnBr2hyC0L6GrKlItSGl8w63iCcl6s1CG3UEEopxI_9VG_bdDQ&oh=00_AQLIzv1smP6e4dPtbrlNj2J64Kgw6g_jlc9yfELLCeMPHw&oe=6ABC5310",
+      "creative_id": "1801487370864937"
+    }
+  },
+  "campaign_id": "120250015466940335",
+  "adset_id": "120250015467160335",
+  "ads": {
+    "sepv1": "120250015469970335",
+    "sepv3": "120250015471240335"
+  }
+}
