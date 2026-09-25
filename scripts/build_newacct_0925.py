@@ -36,6 +36,8 @@ from typing import Any, Dict, List
 
 import requests
 
+from adbot import cpa
+from adbot.clients.drive import DriveClient
 from adbot.clients.graph import GraphError, TransientGraphError
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
@@ -53,6 +55,15 @@ CHAINS: List[Dict[str, Any]] = [
     {"key": "hook7old", "src_ad": "120258299537590093", "budget": 5000},
 ]
 TEST_BUDGET = 10000
+
+# Drive originals for videos whose Meta CDN `source` is unavailable
+DRIVE_FALLBACK = {
+    "test_hook1": "1YAeiSjwB-2eb_-zs5lJFIO15jGdFi_NC",
+    "test_nh4": "1Gyz5CyouzH5IMgDfld5p_XZ_N8fF25iV",
+    "test_xh3": "15l55Ts4anwW-n3Wyh4tenCWMcz3lDbVb",
+    "test_xh6": "11MiKuLQO6XiXOk2PAjWQueUhjHicE-Hu",
+    "test_xh7": "1xtFaAhBFf6JTEHd4PCEi3TROppCE7HQo",
+}
 
 
 def strip_audiences(t: Dict[str, Any], log, label: str,
@@ -148,20 +159,65 @@ def main() -> None:
                 "video_id": vd.get("video_id"), "title": vd.get("title"),
                 "message": vd.get("message"), "cta": vd.get("call_to_action")}
 
-    def port_video(old_video_id: str, name: str, cache_key: str) -> str:
-        vids = st.setdefault("videos", {})
-        if vids.get(cache_key):
-            return vids[cache_key]
-        src = g.get_object(old_video_id, "source").get("source")
-        if not src:
-            raise RuntimeError(f"video {old_video_id} 拿不到 source url")
-        path = Path(f"/tmp/{cache_key}.mp4")
-        with requests.get(src, stream=True, timeout=600) as r:
+    _old_ads_cache: List[Dict[str, Any]] = []
+
+    def alt_video_ids(ad_name: str, exclude: str) -> List[str]:
+        """Other old-account uploads of the same-named ad (older copies = separate videos)."""
+        if not _old_ads_cache:
+            _old_ads_cache.extend(g._get_all(
+                f"{m.account_path}/ads", {"fields": "id,name", "limit": 500}))
+        k = cpa.ad_key(ad_name)
+        out: List[str] = []
+        for a in _old_ads_cache:
+            if cpa.ad_key(a.get("name") or "") != k:
+                continue
+            try:
+                cr = g.get_object(a["id"], "creative{object_story_spec}")
+                vid = ((((cr.get("creative") or {}).get("object_story_spec") or {})
+                        .get("video_data")) or {}).get("video_id")
+                if vid and vid != exclude and vid not in out:
+                    out.append(vid)
+            except GraphError:
+                continue
+        return out
+
+    def _download_to(path: Path, url: str) -> None:
+        with requests.get(url, stream=True, timeout=600) as r:
             r.raise_for_status()
             with open(path, "wb") as fh:
                 for chunk in r.iter_content(1 << 20):
                     fh.write(chunk)
-        log.info("   ↓ %s %.1f MB → 上传新账户…", cache_key, path.stat().st_size / 1_048_576)
+
+    def port_video(old_video_id: str, name: str, cache_key: str) -> str:
+        vids = st.setdefault("videos", {})
+        if vids.get(cache_key):
+            return vids[cache_key]
+        path = Path(f"/tmp/{cache_key}.mp4")
+        got = None
+        candidates = [old_video_id] + alt_video_ids(name, old_video_id)
+        for vid in candidates:
+            try:
+                src = g.get_object(vid, "source").get("source")
+            except GraphError:
+                src = None
+            if not src:
+                continue
+            try:
+                _download_to(path, src)
+                got = vid
+                break
+            except Exception as exc:  # noqa: BLE001
+                log.info("   · video %s 下载失败（%s）— 换下一个", vid, str(exc)[:80])
+        if got is None and DRIVE_FALLBACK.get(cache_key):
+            log.info("   · Meta 源全拿不到 — 用 Google Drive 原始文件 %s",
+                     DRIVE_FALLBACK[cache_key])
+            DriveClient(s.secrets.google_sa_json).download_file(DRIVE_FALLBACK[cache_key], path)
+            got = "drive"
+        if got is None:
+            raise RuntimeError(
+                f"{cache_key}: video {old_video_id} 和 {len(candidates) - 1} 个同名备胎都拿不到源文件")
+        log.info("   ↓ %s %.1f MB（源 %s）→ 上传新账户…", cache_key,
+                 path.stat().st_size / 1_048_576, got)
         new_id = g.upload_video(NEW_ACCT, str(path), name=name)
         path.unlink(missing_ok=True)
         vids[cache_key] = new_id
@@ -244,14 +300,21 @@ def main() -> None:
             time.sleep(1.0)
 
     # ── the four single chains ─────────────────────────────────────────────────
+    skipped = st.setdefault("skipped", {})
     for ch in CHAINS:
         log.info("═" * 96)
-        info = read_source(ch["src_ad"])
-        log.info("PORT %s ← old ad %s %r", ch["key"], ch["src_ad"], info["ad_name"][:36])
-        camp_key = ch.get("share_camp") or ch["key"]
-        cid = ensure_campaign(info["camp_name"], info["objective"], camp_key)
-        cr = port_creative(info, ch["key"])
-        ensure_chain(ch["key"], info, cid, ch["budget"], cr)
+        try:
+            info = read_source(ch["src_ad"])
+            log.info("PORT %s ← old ad %s %r", ch["key"], ch["src_ad"], info["ad_name"][:36])
+            camp_key = ch.get("share_camp") or ch["key"]
+            cid = ensure_campaign(info["camp_name"], info["objective"], camp_key)
+            cr = port_creative(info, ch["key"])
+            ensure_chain(ch["key"], info, cid, ch["budget"], cr)
+            skipped.pop(ch["key"], None)
+        except RuntimeError as exc:
+            log.error("✗ %s 跳过：%s", ch["key"], exc)
+            skipped[ch["key"]] = str(exc)
+            persist()
 
     # ── the 5-ad test chain (one adset, five ads) ──────────────────────────────
     log.info("═" * 96)
@@ -262,9 +325,16 @@ def main() -> None:
     tcid = ensure_campaign(infos[first_key]["camp_name"], infos[first_key]["objective"], "test")
     extra = []
     for k in order[1:]:
-        extra.append((infos[k]["ad_name"], port_creative(infos[k], f"test_{k}")))
+        try:
+            extra.append((infos[k]["ad_name"], port_creative(infos[k], f"test_{k}")))
+        except RuntimeError as exc:
+            log.error("✗ 测试支 %s 跳过：%s", k, exc)
+            skipped[f"test_{k}"] = str(exc)
+            persist()
     ensure_chain("test", infos[first_key], tcid, TEST_BUDGET,
                  port_creative(infos[first_key], "test_hook1"), extra_ads=extra)
+    if skipped:
+        log.error("跳过清单: %s", json.dumps(skipped, ensure_ascii=False))
 
     log.info("═" * 96)
     for key, cid in camps_new.items():
