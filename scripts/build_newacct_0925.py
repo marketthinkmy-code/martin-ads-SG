@@ -51,7 +51,7 @@ TEST_STATE = Path("state") / "entities_test155_fr_0921.json"
 CHAINS: List[Dict[str, Any]] = [
     {"key": "v12", "src_ad": "120258109011660093", "budget": 15000},
     {"key": "v1", "src_ad": "120258109022800093", "budget": 5000, "share_camp": "reopen"},
-    {"key": "hook9", "src_ad": "120258109019740093", "budget": 3000, "share_camp": "reopen"},
+    {"key": "hook9", "src_ad": "120258109019740093", "budget": 5000, "share_camp": "reopen"},
     {"key": "hook7old", "src_ad": "120258299537590093", "budget": 5000},
 ]
 TEST_BUDGET = 10000
@@ -141,7 +141,7 @@ def main() -> None:
 
     def read_source(ad_id: str) -> Dict[str, Any]:
         ad = g.get_object(ad_id, "name,adset_id,campaign_id,"
-                                 "creative{id,url_tags,object_story_spec}")
+                                 "creative{id,url_tags,effective_object_story_id,object_story_spec}")
         aset = g.get_object(ad["adset_id"],
                             "name,targeting,optimization_goal,billing_event,bid_strategy,"
                             "promoted_object")
@@ -156,6 +156,7 @@ def main() -> None:
                 "bid_strategy": aset.get("bid_strategy") or "LOWEST_COST_WITHOUT_CAP",
                 "promoted_object": aset.get("promoted_object") or {},
                 "url_tags": (ad.get("creative") or {}).get("url_tags"),
+                "post_id": (ad.get("creative") or {}).get("effective_object_story_id"),
                 "video_id": vd.get("video_id"), "title": vd.get("title"),
                 "message": vd.get("message"), "cta": vd.get("call_to_action")}
 
@@ -228,6 +229,22 @@ def main() -> None:
         crs = st.setdefault("creatives", {})
         if crs.get(cache_key):
             return crs[cache_key]
+        post_id = srcinfo.get("post_id")
+        if post_id:
+            try:
+                fields: Dict[str, Any] = {"name": srcinfo["ad_name"],
+                                          "object_story_id": post_id}
+                if srcinfo.get("url_tags"):
+                    fields["url_tags"] = srcinfo["url_tags"]
+                cid = g.create_adcreative(NEW_ACCT, **fields)["id"]
+                crs[cache_key] = cid
+                persist()
+                log.info("   + creative %s (%s · 复用老帖 %s — engagement 共池)",
+                         cid, cache_key, post_id)
+                time.sleep(1.0)
+                return cid
+            except GraphError as exc:
+                log.info("   · 老帖复用失败（%s）— 退回重传视频路线", str(exc)[:140])
         new_vid = port_video(srcinfo["video_id"], srcinfo["ad_name"], cache_key)
         thumb = g.get_video_thumbnail(new_vid)
         vdata: Dict[str, Any] = {"video_id": new_vid, "title": srcinfo["title"],
@@ -315,6 +332,24 @@ def main() -> None:
             log.error("✗ %s 跳过：%s", ch["key"], exc)
             skipped[ch["key"]] = str(exc)
             persist()
+
+    # v12 was built before the post-id decision — swap its ad onto the old post
+    v12_ad = ((st.get("units", {}).get("v12") or {}).get("ads") or {}).get(
+        "Video 12：15歲以上試了五六種方法沒長高")
+    if v12_ad and not st.get("v12_post_applied"):
+        try:
+            v12_info = read_source("120258109011660093")
+            if v12_info.get("post_id"):
+                st.setdefault("creatives_archive", {})["v12_reupload"] = \
+                    st.get("creatives", {}).pop("v12", None)
+                new_cr = port_creative(v12_info, "v12")
+                g._request("POST", v12_ad,
+                           data={"creative": json.dumps({"creative_id": new_cr})})
+                st["v12_post_applied"] = True
+                persist()
+                log.info("v12 广告已换到老帖 creative %s（engagement 共池）", new_cr)
+        except GraphError as exc:
+            log.info("v12 换老帖失败（%s）— 保留重传版 creative", str(exc)[:120])
 
     # ── the 5-ad test chain (one adset, five ads) ──────────────────────────────
     log.info("═" * 96)
