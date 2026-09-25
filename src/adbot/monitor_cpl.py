@@ -361,6 +361,29 @@ def _budget_cut_pass(graph, settings: Settings, decisions: List[AdDecision],
 
 
 def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
+    """Patrol the configured account plus meta.monitor_extra_accounts (operator: 「扩」)."""
+    extras = []
+    for a in settings.meta.monitor_extra_accounts or []:
+        path = f"act_{str(a).replace('act_', '')}"
+        if path and path != settings.meta.account_path and path not in extras:
+            extras.append(path)
+    if not extras:
+        return _run_one(graph, settings, dry_run=dry_run)
+    log = get_logger()
+    totals: Dict[str, Any] = {"evaluated": 0, "paused": 0, "budget_cuts": 0,
+                              "remaining": 0, "dry_run": dry_run, "accounts": {}}
+    for path in [settings.meta.account_path] + extras:
+        s2 = settings.model_copy(deep=True)
+        s2.meta.ad_account_id = path
+        log.info("═════════ monitor pass: %s ═════════", path)
+        r = _run_one(graph, s2, dry_run=dry_run)
+        totals["accounts"][path] = r
+        for k in ("evaluated", "paused", "budget_cuts", "remaining"):
+            totals[k] += int(r.get(k) or 0)
+    return totals
+
+
+def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
     log = get_logger()
     event = settings.meta.conversion_event
 
