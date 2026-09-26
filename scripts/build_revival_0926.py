@@ -101,6 +101,14 @@ def main() -> None:
              ", ".join(filter(None, ints))[:90] or "—",
              (targeting.get("targeting_automation") or {}).get("advantage_audience"))
     targeting = strip_audiences(targeting, log, src.get("name") or SRC_ADSET, avail_aud)
+    log.info("   版位: platforms %s · fb %s · ig %s",
+             targeting.get("publisher_platforms"), targeting.get("facebook_positions"),
+             targeting.get("instagram_positions"))
+    ig = targeting.get("instagram_positions")
+    if ig and "explore_home" in ig and "explore" not in ig:
+        targeting["instagram_positions"] = list(ig) + ["explore"]
+        log.info("   ⚠️ 版位修正：源 ad set 选了 Explore home 没选 Explore（老规则允许，"
+                 "现在建新 ad set 会被拒）— 按 Meta 报错指示补上 explore，其余照抄")
 
     st: Dict[str, Any] = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
 
