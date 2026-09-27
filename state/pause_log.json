@@ -53,5 +53,16 @@
     "cpl": 95.88,
     "spend": 287.65,
     "results": 3.0
+  },
+  {
+    "ts": "2026-09-27T18:17:53+00:00",
+    "entity_id": "120250015467160335",
+    "entity_type": "adset",
+    "reason": "cpl_over_target_budget_cut",
+    "old_daily_myr": 80.0,
+    "new_daily_myr": 56.0,
+    "cpl": 152.98,
+    "spend": 152.98,
+    "results": 1.0
   }
 ]
