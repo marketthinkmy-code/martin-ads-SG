@@ -140,4 +140,3 @@ schedule:                                # informational; the real schedule live
   weekly_off: { day: "WED", time: "15:00" }   # pause ALL            -> workflow cron 9 7 * * 3 (+16:09 backup)
   weekly_on:  { day: "THU", time: "00:00" }   # resume what Wed paused -> workflow cron 9 16 * * 3 (+ backups)
   monitor_interval_hours: 1
-}
