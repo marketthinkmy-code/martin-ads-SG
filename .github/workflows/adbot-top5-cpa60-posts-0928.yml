@@ -1,0 +1,28 @@
+name: adbot · 60d CPA top5 + post ids (0928, read-only)
+
+# READ-ONLY: SG sales from the Paid Student List within 60 days folded by ad name,
+# spend folded across both accounts, ranked by 60d CPA; each top ad's newest reusable
+# page-post id (effective_object_story_id) for the operator to build ads manually.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  top5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Top5 + post ids
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/top5_cpa60_posts_0928.py
