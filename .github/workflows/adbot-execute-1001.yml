@@ -1,0 +1,40 @@
+name: adbot · Execute 10/1 verdict (manual)
+
+# MUTATING, operator-ordered ("执行"): pause every live copy of the three no-sale
+# burners (Hook 1 / Hook 4 / Hook 7算给你看, ad level only); add 林書豪 story to
+# FAMILY and 麵包當早餐 to MILK as PAUSED ads in new same-targeting ad sets (old-post
+# reuse); diagnose BROAD WOMEN's zero delivery read-only. Idempotent; 75 = rate limit.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Execute
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/execute_1001.py
+      - name: Persist state
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "ops: persist 10/1 execute state [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
