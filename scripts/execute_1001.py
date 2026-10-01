@@ -92,10 +92,10 @@ def main() -> None:
         return None, None, None
 
     camps = g._get_all(f"{NEW_ACCT}/campaigns",
-                       {"fields": "id,name,effective_status", "limit": 200})
+                       {"fields": "id,name,effective_status,bid_strategy", "limit": 200})
     adsets = g._get_all(f"{NEW_ACCT}/adsets",
                         {"fields": "id,name,status,campaign_id,targeting,promoted_object,"
-                                   "optimization_goal,billing_event", "limit": 500})
+                                   "optimization_goal,billing_event,bid_amount", "limit": 500})
     log.info("② 复活两支达标单王（新 ad set · 广告 PAUSED 验收）")
     for r in REVIVE:
         rec = st.setdefault(r["key"], {})
@@ -128,14 +128,22 @@ def main() -> None:
                       "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
                       "promoted_object": tpl.get("promoted_object") or {},
                       "targeting": tpl.get("targeting"), "status": "ACTIVE"}
+            if tpl.get("bid_amount"):
+                fields["bid_amount"] = tpl["bid_amount"]
             if m.regional_regulated_categories:
                 fields["regional_regulated_categories"] = m.regional_regulated_categories
             if m.regional_regulation_identities:
                 fields["regional_regulation_identities"] = m.regional_regulation_identities
-            rec["adset_id"] = g.create_adset(NEW_ACCT, **fields)["id"]
+            try:
+                rec["adset_id"] = g.create_adset(NEW_ACCT, **fields)["id"]
+                log.info("  + adset %s %r（campaign %r bid_strategy %s · CBO）",
+                         rec["adset_id"], tpl.get("name"),
+                         (camp.get("name") or "")[:40], camp.get("bid_strategy"))
+            except GraphError as exc:
+                rec["adset_id"] = tpl["id"]
+                log.info("  · 新 ad set 建不了（%s）— PAUSED 广告直接放进现有 ad set %s %r",
+                         str(exc)[:130], tpl["id"], tpl.get("name"))
             persist()
-            log.info("  + adset %s %r（campaign %r · CBO）", rec["adset_id"],
-                     tpl.get("name"), (camp.get("name") or "")[:40])
             time.sleep(1.0)
         if not rec.get("ad_id"):
             ad = g.create_ad(NEW_ACCT, name=disp, adset_id=rec["adset_id"],
