@@ -102,6 +102,10 @@ def main() -> None:
     t2 = copy.deepcopy(base)
     t2["age_min"], t2["age_max"] = 35, 60
     t2["flexible_spec"] = [teen_items]
+    # Meta: with Advantage+ audience ON a raised minimum age is only a "suggestion" and the
+    # create is rejected — so this set runs Adv+ OFF, making 35-60 + the parent-of-teens
+    # behaviors hard constraints (same as the old 35-55 F&R-match set that ran Adv+ OFF).
+    t2["targeting_automation"] = {"advantage_audience": 0}
     specs["teens"] = t2
     t3 = copy.deepcopy(base)
     t3.pop("flexible_spec", None)
