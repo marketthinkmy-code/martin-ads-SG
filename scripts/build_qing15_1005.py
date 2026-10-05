@@ -14,6 +14,7 @@ Idempotent via state/entities_qing15_1005.json; Meta throttle exits 75.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -34,16 +35,18 @@ DRIVE_IDS = ["1bxTj0aAGJMFET8Cf6pyMNwKHRD8pEVN1",
              "1d3Zaydl3nDQPuzdOlgEC2tDnqC82Ynm_",
              "15fdYmnrv7NUNOfS3u2MYZSe33EhIcXsQ"]
 
-ADS: List[Dict[str, str]] = [
+# Drive names are abbreviated ("Martin SGMY H2#.mp4" / "H3#" / "Video 3#"), so match on
+# word-bounded tokens; the operator's link order (V3, H3, H2) is NOT the script order.
+ADS: List[Dict[str, Any]] = [
     {"key": "h2", "ad_name": "OCT Hook 2：上了中學卻沒有長高",
      "title": "🔴 上了中学，身高还停在小六？",
-     "kw": ["hook 2", "hook2", "中學", "中学"]},
+     "pat": r"\bh2\b|hook\s*2\b|中學|中学"},
     {"key": "h3", "ad_name": "OCT Hook 3：16歲還長高",
      "title": "🔴 16 岁，3 个月长高 2cm",
-     "kw": ["hook 3", "hook3", "16"]},
+     "pat": r"\bh3\b|hook\s*3\b|16歲|16岁"},
     {"key": "v3", "ad_name": "OCT Video 3：15歲後就不能長高了",
      "title": "🔴 15 岁了，还来得及长高吗？",
-     "kw": ["video 3", "video3", "15"]},
+     "pat": r"\bvideo\s*3\b|\bv3\b|15歲後|15岁后"},
 ]
 
 BODIES: Dict[str, str] = {
@@ -167,7 +170,7 @@ def main() -> None:
         mapping: Dict[str, str] = {}
         for a in ADS:
             hits = [x for x in metas
-                    if any(k in x["name"].casefold() for k in a["kw"])
+                    if re.search(a["pat"], x["name"].casefold())
                     and x["id"] not in mapping.values()]
             if len(hits) != 1:
                 log.error("❌ %r 无法唯一对上 Drive 文件（命中 %d 个）：%s — 停止，未建任何东西。",
