@@ -133,7 +133,10 @@ def main() -> None:
     if not st.get("campaign_id"):
         fields: Dict[str, Any] = {"name": CAMPAIGN_NAME, "objective": m.objective,
                                   "buying_type": "AUCTION", "status": "PAUSED",
-                                  "special_ad_categories": m.special_ad_categories}
+                                  "special_ad_categories": m.special_ad_categories,
+                                  # ABO: Meta requires an explicit answer; the operator wants
+                                  # nine independent RM50 budgets, so no 20% sharing.
+                                  "is_adset_budget_sharing_enabled": False}
         if m.regional_regulated_categories:
             fields["regional_regulated_categories"] = m.regional_regulated_categories
         st["campaign_id"] = g.create_campaign(HK, **fields)["id"]
