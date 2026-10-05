@@ -108,7 +108,7 @@ kpi:
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
   cpl_min_spend_overrides:               # per-campaign 0-reg kill line (account-wide line above stays 105)
-    - campaign_contains: "15岁+ QING"     # 5 Oct operator: 「花到 RM80 还 0 lead → 关」for the HK 1-9-9 ABO test
+    - campaign_contains: "15岁以上新片"    # 5 Oct operator: 「花到 RM80 还 0 lead → 关」for the HK 3×1-3-3 ABO test
       min_spend_myr: 80.00
   cpl_hold:                              # ad-name substrings exempt from CPL auto-actions (0-reg kill + CPA hard-stop still apply)
     # 12 Sep doc regime ("Budget 跟着 Buyer，不是跟着 CPL"): every SCALE/KEEP chain in the
