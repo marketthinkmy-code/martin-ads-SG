@@ -106,6 +106,7 @@ def main() -> None:
     # create is rejected — so this set runs Adv+ OFF, making 35-60 + the parent-of-teens
     # behaviors hard constraints (same as the old 35-55 F&R-match set that ran Adv+ OFF).
     t2["targeting_automation"] = {"advantage_audience": 0}
+    t2.pop("age_range", None)            # Adv+-only field; with Adv+ OFF only age_min/age_max are legal
     specs["teens"] = t2
     t3 = copy.deepcopy(base)
     t3.pop("flexible_spec", None)
