@@ -1,6 +1,8 @@
-"""QING 15岁+ on the HK account: 1 ABO campaign → 3 ad sets × RM50 → the same 3 ads.
+"""QING 15岁+ on the HK account: 1 ABO campaign → 9 ad sets (3 audiences × 3 videos) × RM50, 1 ad each.
 
-Operator (5 Oct): 3 個 ad set 沒有錯 · RM50/day · ad id 直接用 (three MY-account ads).
+Operator (5 Oct): 3 audiences 沒有錯 · ABO · 1 ad set 1 ad RM50 ×9 · ad id 直接用 (three MY ads).
+Ad sets carry their audience name (three same-named sets per audience, house style), so sheet
+attribution keeps folding by audience; the ad inside tells the videos apart.
     ① Interest: Family and Relationships — cloned from HK ad set 120250013469590335
     ② Parents of Teens 13-17 | 35-60     — base spec of ①, flexible_spec rebuilt from the
          live "Parents with teenagers / preteens" entries found in 120250015467160335
@@ -28,7 +30,7 @@ from adbot.settings import load_settings
 
 HK = "act_1179668409969241"
 STATE_PATH = Path("state") / "entities_qing15hk_1005.json"
-CAMPAIGN_NAME = "[SG] 儿童长高方程式 | 15岁+ QING | 1-3-9 ABO"
+CAMPAIGN_NAME = "[SG] 儿童长高方程式 | 15岁+ QING | 1-9-9 ABO"
 DAILY_MINOR = 5000
 TPL_FR = "120250013469590335"            # Interest: Family and Relationships (HK)
 TEEN_SOURCES = ["120250015467160335", "120250696297950093"]
@@ -152,36 +154,38 @@ def main() -> None:
         log.info("  + creative %s ← post %s (%s)", st["creatives"][a["key"]], st["posts"][a["key"]], a["name"])
         time.sleep(1.0)
 
-    # ── 3 ad sets × 3 ads ──────────────────────────────────────────────────────
+    # ── 9 ad sets (audience × video), 1 ad each, RM50 ABO ─────────────────────
     st.setdefault("adsets", {})
     st.setdefault("ads", {})
     rows: List[str] = []
     for aset in ADSETS:
         k = aset["key"]
-        if not st["adsets"].get(k):
-            fields = {"name": aset["name"], "campaign_id": st["campaign_id"],
-                      "daily_budget": DAILY_MINOR,
-                      "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
-                      "optimization_goal": tpl.get("optimization_goal"),
-                      "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
-                      "promoted_object": tpl.get("promoted_object") or {},
-                      "targeting": specs[k], "status": "ACTIVE"}
-            if m.regional_regulated_categories:
-                fields["regional_regulated_categories"] = m.regional_regulated_categories
-            if m.regional_regulation_identities:
-                fields["regional_regulation_identities"] = m.regional_regulation_identities
-            st["adsets"][k] = g.create_adset(HK, **fields)["id"]
-            persist()
-            sp = specs[k]
-            log.info("+ adset %s %r RM%d/日 · %s-%s · flexible_spec %s", st["adsets"][k], aset["name"],
-                     DAILY_MINOR // 100, sp.get("age_min"), sp.get("age_max"),
-                     "无" if not sp.get("flexible_spec") else
-                     [x.get("name") for fs in sp["flexible_spec"] for kind in SPEC_KINDS for x in fs.get(kind) or []][:8])
-            time.sleep(1.0)
+        sp = specs[k]
         for a in ADS:
             ak = f"{k}:{a['key']}"
+            if not st["adsets"].get(ak):
+                fields = {"name": aset["name"], "campaign_id": st["campaign_id"],
+                          "daily_budget": DAILY_MINOR,
+                          "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                          "optimization_goal": tpl.get("optimization_goal"),
+                          "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
+                          "promoted_object": tpl.get("promoted_object") or {},
+                          "targeting": sp, "status": "ACTIVE"}
+                if m.regional_regulated_categories:
+                    fields["regional_regulated_categories"] = m.regional_regulated_categories
+                if m.regional_regulation_identities:
+                    fields["regional_regulation_identities"] = m.regional_regulation_identities
+                st["adsets"][ak] = g.create_adset(HK, **fields)["id"]
+                persist()
+                log.info("+ adset %s %r RM%d/日 · %s-%s · flexible_spec %s · for %s",
+                         st["adsets"][ak], aset["name"], DAILY_MINOR // 100,
+                         sp.get("age_min"), sp.get("age_max"),
+                         "无" if not sp.get("flexible_spec") else
+                         [x.get("name") for fs in sp["flexible_spec"] for kind in SPEC_KINDS
+                          for x in fs.get(kind) or []][:6], a["key"])
+                time.sleep(1.0)
             if not st["ads"].get(ak):
-                ad = g.create_ad(HK, name=a["name"], adset_id=st["adsets"][k],
+                ad = g.create_ad(HK, name=a["name"], adset_id=st["adsets"][ak],
                                  creative={"creative_id": st["creatives"][a["key"]]},
                                  status="ACTIVE", conversion_domain=conv)
                 st["ads"][ak] = ad["id"]
@@ -192,7 +196,7 @@ def main() -> None:
             rows.append(f"{ak}:{eff}")
 
     final_summary(log, f"QING 15岁+ HK built PAUSED: campaign {st['campaign_id']} · "
-                       f"3 adsets × RM{DAILY_MINOR // 100} · {len(rows)} ads · {'; '.join(rows)}")
+                       f"9 adsets × RM{DAILY_MINOR // 100} (1 ad each) · {'; '.join(rows)}")
 
 
 if __name__ == "__main__":
