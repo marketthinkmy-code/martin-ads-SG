@@ -105,6 +105,20 @@ def decide(spend: float, results: float, kpi: KpiCfg) -> Tuple[bool, str, Option
     return False, WITHIN_THRESHOLD, cpl
 
 
+def kpi_for_campaign(kpi: KpiCfg, campaign_name: str) -> KpiCfg:
+    """The KPI block with any per-campaign 0-reg kill-line override applied (first match wins)."""
+    name = campaign_name or ""
+    for o in kpi.cpl_min_spend_overrides or []:
+        sub = str(o.get("campaign_contains") or "")
+        if sub and sub in name:
+            try:
+                line = float(o.get("min_spend_myr"))
+            except (TypeError, ValueError):
+                continue
+            return kpi.model_copy(update={"cpl_min_spend_myr": line})
+    return kpi
+
+
 @dataclass
 class AdDecision:
     ad_id: str
@@ -205,7 +219,8 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
                 cpl_pause, cpl_reason = False, MANUAL_HOLD
                 cpl = (spend / results) if results else (math.inf if spend else None)
             else:
-                cpl_pause, cpl_reason, cpl = decide(spend, results, settings.kpi)
+                cpl_pause, cpl_reason, cpl = decide(
+                    spend, results, kpi_for_campaign(settings.kpi, campaign.get("name") or ""))
 
             cpa_val: Optional[float] = None
             n_sales, age = 0, None
@@ -275,8 +290,11 @@ def plan_budget_cuts(decisions: List[AdDecision], adsets: Dict[str, Dict[str, An
     for eid, (sp, res) in entities.items():
         if cut_dates.get(eid) == today_iso:
             continue                               # already cut today — daily rule
-        if sp < kpi.cpl_min_spend_myr and res < 3:
-            continue                               # verdict gate
+        etype0, info0 = kinds[eid]
+        cname = (info0.get("name") if etype0 == "campaign"
+                 else (campaigns.get(info0.get("campaign_id") or "") or {}).get("name")) or ""
+        if sp < kpi_for_campaign(kpi, cname).cpl_min_spend_myr and res < 3:
+            continue                               # verdict gate (per-campaign override aware)
         if res <= 0:
             continue                               # zero-reg is the ad-level kill's job
         cpl = sp / res
