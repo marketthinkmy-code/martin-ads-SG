@@ -1,16 +1,16 @@
-name: adbot · QING 15岁+ 1-3-3 (manual)
+name: adbot · Delete QING 15岁+ leftovers (manual)
 
-# MUTATING, operator-supplied assets (three Qing videos + scripts, 5 Oct): the
-# 15岁+ theme re-test with fresh footage. Drive download → video upload → copy
-# creatives → one CBO RM80/day campaign PAUSED. Idempotent; 75 = rate limit.
+# MUTATING, operator-ordered (你先刪乾淨): remove the half-built QING 15岁+
+# campaign/ad sets/ads/creatives (never spent). Build workflow removed in the
+# same commit so nothing can recreate it without a new decision.
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  build:
+  delete:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install .
-      - name: Build QING 15岁+ (PAUSED)
+      - name: Delete leftovers
         env:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
@@ -27,13 +27,13 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python scripts/build_qing15_1005.py
-      - name: Persist entity ids
+        run: python scripts/delete_qing15_1005.py
+      - name: Persist deletion record
         if: always()
         run: |
           git config user.name "adbot"
           git config user.email "noreply@anthropic.com"
           git add state/ || true
-          git commit -m "build: persist QING 15岁+ ids [skip ci]" || echo "no state change"
+          git commit -m "ops: QING 15岁+ leftovers deleted [skip ci]" || echo "no state change"
           git pull --rebase origin main || true
           git push || echo "push skipped"
