@@ -1,8 +1,8 @@
-name: adbot · QING 15岁+ on HK, ABO 1-3-9 (manual)
+name: adbot · QING 15岁+ on HK, ABO 1-9-9 (manual)
 
 # MUTATING, operator-approved (3 個 ad set 沒有錯 · RM50/day · ad id 直接用):
-# HK account, one ABO campaign PAUSED, 3 ad sets × RM50 (F&R clone / teens
-# 35-60 / broad), the same 3 ads in each, creatives reuse the MY ads' posts.
+# HK account, one ABO campaign PAUSED, 9 ad sets × RM50 = 3 audiences (F&R
+# clone / teens 35-60 / broad) × 3 videos, 1 ad each; creatives reuse the MY posts.
 # Idempotent; 75 = rate limit.
 
 on:
