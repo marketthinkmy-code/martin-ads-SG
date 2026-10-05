@@ -7,14 +7,14 @@ first build:
     TEENS    — same base, age 35-60, Adv+ OFF, family_statuses Parents with teenagers /
                preteens read live from the two source ad sets
     BROAD    — same base, no flexible_spec
-Step 0 removes the mis-structured single campaign from the first build (never spent,
-PAUSED; every entity is spend-checked first) and keeps its 3 creatives for reuse.
+The first build's single 1-9-9 campaign is deleted by the operator; its 3 creatives
+(and page posts) are reused here. Names follow the MY convention:
+    [SG] 儿童长高方程式 | <audience> | 15岁以上新片 | 1-3-3
 Idempotent via state/entities_qing15hk133_1005.json; Meta throttle exits 75.
 """
 from __future__ import annotations
 
 import copy
-import datetime as dt
 import json
 import re
 import sys
@@ -38,11 +38,11 @@ SPEC_KINDS = ("interests", "behaviors", "life_events", "family_statuses",
               "industries", "income", "education_statuses", "work_positions")
 
 AUDIENCES: List[Dict[str, str]] = [
-    {"key": "fr",    "campaign": "[SG] 儿童长高方程式 | 15岁+ QING · F&R | 1-3-3",
+    {"key": "fr",    "campaign": "[SG] 儿童长高方程式 | Family and Relationships | 15岁以上新片 | 1-3-3",
      "adset": "Interest: Family and Relationships"},
-    {"key": "teens", "campaign": "[SG] 儿童长高方程式 | 15岁+ QING · TEENS 35-60 | 1-3-3",
+    {"key": "teens", "campaign": "[SG] 儿童长高方程式 | Parents of Teens 13-17 (35-60) | 15岁以上新片 | 1-3-3",
      "adset": "Parents of Teens 13-17 | 35-60"},
-    {"key": "broad", "campaign": "[SG] 儿童长高方程式 | 15岁+ QING · BROAD | 1-3-3",
+    {"key": "broad", "campaign": "[SG] 儿童长高方程式 | Broad SG 25-65 Adv+ | 15岁以上新片 | 1-3-3",
      "adset": "Broad SG 25-65 | Adv+"},
 ]
 ADS: List[Dict[str, str]] = [
@@ -64,41 +64,18 @@ def main() -> None:
         STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         STATE_PATH.write_text(json.dumps(st, ensure_ascii=False, indent=2))
 
-    def spend(eid: str) -> float:
-        try:
-            rows = g._request("GET", f"{eid}/insights",
-                              params={"fields": "spend", "date_preset": "maximum"}).get("data") or []
-            return sum(float(r.get("spend") or 0) for r in rows)
-        except GraphError:
-            return 0.0
-
-    # ── 0) retire the single 1-9-9 campaign from the first build, keep its creatives ──
+    # ── 0) the first build's single 1-9-9 campaign is deleted BY THE OPERATOR (我会删掉 1-9-9);
+    #       only its page posts and creatives are reused here. A creative that no longer
+    #       exists is recreated from the post.
     old: Dict[str, Any] = json.loads(OLD_STATE.read_text()) if OLD_STATE.exists() else {}
-    if old.get("campaign_id") and not old.get("retired_at"):
-        plan = ([("ad", i) for i in (old.get("ads") or {}).values()]
-                + [("adset", i) for i in (old.get("adsets") or {}).values()]
-                + [("campaign", old["campaign_id"])])
-        kept = []
-        for kind, eid in plan:
-            try:
-                g.get_object(eid, "id")
-            except GraphError:
-                continue
-            sp = spend(eid)
-            if sp > 0:
-                kept.append(f"{kind} {eid} RM{sp:.2f}")
-                log.info("  ⚠️ %s %s 花过 RM%.2f — 不删", kind, eid, sp)
-                continue
-            g._request("POST", eid, data={"status": "DELETED"})
-            time.sleep(0.4)
-        old["retired_at"] = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
-        old["retired_kept"] = kept
-        OLD_STATE.write_text(json.dumps(old, ensure_ascii=False, indent=2))
-        log.info("🗑 1-9-9 campaign %s 及其 %d ad set / %d ad 已删（保留 creative）%s",
-                 old["campaign_id"], len(old.get("adsets") or {}), len(old.get("ads") or {}),
-                 f" · 未删: {kept}" if kept else "")
     st.setdefault("posts", dict(old.get("posts") or {}))
     st.setdefault("creatives", dict(old.get("creatives") or {}))
+    for key, cid in list(st["creatives"].items()):
+        try:
+            g.get_object(cid, "id")
+        except GraphError:
+            log.info("  creative %s (%s) 已不存在 → 稍后从帖子重建", cid, key)
+            st["creatives"].pop(key, None)
     persist()
 
     # ── base + teen + broad specs (identical to the first build) ──────────────
