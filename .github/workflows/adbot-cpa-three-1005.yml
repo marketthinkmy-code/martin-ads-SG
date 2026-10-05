@@ -1,0 +1,27 @@
+name: adbot · CPA check 3 ads (manual)
+
+# READ-ONLY, operator-ordered (先把这 3 支对 Paid Student List 算成交 CPA 再决定):
+# sheet sales vs folded old-SG+HK spend, 30d/60d, for the three September ads.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  cpa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: CPA check
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/cpa_three_1005.py
