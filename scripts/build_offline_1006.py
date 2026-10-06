@@ -1,9 +1,10 @@
-"""線下見證 two new videos → HK, 1-1-2 CBO RM50 (operator, 6 Oct).
+"""線下見證 two new videos → HK, 1-1-2 CBO RM50 per audience (operator, 6 Oct).
 
 Operator: 跑新的 campaign，1-1-2，ad set 跟回，CBO RM50 + two Drive videos
 (Video 1：KL&SG 線下見面 · Video 2：長高了17cm). Account HK (the operator's latest
-choice), ad set targeting cloned from the Interest: Family and Relationships template
-(120250013469590335), Drive files matched by NAME (abort on ambiguity), copy per the
+choice). Two campaigns, one per audience (然后等下也可以建多一个 for parents 3-17 + engaged):
+ad set targeting cloned from the F&R template (120250013469590335) and from the
+Parents 3-17 + Engaged template (120250015467160335); videos and creatives are shared, Drive files matched by NAME (abort on ambiguity), copy per the
 Martin copy system (Simplified for SG; proof numbers only as the scripts state them).
 Campaign PAUSED, ad set + ads ACTIVE beneath. Idempotent; Meta throttle exits 75.
 """
@@ -25,10 +26,16 @@ from adbot.settings import load_settings
 
 HK = "act_1179668409969241"
 STATE_PATH = Path("state") / "entities_offline_1006.json"
-CAMPAIGN_NAME = "[SG] 儿童长高方程式 | Family and Relationships | 线下见证新片 | 1-1-2"
-ADSET_NAME = "Interest: Family and Relationships"
-TPL_FR = "120250013469590335"
 CBO_MINOR = 5000
+# One 1-1-2 CBO campaign per audience; videos/creatives are shared across them.
+CAMPAIGNS: List[Dict[str, str]] = [
+    {"key": "fr", "tpl": "120250013469590335",
+     "name": "[SG] 儿童长高方程式 | Family and Relationships | 线下见证新片 | 1-1-2",
+     "adset": "Interest: Family and Relationships"},
+    {"key": "p317", "tpl": "120250015467160335",            # 6 Oct: 建多一个 for parents 3-17 + engaged
+     "name": "[SG] 儿童长高方程式 | Parents 3-17 + Engaged | 线下见证新片 | 1-1-2",
+     "adset": "Parents 3-17 + Engaged"},
+]
 DRIVE_IDS = ["13AgbS43PH9du1kKl77nLvcdgbxXKbIBN", "1KH_aegPvsnsMsWMIgz-28GyUrbNR7-t6"]
 
 ADS: List[Dict[str, Any]] = [
@@ -149,59 +156,19 @@ def main() -> None:
         st["drive_map"] = mapping
         persist()
 
-    tpl = g.get_object(TPL_FR, "name,targeting,promoted_object,optimization_goal,billing_event")
-    t = copy.deepcopy(tpl.get("targeting") or {})
-    if not t.get("flexible_spec"):
-        log.error("❌ 模板没有兴趣配方，停止。")
-        sys.exit(1)
-    ig = t.get("instagram_positions")
-    if ig and "explore_home" in ig and "explore" not in ig:
-        t["instagram_positions"] = list(ig) + ["explore"]
-    log.info("模板 %s %r · %s-%s · Adv+ %s · 排除 %d", TPL_FR, tpl.get("name"),
-             t.get("age_min"), t.get("age_max"),
-             (t.get("targeting_automation") or {}).get("advantage_audience"),
-             len(t.get("excluded_custom_audiences") or []))
-
-    if st.get("campaign_id"):
-        try:
-            eff = g.get_object(st["campaign_id"], "effective_status").get("effective_status")
-        except GraphError:
-            eff = "DELETED"
-        if eff in ("DELETED", "ARCHIVED"):
-            st.pop("campaign_id", None)
-    if not st.get("campaign_id"):
-        fields: Dict[str, Any] = {"name": CAMPAIGN_NAME, "objective": m.objective,
-                                  "buying_type": "AUCTION", "status": "PAUSED",
-                                  "special_ad_categories": m.special_ad_categories,
-                                  "daily_budget": CBO_MINOR,
-                                  "bid_strategy": "LOWEST_COST_WITHOUT_CAP"}
-        if m.regional_regulated_categories:
-            fields["regional_regulated_categories"] = m.regional_regulated_categories
-        st["campaign_id"] = g.create_campaign(HK, **fields)["id"]
+    # migrate the first run's flat state (one campaign) into the per-campaign shape
+    if st.get("campaign_id") and "campaigns" not in st:
+        st["campaigns"] = {"fr": st.pop("campaign_id")}
+        st["adsets"] = {"fr": st.pop("adset_id")}
+        st["ads"] = {f"fr:{k}": v for k, v in (st.pop("ads", {}) or {}).items()}
         persist()
-        log.info("+ campaign %s %r CBO RM%d/day (PAUSED)", st["campaign_id"], CAMPAIGN_NAME,
-                 CBO_MINOR // 100)
-        time.sleep(1.0)
-
-    if not st.get("adset_id"):
-        fields = {"name": ADSET_NAME, "campaign_id": st["campaign_id"],
-                  "optimization_goal": tpl.get("optimization_goal"),
-                  "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
-                  "promoted_object": tpl.get("promoted_object") or {},
-                  "targeting": t, "status": "ACTIVE"}
-        if m.regional_regulated_categories:
-            fields["regional_regulated_categories"] = m.regional_regulated_categories
-        if m.regional_regulation_identities:
-            fields["regional_regulation_identities"] = m.regional_regulation_identities
-        st["adset_id"] = g.create_adset(HK, **fields)["id"]
-        persist()
-        log.info("+ adset %s %r", st["adset_id"], ADSET_NAME)
-        time.sleep(1.0)
-
+    st.setdefault("campaigns", {})
+    st.setdefault("adsets", {})
+    st.setdefault("ads", {})
     st.setdefault("videos", {})
     st.setdefault("creatives", {})
-    st.setdefault("ads", {})
-    rows = []
+
+    # ── shared videos + creatives (uploaded once) ──────────────────────────────
     for a in ADS:
         k = a["key"]
         rec = st["videos"].get(k) or {}
@@ -231,19 +198,74 @@ def main() -> None:
             persist()
             log.info("  + creative %s (video %s)", st["creatives"][k], rec["video_id"])
             time.sleep(1.0)
-        if not st["ads"].get(k):
-            ad = g.create_ad(HK, name=a["ad_name"], adset_id=st["adset_id"],
-                             creative={"creative_id": st["creatives"][k]},
-                             status="ACTIVE", conversion_domain=conv)
-            st["ads"][k] = ad["id"]
-            persist()
-            time.sleep(1.0)
-        eff = g.get_object(st["ads"][k], "effective_status").get("effective_status")
-        log.info("    ▸ %s %r eff %s", st["ads"][k], a["ad_name"], eff)
-        rows.append(f"{k}:{eff}")
 
-    final_summary(log, f"線下見證 1-1-2 built PAUSED on HK: campaign {st['campaign_id']} CBO "
-                       f"RM{CBO_MINOR // 100}/day · adset {st['adset_id']} · {'; '.join(rows)}")
+    # ── one CBO campaign + one ad set + the two ads, per audience ──────────────
+    rows = []
+    for c in CAMPAIGNS:
+        ck = c["key"]
+        tpl = g.get_object(c["tpl"], "name,targeting,promoted_object,optimization_goal,billing_event")
+        t = copy.deepcopy(tpl.get("targeting") or {})
+        if not t.get("flexible_spec"):
+            log.error("❌ 模板 %s 没有兴趣配方，停止。", c["tpl"])
+            sys.exit(1)
+        ig = t.get("instagram_positions")
+        if ig and "explore_home" in ig and "explore" not in ig:
+            t["instagram_positions"] = list(ig) + ["explore"]
+        log.info("模板 %s %r · %s-%s · Adv+ %s · 排除 %d", c["tpl"], tpl.get("name"),
+                 t.get("age_min"), t.get("age_max"),
+                 (t.get("targeting_automation") or {}).get("advantage_audience"),
+                 len(t.get("excluded_custom_audiences") or []))
+
+        cid = st["campaigns"].get(ck)
+        if cid:
+            try:
+                eff = g.get_object(cid, "effective_status").get("effective_status")
+            except GraphError:
+                eff = "DELETED"
+            if eff in ("DELETED", "ARCHIVED"):
+                cid = None
+        if not cid:
+            fields: Dict[str, Any] = {"name": c["name"], "objective": m.objective,
+                                      "buying_type": "AUCTION", "status": "PAUSED",
+                                      "special_ad_categories": m.special_ad_categories,
+                                      "daily_budget": CBO_MINOR,
+                                      "bid_strategy": "LOWEST_COST_WITHOUT_CAP"}
+            if m.regional_regulated_categories:
+                fields["regional_regulated_categories"] = m.regional_regulated_categories
+            cid = g.create_campaign(HK, **fields)["id"]
+            st["campaigns"][ck] = cid
+            persist()
+            log.info("+ campaign %s %r CBO RM%d/day (PAUSED)", cid, c["name"], CBO_MINOR // 100)
+            time.sleep(1.0)
+        if not st["adsets"].get(ck):
+            fields = {"name": c["adset"], "campaign_id": cid,
+                      "optimization_goal": tpl.get("optimization_goal"),
+                      "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
+                      "promoted_object": tpl.get("promoted_object") or {},
+                      "targeting": t, "status": "ACTIVE"}
+            if m.regional_regulated_categories:
+                fields["regional_regulated_categories"] = m.regional_regulated_categories
+            if m.regional_regulation_identities:
+                fields["regional_regulation_identities"] = m.regional_regulation_identities
+            st["adsets"][ck] = g.create_adset(HK, **fields)["id"]
+            persist()
+            log.info("+ adset %s %r", st["adsets"][ck], c["adset"])
+            time.sleep(1.0)
+        for a in ADS:
+            ak = f"{ck}:{a['key']}"
+            if not st["ads"].get(ak):
+                ad = g.create_ad(HK, name=a["ad_name"], adset_id=st["adsets"][ck],
+                                 creative={"creative_id": st["creatives"][a["key"]]},
+                                 status="ACTIVE", conversion_domain=conv)
+                st["ads"][ak] = ad["id"]
+                persist()
+                time.sleep(1.0)
+            eff = g.get_object(st["ads"][ak], "effective_status").get("effective_status")
+            log.info("    ▸ %s %r eff %s", st["ads"][ak], a["ad_name"], eff)
+            rows.append(f"{ak}:{eff}")
+
+    final_summary(log, f"線下見證 1-1-2 ×{len(CAMPAIGNS)} built PAUSED on HK: campaigns {st['campaigns']} "
+                       f"CBO RM{CBO_MINOR // 100}/day each · {'; '.join(rows)}")
 
 
 if __name__ == "__main__":
