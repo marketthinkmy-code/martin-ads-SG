@@ -110,6 +110,8 @@ kpi:
   cpl_min_spend_overrides:               # per-campaign 0-reg kill line (account-wide line above stays 105)
     - campaign_contains: "15岁以上新片"    # 5 Oct operator: 「花到 RM80 还 0 lead → 关」for the HK 3×1-3-3 ABO test
       min_spend_myr: 80.00
+    - campaign_contains: "线下见证新片"    # 6 Oct: same RM80 line for the new 1-1-2 test campaign
+      min_spend_myr: 80.00
   cpl_hold:                              # ad-name substrings exempt from CPL auto-actions (0-reg kill + CPA hard-stop still apply)
     # 12 Sep doc regime ("Budget 跟着 Buyer，不是跟着 CPL"): every SCALE/KEEP chain in the
     # operator's cycle plan is held so the daily -30% cut can't fight the plan. REDUCE/TEST
