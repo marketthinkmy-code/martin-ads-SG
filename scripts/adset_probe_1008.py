@@ -27,7 +27,7 @@ from adbot.monitor_cpl import extract_results, result_action_type
 from adbot.settings import load_settings
 
 WEEK = dt.date(2026, 10, 1)
-ALL_STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED", "PENDING_REVIEW", "DISAPPROVED",
+ALL_STATUSES = ["ACTIVE", "PAUSED", "ARCHIVED", "PENDING_REVIEW", "DISAPPROVED",
                 "PREAPPROVED", "PENDING_BILLING_INFO", "CAMPAIGN_PAUSED", "ADSET_PAUSED",
                 "IN_PROCESS", "WITH_ISSUES"]
 
