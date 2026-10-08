@@ -1,0 +1,38 @@
+name: adbot · add Video 4 看舌頭 to 新片5支重测 (manual)
+
+# MUTATING, operator-approved copy (8 Oct): new post in the F&R campaign, same post
+# reused in Parents 3-17 + Engaged and Food & Milk. Campaigns stay PAUSED.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Add Video 4
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/add_v4_1008.py
+      - name: Persist entity ids
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist Video 4 ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
