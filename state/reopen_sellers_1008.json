@@ -1,0 +1,39 @@
+{
+  "actions": [
+    {
+      "id": "120250067233320335",
+      "what": "campaign",
+      "from": "PAUSED",
+      "to": "ACTIVE",
+      "at": "2026-10-08T05:25:16Z"
+    },
+    {
+      "id": "120250093193110335",
+      "what": "ad",
+      "from": "PAUSED",
+      "to": "ACTIVE",
+      "at": "2026-10-08T05:25:19Z"
+    },
+    {
+      "id": "120258728157020093",
+      "what": "campaign",
+      "from": "PAUSED",
+      "to": "ACTIVE",
+      "at": "2026-10-08T05:25:20Z"
+    },
+    {
+      "id": "120258728160730093",
+      "what": "other adset",
+      "from": "ACTIVE",
+      "to": "PAUSED",
+      "at": "2026-10-08T05:25:22Z"
+    },
+    {
+      "id": "120258728158280093",
+      "what": "adset",
+      "from": "PAUSED",
+      "to": "ACTIVE",
+      "at": "2026-10-08T05:25:24Z"
+    }
+  ]
+}
