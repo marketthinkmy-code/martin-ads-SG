@@ -1,13 +1,13 @@
-name: adbot · 成交机器 1-1-2 on SG (manual)
+name: adbot · Reopen 林書豪 + 倒掉牛奶 in place (manual)
 
-# MUTATING, operator-approved (8 Oct: 建议 1 把这两支复活): old SG account, one CBO
-# RM80 campaign PAUSED, F&R ad set, 林書豪 + 倒掉牛奶 via their original posts.
+# MUTATING, operator-ordered (8 Oct: 重開舊的，保留 RM80): reactivate the two sellers'
+# original campaign / ad set / ad; sibling ad sets stay or are set PAUSED; budgets untouched.
 
 on:
   workflow_dispatch: {}
 
 jobs:
-  build:
+  reopen:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install .
-      - name: Build (PAUSED)
+      - name: Reopen
         env:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
@@ -26,13 +26,13 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python scripts/build_sellers_1008.py
-      - name: Persist entity ids
+        run: python scripts/reopen_sellers_1008.py
+      - name: Persist record
         if: always()
         run: |
           git config user.name "adbot"
           git config user.email "noreply@anthropic.com"
           git add state/ || true
-          git commit -m "build: persist 成交机器 ids [skip ci]" || echo "no state change"
+          git commit -m "ops: reopened 林書豪 + 倒掉牛奶 in place [skip ci]" || echo "no state change"
           git pull --rebase origin main || true
           git push || echo "push skipped"
