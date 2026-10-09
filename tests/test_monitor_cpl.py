@@ -213,3 +213,62 @@ def test_plan_budget_cuts_daily_rules():
     assert plans["set1"]["new_cents"] == 7000 and not plans["set1"]["at_floor"]
     assert plans["set3"]["new_cents"] == 5000            # 60 * 0.7 = 42 -> floored at RM50
     assert plans["campX"]["type"] == "campaign" and plans["campX"]["new_cents"] == 14000
+
+
+# ── 9 Oct: whole-campaign 0-registration line for CBO test campaigns ──────────
+def test_campaign_zero_lead_line_reads_the_override_entry():
+    from adbot.monitor_cpl import campaign_zero_lead_line
+    kpi = KpiCfg(cpl_min_spend_overrides=[
+        {"campaign_contains": "重测", "min_spend_myr": 80, "campaign_zero_lead_spend_myr": 150},
+        {"campaign_contains": "线下", "min_spend_myr": 80},
+    ])
+    assert campaign_zero_lead_line(kpi, "[SG] x | 新片5支重测 | 1-1-5") == 150.0
+    assert campaign_zero_lead_line(kpi, "[SG] x | 线下见证新片") is None   # entry without a campaign line
+    assert campaign_zero_lead_line(kpi, "[SG] x | ordinary") is None
+
+
+def test_campaign_zero_lead_pass_pauses_only_cbo_zero_result_campaigns(monkeypatch):
+    from adbot import monitor_cpl
+
+    class G:
+        def __init__(self):
+            self.paused = []
+
+        def list_campaigns(self, account_path):
+            return [
+                {"id": "cbo_zero", "name": "A | 重测", "effective_status": "ACTIVE"},   # RM160 / 0 -> pause
+                {"id": "cbo_lead", "name": "B | 重测", "effective_status": "ACTIVE"},   # RM160 / 1 -> keep
+                {"id": "abo_zero", "name": "C | 重测", "effective_status": "ACTIVE"},   # ABO -> not judged here
+                {"id": "cbo_under", "name": "D | 重测", "effective_status": "ACTIVE"},  # RM120 < 150 -> keep
+                {"id": "cbo_other", "name": "E | normal", "effective_status": "ACTIVE"},  # no entry -> ignored
+                {"id": "cbo_off", "name": "F | 重测", "effective_status": "PAUSED"},    # not active -> ignored
+            ]
+
+        def get_object(self, cid, fields):
+            return {} if cid == "abo_zero" else {"daily_budget": "10000"}
+
+        def get_ad_insight(self, cid, date_preset=None, time_range=None):
+            return {"cbo_zero": _reg_insight(160, 0), "cbo_lead": _reg_insight(160, 1),
+                    "abo_zero": _reg_insight(300, 0), "cbo_under": _reg_insight(120, 0),
+                    "cbo_other": _reg_insight(500, 0), "cbo_off": _reg_insight(500, 0)}.get(cid)
+
+        def update_status(self, cid, status):
+            self.paused.append((cid, status))
+
+    logged = []
+    monkeypatch.setattr(monitor_cpl.state, "append_pause_log",
+                        lambda eid, etype, reason, detail: logged.append((eid, etype, reason, detail)))
+    settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
+                        kpi=KpiCfg(cpl_lookback="last_3d", cpl_min_spend_overrides=[
+                            {"campaign_contains": "重测", "min_spend_myr": 80,
+                             "campaign_zero_lead_spend_myr": 150}]))
+
+    g = G()
+    assert monitor_cpl._campaign_zero_lead_pass(g, settings, dry_run=True) == 1
+    assert g.paused == [] and logged == []          # dry run writes nothing
+
+    g = G()
+    assert monitor_cpl._campaign_zero_lead_pass(g, settings, dry_run=False) == 1
+    assert g.paused == [("cbo_zero", "PAUSED")]
+    assert logged[0][:3] == ("cbo_zero", "campaign", monitor_cpl.CAMPAIGN_ZERO_RESULTS)
+    assert logged[0][3]["line_myr"] == 150.0

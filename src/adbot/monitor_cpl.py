@@ -34,6 +34,7 @@ WITHIN_THRESHOLD = "within_threshold"
 NO_RESULTS_YET = "no_results_yet"
 MANUAL_HOLD = "manual_hold"  # owner asked to keep this ad running despite CPL
 BUDGET_CUT = "cpl_over_target_budget_cut"  # audit reason for a daily -30% budget cut
+CAMPAIGN_ZERO_RESULTS = "campaign_zero_results_over_line"  # 9 Oct: whole CBO test campaign, 0 reg past its line
 
 def _week_start_thursday(today: dt.date) -> dt.date:
     """Most recent Thursday (the weekly ON/reset day) on or before `today`."""
@@ -117,6 +118,28 @@ def kpi_for_campaign(kpi: KpiCfg, campaign_name: str) -> KpiCfg:
                 continue
             return kpi.model_copy(update={"cpl_min_spend_myr": line})
     return kpi
+
+
+def campaign_zero_lead_line(kpi: KpiCfg, campaign_name: str) -> Optional[float]:
+    """RM line past which a matching test CAMPAIGN with zero registrations is paused whole.
+
+    9 Oct operator (1 到 4 都做): a CBO campaign spreads RM100/day over six ads, so no single
+    ad reaches the per-ad RM80 line while the campaign keeps burning. The per-campaign entry
+    in kpi.cpl_min_spend_overrides may carry campaign_zero_lead_spend_myr for that case.
+    None = no campaign-level line for this campaign (first matching entry wins).
+    """
+    name = campaign_name or ""
+    for o in kpi.cpl_min_spend_overrides or []:
+        sub = str(o.get("campaign_contains") or "")
+        if sub and sub in name:
+            raw = o.get("campaign_zero_lead_spend_myr")
+            if raw is None:
+                return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+    return None
 
 
 @dataclass
@@ -378,6 +401,45 @@ def _budget_cut_pass(graph, settings: Settings, decisions: List[AdDecision],
     return applied
 
 
+def _campaign_zero_lead_pass(graph, settings: Settings, *, dry_run: bool) -> int:
+    """Pause whole CBO test campaigns that spent >= their campaign line with 0 registrations.
+
+    Same lookback window as the ad rule. Only campaigns that (a) match an override entry
+    carrying campaign_zero_lead_spend_myr and (b) hold the budget themselves (CBO) are judged;
+    an ABO campaign is already covered ad by ad. Returns the number paused (or would-pause).
+    """
+    log = get_logger()
+    account = settings.meta.account_path
+    token = result_action_type(settings.meta.conversion_event)
+    today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+    preset, rng = cpl_window(settings, today)
+    paused = 0
+    for c in graph.list_campaigns(account):
+        if c.get("effective_status") != "ACTIVE":
+            continue
+        name = c.get("name") or c["id"]
+        line = campaign_zero_lead_line(settings.kpi, name)
+        if line is None:
+            continue
+        info = graph.get_object(c["id"], "daily_budget,lifetime_budget") or {}
+        if not (info.get("daily_budget") or info.get("lifetime_budget")):
+            continue  # ABO: budget sits on the ad sets, the per-ad line handles it
+        spend, results = parse_metrics(
+            graph.get_ad_insight(c["id"], date_preset=preset, time_range=rng), token)
+        if results > 0 or spend < line:
+            log.info("  [campaign keep] %s  spend=%.2f results=%.0f (0-reg campaign line RM%.0f)",
+                     name, spend, results, line)
+            continue
+        log.info("  [%s] %s  spend=%.2f with 0 results >= campaign line RM%.0f",
+                 "WOULD PAUSE CAMPAIGN" if dry_run else "PAUSE CAMPAIGN", name, spend, line)
+        if not dry_run:
+            graph.update_status(c["id"], "PAUSED")
+            state.append_pause_log(c["id"], "campaign", CAMPAIGN_ZERO_RESULTS,
+                                   {"spend": round(spend, 2), "results": results, "line_myr": line})
+        paused += 1
+    return paused
+
+
 def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
     """Patrol the configured account plus meta.monitor_extra_accounts (operator: 「扩」)."""
     extras = []
@@ -388,7 +450,7 @@ def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
     if not extras:
         return _run_one(graph, settings, dry_run=dry_run)
     log = get_logger()
-    totals: Dict[str, Any] = {"evaluated": 0, "paused": 0, "budget_cuts": 0,
+    totals: Dict[str, Any] = {"evaluated": 0, "paused": 0, "budget_cuts": 0, "campaign_pauses": 0,
                               "remaining": 0, "dry_run": dry_run, "accounts": {}}
     for path in [settings.meta.account_path] + extras:
         s2 = settings.model_copy(deep=True)
@@ -396,7 +458,7 @@ def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
         log.info("═════════ monitor pass: %s ═════════", path)
         r = _run_one(graph, s2, dry_run=dry_run)
         totals["accounts"][path] = r
-        for k in ("evaluated", "paused", "budget_cuts", "remaining"):
+        for k in ("evaluated", "paused", "budget_cuts", "campaign_pauses", "remaining"):
             totals[k] += int(r.get(k) or 0)
     return totals
 
@@ -442,14 +504,17 @@ def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, A
             paused += 1
 
     cuts = _budget_cut_pass(graph, settings, decisions, dry_run=dry_run)
+    camp_paused = _campaign_zero_lead_pass(graph, settings, dry_run=dry_run)
 
     active_left = len([d for d in decisions if not d.should_pause])
     verb = "would pause" if dry_run else "paused"
     summary = (f"CPL monitor ({event}): evaluated {len(decisions)} active ads, "
                f"{verb} {len(to_pause) if dry_run else paused}, "
                f"{'would cut' if dry_run else 'cut'} {cuts} budget(s) -{settings.kpi.cpl_reduce_pct:.0f}%, "
+               f"{verb} {camp_paused} whole 0-reg campaign(s), "
                f"{active_left} remain (target CPL {settings.kpi.cpl_target_myr:.0f} MYR, "
                f"0-reg kill at {settings.kpi.cpl_min_spend_myr:.0f})")
     final_summary(log, summary)
     return {"evaluated": len(decisions), "paused": (len(to_pause) if dry_run else paused),
-            "budget_cuts": cuts, "remaining": active_left, "dry_run": dry_run}
+            "budget_cuts": cuts, "campaign_pauses": camp_paused, "remaining": active_left,
+            "dry_run": dry_run}
