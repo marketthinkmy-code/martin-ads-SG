@@ -1,0 +1,39 @@
+name: adbot · 倒掉牛奶 → HK FAMILY ad set RM50 (manual)
+
+# MUTATING, operator-ordered (9 Oct: 是我关的，建): one new ad set in the live HK FAMILY
+# campaign, cloned from the FAMILY template, RM50/day, PAUSED for 验收, with the existing
+# 倒掉牛奶 post as its single ad. 林書豪's ad set is not touched. Idempotent; 75 = rate limit.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build (PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_milk_family_1009.py
+      - name: Persist entity ids
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist 倒掉牛奶 HK FAMILY ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
