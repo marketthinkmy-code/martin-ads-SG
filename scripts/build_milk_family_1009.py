@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 from adbot.clients.graph import GraphError, TransientGraphError
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
-from adbot.monitor_cpl import extract_results, result_action_type
+from adbot.monitor_cpl import parse_metrics, result_action_type
 from adbot.settings import load_settings
 
 STATE_PATH = Path("state") / "entities_milk_family_1009.json"
@@ -75,34 +75,46 @@ def main() -> None:
     log.info("受众：%s-%s · Adv+ %s · %s", t.get("age_min"), t.get("age_max"),
              (t.get("targeting_automation") or {}).get("advantage_audience"), "/".join(ints[:6]) or "broad")
 
-    # ── 2. which 倒掉牛奶 post? the one with the most registrations in 30d ──────
+    # ── 2. which 倒掉牛奶 post? HK first (9 reg / 30d there); insights only if HK has several posts ──
+    # (The account-wide 30d insights scan tripped Meta's insights call-load limit on the first
+    #  run, so: list the ads first — a cheap edge — and only ask per-ad insights when needed.)
     if not st.get("post"):
         cands: List[Dict[str, Any]] = []
         for label, acct in (("HK", HK_ACCT), ("SG老", SG_ACCT)):
-            ins: Dict[str, List[float]] = {}
-            for r in g._get_all(f"{acct}/insights",
-                                {"level": "ad", "limit": 500, "fields": "ad_id,spend,actions",
-                                 "time_range": json.dumps({"since": d30.isoformat(), "until": today.isoformat()})}):
-                ins[r.get("ad_id")] = [float(r.get("spend") or 0), extract_results(r.get("actions"), token)]
             for a in g._get_all(f"{acct}/ads", {"fields": "id,name,status,effective_status,created_time,"
                                                            "creative{id,effective_object_story_id,url_tags}",
                                                  "limit": 500}):
                 if "倒掉牛奶" not in (a.get("name") or ""):
                     continue
                 cr = a.get("creative") or {}
-                sp, ld = ins.get(a["id"], [0.0, 0.0])
                 cands.append({"acct": label, "ad": a["id"], "name": a.get("name"), "status": a.get("effective_status"),
                               "post": cr.get("effective_object_story_id"), "creative": cr.get("id"),
-                              "spend30": round(sp, 2), "leads30": int(ld), "created": (a.get("created_time") or "")[:10]})
-        for c in sorted(cands, key=lambda x: (-x["leads30"], -x["spend30"])):
-            log.info("  候选 %-4s ad %s %s · post %s · 30d RM%.2f %dL · 建 %s", c["acct"], c["ad"], c["status"],
-                     c["post"], c["spend30"], c["leads30"], c["created"])
-        with_post = [c for c in cands if c.get("post")]
-        if not with_post:
+                              "created": (a.get("created_time") or "")[:10]})
+        for c in cands:
+            log.info("  候选 %-4s ad %s %-16s post %s · 建 %s", c["acct"], c["ad"], c["status"], c["post"], c["created"])
+        hk = [c for c in cands if c["acct"] == "HK" and c.get("post")]
+        pool = hk or [c for c in cands if c.get("post")]
+        if not pool:
             log.error("❌ 两个账户都找不到带帖子的倒掉牛奶广告 —— 停止，未建任何东西。")
             sys.exit(1)
-        best = max(with_post, key=lambda x: (x["leads30"], x["spend30"]))
-        st["post"], st["post_source"] = best["post"], {k: best[k] for k in ("acct", "ad", "spend30", "leads30")}
+        distinct = sorted({c["post"] for c in pool})
+        if len(distinct) == 1:
+            best, how = pool[0], "唯一帖子"
+        else:
+            how = "30d lead 最多"
+            for c in pool:
+                try:
+                    sp, ld = parse_metrics(g.get_ad_insight(
+                        c["ad"], time_range={"since": d30.isoformat(), "until": today.isoformat()}), token)
+                except GraphError as exc:      # insights throttle: fall back to the newest post
+                    log.info("  （%s 的 30d insights 读不到：%s）", c["ad"], str(exc)[:80])
+                    sp, ld = 0.0, 0.0
+                c["spend30"], c["leads30"] = round(sp, 2), int(ld)
+                log.info("  %-4s ad %s · 30d RM%.2f %dL", c["acct"], c["ad"], sp, ld)
+            best = max(pool, key=lambda x: (x.get("leads30", 0), x.get("spend30", 0.0), x["created"]))
+        st["post"] = best["post"]
+        st["post_source"] = {"acct": best["acct"], "ad": best["ad"], "how": how,
+                             "spend30": best.get("spend30"), "leads30": best.get("leads30")}
         persist()
     log.info("用帖子 %s（来源 %s）", st["post"], st.get("post_source"))
 
