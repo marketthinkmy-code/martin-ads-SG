@@ -1,0 +1,28 @@
+name: adbot · Friday readout 10/9 (manual, read-only)
+
+# READ-ONLY, operator-ordered (周五早上跑一次读数给我): the three 新片5支重测 campaigns
+# day by day, everything else delivering on SG old + HK, SG sales since the 10/7 webinar,
+# per-ad 报名率 / 买家转化. Suggestions only, no writes.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  readout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Readout
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/friday_readout_1009.py
