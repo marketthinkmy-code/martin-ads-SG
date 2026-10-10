@@ -26,7 +26,9 @@ from adbot.monitor_cpl import extract_results, result_action_type
 from adbot.settings import load_settings
 
 ACCOUNTS = [("SG老", "act_1024930575770087"), ("HK", "act_1179668409969241")]
-WEEK, WEBINAR, OPEN, NEXT = dt.date(2026, 10, 1), dt.date(2026, 10, 7), dt.date(2026, 10, 8), dt.date(2026, 10, 14)
+WEBINAR, OPEN, NEXT = dt.date(2026, 10, 7), dt.date(2026, 10, 8), dt.date(2026, 10, 14)
+WEEK = OPEN                                   # 10 Oct operator: 从星期四到现在 — the window starts Thursday 10/8
+DAY_LABELS = {3: "四", 4: "五", 5: "六", 6: "日", 0: "一", 1: "二", 2: "三"}
 RETEST = "新片5支重测"
 TEST_TOKENS = ("15岁以上新片", "线下见证新片", RETEST)
 CPL, KILL = 70.0, 105.0
@@ -71,8 +73,9 @@ def main() -> None:
 
     W: Dict[str, Dict[str, List[float]]] = {}          # window → ad_id → [spend, leads, clicks]
     K: Dict[str, Dict[str, List[float]]] = {}          # window → ad_key → [...] folded over both accounts
-    for name, since, until in (("thu", OPEN, OPEN), ("fri", today, today), ("week", WEEK, today),
-                               ("pre", WEEK, WEBINAR), ("d30", d30, today), ("d60", d60, today)):
+    days = [OPEN + dt.timedelta(days=i) for i in range((today - OPEN).days + 1)]
+    for name, since, until in ([(d.isoformat(), d, d) for d in days] + [("week", WEEK, today),
+                               ("pre", dt.date(2026, 10, 1), WEBINAR), ("d30", d30, today), ("d60", d60, today)]):
         W[name], K[name] = {}, defaultdict(lambda: [0.0, 0.0, 0.0])
         for _, acct in ACCOUNTS:
             a, b = pull(acct, since, until)
@@ -167,7 +170,9 @@ def main() -> None:
                          f" RM{int(a_set.get('daily_budget') or 0) // 100}" if not cb else "", len(rows))
                 for a in sorted(rows, key=lambda x: -W["week"].get(x["id"], [0])[0]):
                     k = cpa.ad_key(a.get("name") or "")
-                    wk, th, fr = W["week"].get(a["id"], [0, 0, 0]), W["thu"].get(a["id"], [0, 0, 0]), W["fri"].get(a["id"], [0, 0, 0])
+                    wk, fr = W["week"].get(a["id"], [0, 0, 0]), W[today.isoformat()].get(a["id"], [0, 0, 0])
+                    per_day = [W[d.isoformat()].get(a["id"], [0, 0, 0]) for d in days]
+                    th = per_day[0]
                     pre = K["pre"].get(k, [0, 0, 0])
                     k30, k60 = K["d30"].get(k, [0, 0, 0]), K["d60"].get(k, [0, 0, 0])
                     sp, ld, ck = wk
@@ -207,19 +212,36 @@ def main() -> None:
                     if v.startswith("❌") or v.startswith("⚠️"):
                         flags.append(f"{label} · {cname[:36]} · {(a.get('name') or '')[:28]} → {v} {why}")
                     if retest:
-                        feed = "被饿" if (th[0] + fr[0]) < 10 and on else ("吃到钱" if (th[0] + fr[0]) >= 40 else "")
-                        log.info("  │   %-9s %-36s 四 RM%-6.2f %dL · 五 RM%-6.2f %dL · 周 RM%-6.2f %dL %-7s 报名率 %-4s · 30d单 %d · %s%s",
-                                 v, (a.get("name") or "")[:36], th[0], int(th[1]), fr[0], int(fr[1]), sp, int(ld),
+                        feed = "被饿" if sp < 10 and on else ("吃到钱" if sp >= 40 else "")
+                        day_txt = " · ".join(f"{DAY_LABELS[d.weekday()]} RM{x[0]:.0f}/{int(x[1])}L" for d, x in zip(days, per_day))
+                        log.info("  │   %-9s %-36s %s · 周四起 RM%-6.2f %dL %-7s 报名率 %-4s · 30d单 %d · %s%s",
+                                 v, (a.get("name") or "")[:36], day_txt, sp, int(ld),
                                  f"CPL{cpl:,.0f}" if ld else "—", ratio(ld, ck), n30[k], why, f" · {feed}" if feed else "")
                     else:
-                        log.info("  │   %-9s %-36s 周 RM%-7.2f %2dL %-7s 今 RM%-5.2f %dL · 报名率 %-4s · 本场 %d单/%dL · 30d %d单 %s · %s",
+                        log.info("  │   %-9s %-36s 周四起 RM%-7.2f %2dL %-7s 今 RM%-5.2f %dL · 报名率 %-4s · 本场 %d单/%dL · 30d %d单 %s · %s",
                                  v, (a.get("name") or "")[:36], sp, int(ld), f"CPL{cpl:,.0f}" if ld else "—", fr[0], int(fr[1]),
                                  ratio(ld, ck), n_web[k], int(pre[1]), n30[k], f"CPA{c30:,.0f}" if n30[k] else "", why)
                     if k not in seen_keys and (n30[k] or n_web[k]):
                         seen_keys.add(k)
                         rank.append((n_web[k] / pre[1] if pre[1] else 0.0, n_web[k], int(pre[1]), n30[k], k30[0], int(k30[1]), (a.get("name") or "")[:36]))
-            log.info("  └ 小计 周 RM%.0f · %dL%s%s", csp, int(cld), f" · CPL RM{csp / cld:,.0f}" if cld else "",
-                     f" · 四 RM{cth:.0f} 五 RM{cfr:.0f}" if retest else "")
+            log.info("  └ 小计 周四起 RM%.0f · %dL%s%s", csp, int(cld), f" · CPL RM{csp / cld:,.0f}" if cld else "",
+                     f" · 今 RM{cfr:.0f}" if retest else "")
+        off = [a for a in ads if a.get("effective_status") not in RUNNING
+               and (n30.get(cpa.ad_key(a.get("name") or ""), 0) or n60.get(cpa.ad_key(a.get("name") or ""), 0))]
+        if off:
+            log.info("  ▽ 停着但 30d/60d 有单的广告（开的候选）：")
+            seen_off = set()
+            for a in sorted(off, key=lambda x: -n30.get(cpa.ad_key(x.get("name") or ""), 0)):
+                k = cpa.ad_key(a.get("name") or "")
+                k30, k60 = K["d30"].get(k, [0, 0, 0]), K["d60"].get(k, [0, 0, 0])
+                tag = (a.get("name") or "")[:36] + "|" + str(a.get("adset_id"))
+                if tag in seen_off:
+                    continue
+                seen_off.add(tag)
+                log.info("     ⏸ %-36s ad %s · %s · 30d %d单 RM%.0f %dL%s · 60d %d单%s", (a.get("name") or "")[:36], a["id"],
+                         a.get("effective_status"), n30.get(k, 0), k30[0], int(k30[1]),
+                         f" CPA {k30[0] / n30[k]:,.0f}" if n30.get(k) else "", n60.get(k, 0),
+                         f" CPA {k60[0] / n60[k]:,.0f}" if n60.get(k) else "")
     log.info("═" * 118)
     log.info("买家转化排名（本场 = 10/7 起单 ÷ 10/1-10/7 lead；30d 列 = 单 / 花 / lead）：")
     for conv, nw, pl, n3, sp3, ld3, nm in sorted(rank, reverse=True):
