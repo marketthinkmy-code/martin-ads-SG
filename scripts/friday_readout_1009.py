@@ -226,22 +226,27 @@ def main() -> None:
                         rank.append((n_web[k] / pre[1] if pre[1] else 0.0, n_web[k], int(pre[1]), n30[k], k30[0], int(k30[1]), (a.get("name") or "")[:36]))
             log.info("  └ 小计 周四起 RM%.0f · %dL%s%s", csp, int(cld), f" · CPL RM{csp / cld:,.0f}" if cld else "",
                      f" · 今 RM{cfr:.0f}" if retest else "")
-        off = [a for a in ads if a.get("effective_status") not in RUNNING
-               and (n30.get(cpa.ad_key(a.get("name") or ""), 0) or n60.get(cpa.ad_key(a.get("name") or ""), 0))]
-        if off:
-            log.info("  ▽ 停着但 30d/60d 有单的广告（开的候选）：")
-            seen_off = set()
-            for a in sorted(off, key=lambda x: -n30.get(cpa.ad_key(x.get("name") or ""), 0)):
-                k = cpa.ad_key(a.get("name") or "")
+        # 开 candidates: one line per CREATIVE (the old SG account holds ~100 paused copies),
+        # only creatives with a 30d sale, or a 60d sale at CPA ≤ 1200
+        by_key: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for a in ads:
+            if a.get("effective_status") in RUNNING:
+                continue
+            k = cpa.ad_key(a.get("name") or "")
+            k60 = K["d60"].get(k, [0, 0, 0])
+            if n30.get(k, 0) or (n60.get(k, 0) and k60[0] / n60[k] <= hard):
+                by_key[k].append(a)
+        if by_key:
+            log.info("  ▽ 停着但有成交证据的片（开的候选，每支片一行）：")
+            for k, lst in sorted(by_key.items(), key=lambda kv: (-n30.get(kv[0], 0), -n60.get(kv[0], 0))):
                 k30, k60 = K["d30"].get(k, [0, 0, 0]), K["d60"].get(k, [0, 0, 0])
-                tag = (a.get("name") or "")[:36] + "|" + str(a.get("adset_id"))
-                if tag in seen_off:
-                    continue
-                seen_off.add(tag)
-                log.info("     ⏸ %-36s ad %s · %s · 30d %d单 RM%.0f %dL%s · 60d %d单%s", (a.get("name") or "")[:36], a["id"],
-                         a.get("effective_status"), n30.get(k, 0), k30[0], int(k30[1]),
-                         f" CPA {k30[0] / n30[k]:,.0f}" if n30.get(k) else "", n60.get(k, 0),
-                         f" CPA {k60[0] / n60[k]:,.0f}" if n60.get(k) else "")
+                newest = max(lst, key=lambda x: x.get("created_time") or "")
+                running_elsewhere = any(cpa.ad_key(x.get("name") or "") == k and x.get("effective_status") in RUNNING for x in ads)
+                log.info("     ⏸ %-36s %d 支停着 · 最新 ad %s (%s, 建 %s)%s · 30d %d单 RM%.0f %dL%s · 60d %d单%s",
+                         (newest.get("name") or "")[:36], len(lst), newest["id"], newest.get("effective_status"),
+                         (newest.get("created_time") or "")[:10], " · 同片另有在跑" if running_elsewhere else "",
+                         n30.get(k, 0), k30[0], int(k30[1]), f" CPA {k30[0] / n30[k]:,.0f}" if n30.get(k) else "",
+                         n60.get(k, 0), f" CPA {k60[0] / n60[k]:,.0f}" if n60.get(k) else "")
     log.info("═" * 118)
     log.info("买家转化排名（本场 = 10/7 起单 ÷ 10/1-10/7 lead；30d 列 = 单 / 花 / lead）：")
     for conv, nw, pl, n3, sp3, ld3, nm in sorted(rank, reverse=True):
