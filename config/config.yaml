@@ -121,6 +121,9 @@ kpi:
     - campaign_contains: "新片5支重测"    # 8 Oct: SG re-test of the five new posts, CBO 1-1-5 × 3 audiences
       min_spend_myr: 80.00
       campaign_zero_lead_spend_myr: 150.00
+    - campaign_contains: "| 新片 |"       # 10 Oct: Video 5 / Video 6, 1-2-2 × 2 on HK (ABO, per-ad line only)
+      min_spend_myr: 80.00
+      campaign_zero_lead_spend_myr: 150.00
   cpl_hold:                              # ad-name substrings exempt from CPL auto-actions (0-reg kill + CPA hard-stop still apply)
     # 12 Sep doc regime ("Budget 跟着 Buyer，不是跟着 CPL"): every SCALE/KEEP chain in the
     # operator's cycle plan is held so the daily -30% cut can't fight the plan. REDUCE/TEST
