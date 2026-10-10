@@ -1,0 +1,37 @@
+name: adbot · reopen Video 12 RM50 (manual)
+
+# MUTATING, operator-ordered (10 Oct: 开 Video 12 RM50): pause the other ads/ad sets of the
+# HK "BROAD WOMEN | CPA 好的广告" campaign, set BROAD WOMEN to RM50, switch ad set + ad +
+# campaign on. Nothing deleted; every change logged and persisted.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reopen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Reopen
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/reopen_video12_1010.py
+      - name: Persist record
+        if: always()
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "reopen: persist Video 12 record [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
