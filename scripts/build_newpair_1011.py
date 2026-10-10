@@ -56,15 +56,9 @@ def main() -> None:
         STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         STATE_PATH.write_text(json.dumps(st, ensure_ascii=False, indent=2))
 
-    # the two posts must exist and be readable before anything is built
-    for a in ADS:
-        try:
-            p = g.get_object(a["post"], "id,created_time,message")
-        except GraphError as exc:
-            log.error("❌ 帖子 %s 读不到：%s —— 停止，未建任何东西。", a["post"], str(exc)[:120])
-            sys.exit(1)
-        log.info("帖子 %-28s %s · 发布 %s · 文案 %r", a["name"][:28], p.get("id"), (p.get("created_time") or "")[:16],
-                 (p.get("message") or "")[:60].replace("\n", " "))
+    # NOTE: the system-user token has no pages_read_engagement, so page posts cannot be read
+    # directly (same as the MY ADHD check). Meta validates the post id when the creative is
+    # created, and the creative's effective_object_story_id is read back below as the proof.
 
     pix = g.get_object(PIXEL_TEMPLATE, "promoted_object,optimization_goal,billing_event,bid_strategy")
 
@@ -77,8 +71,14 @@ def main() -> None:
             fields["url_tags"] = m.url_tags
         st["creatives"][a["key"]] = g.create_adcreative(HK_ACCT, **fields)["id"]
         persist()
-        log.info("  + creative %s ← %s", st["creatives"][a["key"]], a["name"])
         time.sleep(0.8)
+    for a in ADS:
+        cr = g.get_object(st["creatives"][a["key"]], "effective_object_story_id,status")
+        if cr.get("effective_object_story_id") not in (a["post"], None):
+            log.error("❌ creative %s 指向 %s，不是 %s —— 停止。", st["creatives"][a["key"]], cr.get("effective_object_story_id"), a["post"])
+            sys.exit(1)
+        log.info("  + creative %s ← %s · post %s · %s", st["creatives"][a["key"]], a["name"],
+                 cr.get("effective_object_story_id") or "(同步中)", cr.get("status"))
 
     st.setdefault("campaigns", {})
     st.setdefault("adsets", {})
