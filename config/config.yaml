@@ -130,19 +130,10 @@ kpi:
     - campaign_contains: "老片重开"       # 17 Oct: 9 dormant sellers relaunched on HK, ABO, RM80 zero-lead line
       min_spend_myr: 80.00
       campaign_zero_lead_spend_myr: 150.00
-  cpl_hold:                              # ad-name substrings exempt from CPL auto-actions (0-reg kill + CPA hard-stop still apply)
-    # 12 Sep doc regime ("Budget 跟着 Buyer，不是跟着 CPL"): every SCALE/KEEP chain in the
-    # operator's cycle plan is held so the daily -30% cut can't fight the plan. REDUCE/TEST
-    # chains sit at RM11-15/day, under the RM50 cut floor, so they never needed holds.
-    - "Hook Edit 04"                       # SCALE RM180/day — SG's strongest buyer machine
-    - "还没抽高"                            # KEEP RM130/day (Video7, F&R A) — simplified
-    - "還沒抽高"                            #   ... traditional spelling of the same name
-    - "三年前他長了10公分"                    # KEEP RM120/day (Purchase LAL 1-2%)
-    - "15岁以上还有机会"                     # KEEP RM100+35+30/day (LAL 1% / Broad SG / LAL 2-3%)
-    - "15歲以上還有機會"                     #   ... traditional variant
-    - "把面包当早餐"                         # KEEP RM65/day (Grid B) — CPL~379 but it buys; doc's flagship example
-    - "准备早餐面包"                         # KEEP RM50/day (Broad SG Hook3)
-    - "鼻窦炎"                              # KEEP RM35/day (Broad SG) — hottest converting angle cross-market
+  cpl_hold: []                           # 17 Oct operator 「监控完全部 SG 广告」: the 12 Sep hold list is cleared.
+                                         # NOTE: a held ad is exempt from the zero-registration kill AND the
+                                         # budget cut (code: monitor_cpl.evaluate_account), not only from CPL.
+                                         # It had silently exempted the relaunched Hook Edit 04 and 15岁以上还有机会.
 
 cpa:                                     # cost per real PAID acquisition (joins the paid-list sheet, SHARED with MY)
   enabled: true
