@@ -20,8 +20,9 @@ from adbot.monitor_cpl import extract_results, result_action_type
 from adbot.settings import load_settings
 
 ACCOUNTS = [("SG老", "act_1024930575770087"), ("HK", "act_1179668409969241")]
-SINCE = dt.date(2026, 10, 8)
-WEBINAR = dt.date(2026, 10, 7)
+import os
+SINCE = dt.date.fromisoformat(os.environ.get("ADBOT_SINCE") or "2026-10-08")
+WEBINAR = dt.date.fromisoformat(os.environ.get("ADBOT_SALES_SINCE") or "2026-10-07")
 RUNNING = ("ACTIVE", "IN_PROCESS", "PENDING_REVIEW")
 
 
@@ -49,7 +50,7 @@ def main() -> None:
     values = SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab)
     sales, _c, _h = cpa.parse_sales(values, s.cpa.price_myr)
     new = sorted((x.date.isoformat(), x.ad[:30]) for x in sales if x.date and x.date >= WEBINAR and _sg(x.campaign))
-    log.info("成交表：10/7 直播起 SG 新单 %d 笔 %s", len(new), new)
+    log.info("成交表：%s 起 SG 新单 %d 笔 %s", WEBINAR, len(new), new)
 
     grand = [0.0, 0.0, 0.0]
     for label, acct in ACCOUNTS:
@@ -71,7 +72,7 @@ def main() -> None:
                                                             "ADSET_PAUSED", "IN_PROCESS", "WITH_ISSUES"])})}
         tot = [0.0, 0.0, 0.0]
         log.info("═" * 110)
-        log.info("【%s】%s · 10/8 起有花费的 campaign", label, acct)
+        log.info("【%s】%s · " + SINCE.isoformat() + " 起有花费的 campaign", label, acct)
         for r in sorted(rows, key=lambda x: -_f(x.get("spend"))):
             sp, ld, ck = _f(r.get("spend")), extract_results(r.get("actions"), token), _f(r.get("inline_link_clicks"))
             if sp < 1:
@@ -96,7 +97,7 @@ def main() -> None:
         for i in range(3):
             grand[i] += tot[i]
     log.info("═" * 110)
-    log.info("合计 10/8 → %s：RM%.0f · %dL · CPL %s · 新单 %d · 每单广告费 %s", today, grand[0], int(grand[1]),
+    log.info("合计 " + SINCE.isoformat() + " → %s：RM%.0f · %dL · CPL %s · 新单 %d · 每单广告费 %s", today, grand[0], int(grand[1]),
              f"{grand[0] / grand[1]:,.0f}" if grand[1] else "—", len(new),
              f"RM{grand[0] / len(new):,.0f}" if new else "—")
     final_summary(log, "since-Thursday accounting done · read-only")
