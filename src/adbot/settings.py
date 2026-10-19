@@ -160,6 +160,7 @@ class KpiCfg(BaseModel):
     # per-campaign 0-registration kill line, so a test campaign can run tighter than the
     # account-wide line (5 Oct operator: 15岁+ QING 换 RM80): [{campaign_contains, min_spend_myr}]
     cpl_min_spend_overrides: List[Dict[str, Any]] = Field(default_factory=list)
+    high_cpl_kill_multiple: float = 0.0  # >0: pause when CPL > target x this AND no 60d sale (19 Oct operator)
     cpl_hold: List[str] = Field(default_factory=list)  # ad-name substrings temporarily exempt from auto-pause
     monitor_paused_until: str = ""  # ISO date: monitor pauses NOTHING while today < this (self-expiring webinar hold)
 
