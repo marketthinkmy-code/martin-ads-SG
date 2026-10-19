@@ -106,6 +106,7 @@ kpi:
   cpl_min_spend_myr: 90.00               # 17 Oct operator 「花了 RM90 还没有报名的，直接停掉」: verdict gate AND the 0-registration kill line, every SG ad
   monitor_paused_until: "2026-09-11"     # 9 Sep operator: "今晚不要關，明天晚上才開直播" — monitor closes NOTHING Tue/Wed nights, resumes Thu 9/11 by itself
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
+  high_cpl_kill_multiple: 1.5             # 19 Oct operator 「CPL 超过 105、又没有成交的，直接关」: CPL > 70 x 1.5 with no 60d SG sale -> pause
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
   cpl_min_spend_overrides:               # per-campaign 0-reg kill line (account-wide line above stays 105)
     # campaign_zero_lead_spend_myr (9 Oct operator, 1 到 4 都做): a CBO test campaign that spends this

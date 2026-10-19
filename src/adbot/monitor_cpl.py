@@ -34,7 +34,9 @@ WITHIN_THRESHOLD = "within_threshold"
 NO_RESULTS_YET = "no_results_yet"
 MANUAL_HOLD = "manual_hold"  # owner asked to keep this ad running despite CPL
 BUDGET_CUT = "cpl_over_target_budget_cut"  # audit reason for a daily -30% budget cut
-CAMPAIGN_ZERO_RESULTS = "campaign_zero_results_over_line"  # 9 Oct: whole CBO test campaign, 0 reg past its line
+CAMPAIGN_ZERO_RESULTS = "campaign_zero_results_over_line"
+HIGH_CPL_NO_SALES = "cpl_over_kill_multiple_no_sales"  # 19 Oct: CPL > 1.5x target and no 60d sale -> pause
+HIGH_CPL_HAS_SALES = "cpl_over_kill_multiple_has_sales"  # same CPL, but it sold -> keep  # 9 Oct: whole CBO test campaign, 0 reg past its line
 
 def _week_start_thursday(today: dt.date) -> dt.date:
     """Most recent Thursday (the weekly ON/reset day) on or before `today`."""
@@ -101,6 +103,11 @@ def decide(spend: float, results: float, kpi: KpiCfg) -> Tuple[bool, str, Option
             return True, ZERO_RESULTS, math.inf
         return False, NO_RESULTS_YET, math.inf
     cpl = spend / results
+    mult = kpi.high_cpl_kill_multiple or 0.0
+    if mult > 0 and cpl > kpi.cpl_target_myr * mult:
+        # 19 Oct operator 「CPL 超过 105、又没有成交的，直接关」: candidate pause. Whether it
+        # sold is only known in evaluate_account, which keeps it when it has 60d sales.
+        return True, HIGH_CPL_NO_SALES, cpl
     if cpl > kpi.cpl_target_myr:
         return False, OVER_THRESHOLD, cpl
     return False, WITHIN_THRESHOLD, cpl
@@ -258,6 +265,13 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
                     cpl_pause=cpl_pause, cpl_reason=cpl_reason, cpa_value=cpa_val,
                     cpa_sales=n_sales, cpa_spend=sp60, age_days=age, tiers=tiers,
                     conversion_days=settings.cpa.conversion_days, min_spend=settings.cpa.min_spend_myr)
+
+            if cpl_reason == HIGH_CPL_NO_SALES:
+                # never kill on registration cost without knowing whether it sold
+                if not use_cpa:
+                    should_pause, reason = False, OVER_THRESHOLD
+                elif n_sales > 0 and reason != cpa.HARD_STOP:
+                    should_pause, reason = False, HIGH_CPL_HAS_SALES
 
             decisions.append(AdDecision(ad["id"], name, spend, results, cpl, should_pause, reason,
                                         cpa=cpa_val, cpa_sales=n_sales, age_days=age,

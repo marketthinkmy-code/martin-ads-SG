@@ -272,3 +272,24 @@ def test_campaign_zero_lead_pass_pauses_only_cbo_zero_result_campaigns(monkeypat
     assert g.paused == [("cbo_zero", "PAUSED")]
     assert logged[0][:3] == ("cbo_zero", "campaign", monitor_cpl.CAMPAIGN_ZERO_RESULTS)
     assert logged[0][3]["line_myr"] == 150.0
+
+
+# ── 19 Oct: CPL > 1.5x target with no sale -> pause; with a sale -> keep ─────────
+def test_high_cpl_kill_only_without_sales():
+    from adbot import monitor_cpl
+    kpi = KpiCfg(cpl_target_myr=70, cpl_min_spend_myr=90, cpl_lookback="last_3d", high_cpl_kill_multiple=1.5)
+    assert decide(120, 1, kpi)[:2] == (True, monitor_cpl.HIGH_CPL_NO_SALES)
+    assert decide(100, 1, kpi)[:2] == (False, OVER_THRESHOLD)          # CPL 100 <= 105
+    off = KpiCfg(cpl_target_myr=70, cpl_min_spend_myr=90, cpl_lookback="last_3d")
+    assert decide(120, 1, off)[:2] == (False, OVER_THRESHOLD)          # disabled by default
+
+    settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"), kpi=kpi)
+    settings.cpa.enabled = True
+    campaigns = [{"id": "A", "name": "c", "effective_status": "ACTIVE"}]
+    ads = {"A": [_ad("sold"), _ad("unsold")]}
+    insights = {"sold": _reg_insight(150, 1), "unsold": _reg_insight(150, 1)}
+    from adbot import cpa as _cpa
+    ctx = ({_cpa.ad_key("sold"): 1}, {"sold": 300.0, "unsold": 150.0})
+    out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings, cpa_ctx=ctx)}
+    assert out["unsold"].should_pause and out["unsold"].reason == monitor_cpl.HIGH_CPL_NO_SALES
+    assert not out["sold"].should_pause and out["sold"].reason == monitor_cpl.HIGH_CPL_HAS_SALES
