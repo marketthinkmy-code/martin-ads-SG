@@ -91,6 +91,9 @@ def main() -> None:
         if t.get("genders") in ([0], []):
             t.pop("genders", None)
         t.pop("custom_audiences", None)
+        fbp = t.get("facebook_positions")
+        if fbp and "video_feeds" in fbp:  # deprecated placement, Meta refuses the ad set
+            t["facebook_positions"] = [x for x in fbp if x != "video_feeds"]
         ig = t.get("instagram_positions")
         if ig and "explore_home" in ig and "explore" not in ig:
             t["instagram_positions"] = list(ig) + ["explore"]
