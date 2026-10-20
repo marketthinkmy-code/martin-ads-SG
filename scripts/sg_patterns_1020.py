@@ -60,6 +60,7 @@ def aud_key(name):
     n = cpa.norm(name or "")
     n = re.sub(r"interest\s*:\s*", "", n)
     n = re.sub(r"rm\s*\d+", "", n)
+    n = n.replace("&", " and ")
     return re.sub(r"[\s|·:：\-–—_/+()（）\[\]]+", " ", n).strip()
 
 
@@ -184,18 +185,25 @@ def main():
     log.info("6. 每个 ad set 每天的花费分档 → CPL（最近 180 天，SG 市场）")
     bk = [(0, 60), (60, 100), (100, 150), (150, 250), (250, 10 ** 6)]
     agg = defaultdict(lambda: [0.0, 0.0, 0])
-    tr180 = json.dumps({"since": (today - dt.timedelta(days=180)).isoformat(), "until": today.isoformat()})
+    daily = []
     for _, acct in SG_ACCTS:
-        for r in g._get_all(f"{acct}/insights", {"level": "adset", "limit": 500, "time_range": tr180, "time_increment": 1,
-                                                  "fields": "campaign_name,adset_id,spend,actions"}):
-            if not _sg(r.get("campaign_name") or ""):
-                continue
-            sp = _f(r.get("spend"))
-            if sp < 5:
-                continue
-            for lo, hi in bk:
-                if lo <= sp < hi:
-                    a = agg[(lo, hi)]; a[0] += sp; a[1] += extract_results(r.get("actions"), tok); a[2] += 1
+        for i in range(6):  # 30-day chunks: one 180-day daily pull is refused by Meta
+            lo_d, hi_d = today - dt.timedelta(days=180 - 30 * i), today - dt.timedelta(days=150 - 30 * i + (0 if i == 5 else 1))
+            try:
+                daily += list(g._get_all(f"{acct}/insights", {"level": "adset", "limit": 500, "time_increment": 1,
+                                                             "time_range": json.dumps({"since": lo_d.isoformat(), "until": hi_d.isoformat()}),
+                                                             "fields": "campaign_name,adset_id,spend,actions"}))
+            except Exception as e:  # keep going; say which chunk is missing
+                log.info("  （%s %s–%s 拉不到：%s）", acct, lo_d, hi_d, str(e)[:80])
+    for r in daily:
+        if not _sg(r.get("campaign_name") or ""):
+            continue
+        sp = _f(r.get("spend"))
+        if sp < 5:
+            continue
+        for lo, hi in bk:
+            if lo <= sp < hi:
+                a = agg[(lo, hi)]; a[0] += sp; a[1] += extract_results(r.get("actions"), tok); a[2] += 1
     for lo, hi in bk:
         sp, ld, n = agg[(lo, hi)]
         log.info("  当天花 RM%-4d–%-7s %4d 个 ad set 天 · 花 RM%.0f · %d lead · CPL %s", lo, hi if hi < 10 ** 6 else "以上", n, sp, int(ld),
@@ -204,6 +212,7 @@ def main():
     # 7. MY creatives never run in SG
     log.info("═" * 120)
     log.info("7. MY 便宜出 lead、但 SG 市场没跑过的片（MY 最近 180 天，只读）")
+    tr180 = json.dumps({"since": (today - dt.timedelta(days=180)).isoformat(), "until": today.isoformat()})
     my = defaultdict(lambda: [0.0, 0.0]); myn = {}
     for r in g._get_all(f"{MY_ACCT}/insights", {"level": "ad", "limit": 500, "time_range": tr180,
                                                  "fields": "ad_name,spend,actions"}):
