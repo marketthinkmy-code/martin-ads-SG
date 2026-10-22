@@ -1,0 +1,41 @@
+name: adbot · webinar review (manual, read-only)
+
+# READ-ONLY, operator-ordered (22 Oct 「看看最新成交纪录，复盘，复读，告诉我 what's next」):
+# the cycle's ads, spend → leads → buyers, every new SG sale with its UTM. Dates are inputs
+# (defaults = the 21/10 webinar). No writes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cycle_from:
+        description: "cycle start YYYY-MM-DD"
+        required: false
+      cycle_to:
+        description: "cycle end YYYY-MM-DD"
+        required: false
+      webinar:
+        description: "sales from YYYY-MM-DD"
+        required: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Review
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_CYCLE_FROM: ${{ github.event.inputs.cycle_from }}
+          ADBOT_CYCLE_TO: ${{ github.event.inputs.cycle_to }}
+          ADBOT_WEBINAR: ${{ github.event.inputs.webinar }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/webinar_review.py
