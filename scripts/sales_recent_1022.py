@@ -2,7 +2,7 @@
 
 webinar_review counts only rows whose UTM campaign says [SG]; cpa.parse_sales also drops rows with
 no UTM campaign and no UTM ad. This lists every row dated on/after ADBOT_SINCE (default 2026-10-14)
-so a 21/10 SG buyer without UTM is not missed: date, market guess, UTM campaign / ad set / ad,
+plus undated rows among the last 20, so a 21/10 SG buyer without UTM or date is not missed: date, market guess, UTM campaign / ad set / ad,
 and the non-personal columns. Personal columns (name, phone, email, IC, address) are never
 printed; a phone shows only its country code. No writes.
 """
@@ -37,7 +37,10 @@ def main():
         def cell(i):
             return row[i] if 0 <= i < len(row) else ""
         d = cpa.parse_date(cell(cols.get("date", -1)))
-        if not d or d < since:
+        tail = n > len(values) - 20
+        if not any(cell(i) for i in range(len(header))):
+            continue
+        if (not d or d < since) and not (tail and not d):
             continue
         camp, adset, ad = cell(cols.get("campaign", -1)), cell(cols.get("adset", -1)), cell(cols.get("ad", -1))
         c = cpa.norm(camp)
