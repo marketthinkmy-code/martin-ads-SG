@@ -20,4 +20,5 @@
 - 不用 Claude 会话去做后台提醒、定时唤醒或盯盘，监控只靠 GitHub 上的 adbot-monitor。
 - 不要动 MY 账户，除非 operator 明确要求。
 - 回复用中文，先给结论，数字放进表格。
+- 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。
 - 建 SG 广告默认用自动版位（Advantage+ 版位），地区选"住在、常在、最近在新加坡"三种；定向复制好之后先过 src/adbot/sg_build_defaults.py 的 apply_sg_build_defaults()（operator 2026-10-22 批准）。
