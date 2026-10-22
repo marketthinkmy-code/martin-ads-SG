@@ -55,7 +55,7 @@ def main():
         log.info("第 %d 行 %s · %s · 电话区号 %s · campaign %r · ad set %r · ad %r · %s", n, d, mkt, cc or "—",
                  camp[:50], adset[:30], ad[:40], extra[:200])
     log.info("═" * 80)
-    for (d, mkt, cc), k in sorted(by_day.items()):
+    for (d, mkt, cc), k in sorted(by_day.items(), key=lambda kv: (str(kv[0][0]), kv[0][1], kv[0][2])):
         log.info("  %s · %-8s · 区号 %-5s · %d 笔", d, mkt, cc or "—", k)
     final_summary(log, f"recent sales rows since {since} · read-only")
 
