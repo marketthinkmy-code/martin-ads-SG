@@ -152,5 +152,27 @@
     "cpl": 75.74,
     "spend": 151.48,
     "results": 2.0
+  },
+  {
+    "ts": "2026-10-23T17:28:38+00:00",
+    "entity_id": "120250374484120335",
+    "entity_type": "ad",
+    "reason": "cpl_over_kill_multiple_no_sales",
+    "spend": 105.71,
+    "results": 1.0,
+    "cpl": 105.71,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-23T17:28:40+00:00",
+    "entity_id": "120250236479810335",
+    "entity_type": "ad",
+    "reason": "cpa_hard_stop",
+    "spend": 422.78,
+    "results": 8.0,
+    "cpl": 52.85,
+    "cpa": 2111.95,
+    "cpa_sales": 1
   }
 ]
