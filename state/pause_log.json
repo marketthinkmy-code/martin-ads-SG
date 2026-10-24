@@ -185,5 +185,16 @@
     "cpl": 72.55,
     "spend": 217.65,
     "results": 3.0
+  },
+  {
+    "ts": "2026-10-24T06:19:53+00:00",
+    "entity_id": "120250374495520335",
+    "entity_type": "ad",
+    "reason": "cpl_over_kill_multiple_no_sales",
+    "spend": 138.58,
+    "results": 1.0,
+    "cpl": 138.58,
+    "cpa": null,
+    "cpa_sales": 0
   }
 ]
