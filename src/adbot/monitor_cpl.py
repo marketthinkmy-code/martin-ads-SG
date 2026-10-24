@@ -172,8 +172,13 @@ def _mkey(name: str) -> str:
     return cpa.norm(s)
 
 
+def sale_key(campaign: str, ad: str) -> Tuple[str, str]:
+    """(campaign, ad) key shared by the sheet's UTM values and Meta names."""
+    return cpa.ad_key(campaign), cpa.ad_key(ad)
+
+
 def build_cpa_context(graph, settings: Settings, today: dt.date):
-    """(60-day sales by (campaign,ad), 60-day spend by ad_id) for the CPA gate.
+    """(60-day sales by sale_key(campaign, ad), 60-day spend by ad_id) for the CPA gate.
 
     Returns empty dicts when CPA is disabled or any source is unavailable, so a Sheets/Meta
     hiccup degrades the monitor to CPL-only rather than breaking it.
@@ -186,16 +191,16 @@ def build_cpa_context(graph, settings: Settings, today: dt.date):
             settings.cpa.spreadsheet_id, settings.cpa.sales_tab)
         sales, _cols, _hdr = cpa.parse_sales(values, settings.cpa.price_myr)
         cutoff = today - dt.timedelta(days=60)
-        # Match by ad NAME only: the sheet's campaign column is missing/misnamed for some
-        # markets (e.g. SG) and its campaign values don't align with Meta campaign names,
-        # so keying on (campaign, ad) silently attributed 0 sales and the CPA rescue never
-        # fired. ad_key() is width/punctuation-robust so 'MAR Video 5: 林書豪 story' matches
-        # the sheet's 'mar video 5：林書豪story'.
-        sold: Dict[str, int] = {}
+        # 24 Oct operator 「修」: a sale counts only for the campaign whose UTM it carries. Keyed
+        # by ad name alone, one old SG sale of a video protected every new copy of it from
+        # the RM90 zero-registration kill (HK 15岁以上 Health and Wellness: RM138.73, 0 reg, kept).
+        # The SG UTM campaign now carries {{campaign.name}}; sale_key() folds width and
+        # punctuation on both parts so the sheet value matches the Meta name.
+        sold: Dict[Tuple[str, str], int] = {}
         for s in sales:
             if s.date and s.date > cutoff:
-                key = cpa.ad_key(s.ad)
-                if key:
+                key = sale_key(s.campaign, s.ad)
+                if key[0] and key[1]:
                     sold[key] = sold.get(key, 0) + 1
         spend: Dict[str, float] = {}
         for row in graph.account_insights(
@@ -256,7 +261,7 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
             n_sales, age = 0, None
             should_pause, reason = cpl_pause, cpl_reason
             if use_cpa:
-                n_sales = sold60.get(cpa.ad_key(name), 0)
+                n_sales = sold60.get(sale_key(campaign.get("name") or "", name), 0)
                 sp60 = spend60.get(ad["id"], 0.0)
                 cpa_val = cpa.cpa(sp60, n_sales)
                 created = cpa.parse_date((ad.get("created_time") or "")[:10])

@@ -6,7 +6,7 @@ from adbot import cpa
 from adbot.monitor_cpl import (INSUFFICIENT_SPEND, MANUAL_HOLD, NO_RESULTS_YET, OVER_THRESHOLD,
                                WITHIN_THRESHOLD, ZERO_RESULTS, AdDecision, cpl_window, decide,
                                evaluate_account, extract_results, parse_metrics,
-                               plan_budget_cuts, result_action_type, _week_start_thursday)
+                               plan_budget_cuts, result_action_type, sale_key, _week_start_thursday)
 from adbot.settings import CpaCfg, KpiCfg, MetaCfg, Settings
 
 KPI = KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
@@ -163,7 +163,7 @@ def test_evaluate_account_cpa_rescues_and_hard_stops():
     ads = {"A": [_ad("rescue_me"), _ad("kill_me")]}
     insights = {"rescue_me": _reg_insight(300, 0),   # 0 reg past the kill line -> would pause
                 "kill_me": _reg_insight(100, 4)}      # CPL 25 -> CPL keeps
-    sold = {cpa.ad_key("rescue_me"): 10, cpa.ad_key("kill_me"): 2}   # ad-name keyed (campaign-agnostic)
+    sold = {sale_key("MTC - News", "rescue_me"): 10, sale_key("MTC - News", "kill_me"): 2}  # this campaign's own sales
     spend60 = {"rescue_me": 7000.0, "kill_me": 4000.0}  # CPA 700 (rescue) / 2000 (hard stop)
 
     by_name = {d.name: d for d in evaluate_account(
@@ -289,7 +289,38 @@ def test_high_cpl_kill_only_without_sales():
     ads = {"A": [_ad("sold"), _ad("unsold")]}
     insights = {"sold": _reg_insight(150, 1), "unsold": _reg_insight(150, 1)}
     from adbot import cpa as _cpa
-    ctx = ({_cpa.ad_key("sold"): 1}, {"sold": 300.0, "unsold": 150.0})
+    ctx = ({sale_key("c", "sold"): 1}, {"sold": 300.0, "unsold": 150.0})
     out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings, cpa_ctx=ctx)}
     assert out["unsold"].should_pause and out["unsold"].reason == monitor_cpl.HIGH_CPL_NO_SALES
     assert not out["sold"].should_pause and out["sold"].reason == monitor_cpl.HIGH_CPL_HAS_SALES
+
+
+def test_sale_in_another_campaign_does_not_protect_a_new_copy():
+    # 24 Oct: one old SG sale of a video kept every new copy of it alive past the RM90 line.
+    from adbot import monitor_cpl
+    settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
+                        kpi=KpiCfg(cpl_target_myr=70, cpl_min_spend_myr=90, cpl_lookback="last_3d",
+                                   pause_zero_lead_after_spend=True, high_cpl_kill_multiple=1.5),
+                        cpa=CpaCfg(enabled=True, hard_stop_myr=1200, conversion_days=14, min_spend_myr=1000))
+    campaigns = [{"id": "N", "name": "[SG] 儿童长高方程式 | Health and Wellness | 老片重开 3 | 1-3-3",
+                  "effective_status": "ACTIVE"}]
+    ads = {"N": [_ad("Video: 孩子15岁以上还有机会长高吗？"), _ad("Video 5：Kaya 面包配 Milo")]}
+    insights = {"Video: 孩子15岁以上还有机会长高吗？": _reg_insight(126, 0),   # 0 reg past RM90
+                "Video 5：Kaya 面包配 Milo": _reg_insight(150, 1)}            # CPL 150 > 105
+    old = "[sg] 儿童长高方程式 | health & wellness | 1-1-5"          # the sale's own (old) campaign
+    sold = {sale_key(old, "video: 孩子15岁以上还有机会长高吗？"): 1, sale_key(old, "video 5:kaya 面包配 milo"): 1}
+    spend60 = {"Video: 孩子15岁以上还有机会长高吗？": 190.0, "Video 5：Kaya 面包配 Milo": 150.0}
+    out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
+                                               cpa_ctx=(sold, spend60))}
+    zero = out["Video: 孩子15岁以上还有机会长高吗？"]
+    assert zero.should_pause and zero.reason == monitor_cpl.ZERO_RESULTS and zero.cpa_sales == 0
+    high = out["Video 5：Kaya 面包配 Milo"]
+    assert high.should_pause and high.reason == monitor_cpl.HIGH_CPL_NO_SALES
+
+    # the same sale, carrying THIS campaign's UTM (punctuation/width differences folded), protects
+    mine = {sale_key("[sg] 儿童长高方程式 | health and wellness | 老片重开 3 | 1-3-3",
+                     "video: 孩子15岁以上还有机会长高吗？"): 1}
+    out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
+                                               cpa_ctx=(mine, spend60))}
+    assert not out["Video: 孩子15岁以上还有机会长高吗？"].should_pause
+    assert out["Video: 孩子15岁以上还有机会长高吗？"].reason == cpa.CPL_RESCUED
