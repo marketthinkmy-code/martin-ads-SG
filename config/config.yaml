@@ -150,6 +150,8 @@ cpa:                                     # cost per real PAID acquisition (joins
   hard_stop_myr: 1200.00                 # above here (with real sales) -> auto-pause (50%)
   conversion_days: 14                    # don't judge CPA / 'no sales' until this old
   min_spend_myr: 1000.00                 # need >= this spend before a CPA verdict is fair
+  hard_stop_exempt_ad_ids:               # never auto-paused on the CPA hard stop (CPL lines still apply)
+    - "120250236479810335"               # 24 Oct operator 「重开」: HK Video 5：Kaya 面包配 Milo, Food and Drink + Milk (CPA 2,112, CPL 53)
 
 schedule:                                # informational; the real schedule lives in .github/workflows (UNCHANGED)
   timezone: "Asia/Singapore"             # GMT+8 (no DST) — same offset as MY's Asia/Kuala_Lumpur, so the UTC cron fires at the same SGT local time

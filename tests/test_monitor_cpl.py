@@ -324,3 +324,23 @@ def test_sale_in_another_campaign_does_not_protect_a_new_copy():
                                                cpa_ctx=(mine, spend60))}
     assert not out["Video: 孩子15岁以上还有机会长高吗？"].should_pause
     assert out["Video: 孩子15岁以上还有机会长高吗？"].reason == cpa.CPL_RESCUED
+
+
+def test_hard_stop_exemption_skips_only_the_cpa_line():
+    # 24 Oct operator 「重开」: Video 5 kept past the CPA hard stop; the RM90 zero-reg line still applies.
+    from adbot import monitor_cpl
+    settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
+                        kpi=KpiCfg(cpl_target_myr=70, cpl_min_spend_myr=90, cpl_lookback="last_3d",
+                                   pause_zero_lead_after_spend=True),
+                        cpa=CpaCfg(enabled=True, hard_stop_myr=1200, conversion_days=14, min_spend_myr=1000,
+                                   hard_stop_exempt_ad_ids=["keep_me", "dry"]))
+    campaigns = [{"id": "A", "name": "c", "effective_status": "ACTIVE"}]
+    ads = {"A": [_ad("keep_me"), _ad("other"), _ad("dry")]}
+    insights = {"keep_me": _reg_insight(420, 8), "other": _reg_insight(420, 8), "dry": _reg_insight(120, 0)}
+    sold = {sale_key("c", "keep_me"): 1, sale_key("c", "other"): 1, sale_key("c", "dry"): 1}
+    spend60 = {"keep_me": 2112.0, "other": 2112.0, "dry": 2112.0}
+    out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
+                                               cpa_ctx=(sold, spend60))}
+    assert not out["keep_me"].should_pause and out["keep_me"].reason == monitor_cpl.HARD_STOP_EXEMPT
+    assert out["other"].should_pause and out["other"].reason == cpa.HARD_STOP
+    assert out["dry"].should_pause and out["dry"].reason == monitor_cpl.ZERO_RESULTS
