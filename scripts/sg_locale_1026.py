@@ -73,10 +73,13 @@ def main():
         if x.date and x.date >= cut and _mkt(x.campaign) == "SG":
             sold[(cpa.ad_key(x.campaign), cpa.ad_key(x.adset))] += 1
 
+    log.info("  （成交表 SG 365 天共 %d 单，其中 UTM campaign + ad set 都有的 %d 单）",
+             sum(1 for x in sales if x.date and x.date >= cut and _mkt(x.campaign) == "SG"), sum(sold.values()))
     log.info("═" * 110)
     log.info("2. 最近 365 天 SG ad set 按语言设定分组（成交 = 成交表 UTM campaign + ad set 对得上的）")
     grp = defaultdict(lambda: [0, 0.0, 0.0, 0, 0.0])  # ad sets, spend, regs, sales, reach-weighted cpm num
     examples = defaultdict(list)
+    seen = defaultdict(set)  # a sale key counts once per group (same-named ad sets share a key)
     for label, acct in SG_ACCTS:
         tgt = {a["id"]: a for a in g._get_all(f"{acct}/adsets", {"fields": "id,name,targeting", "limit": 500})}
         for r in g._get_all(f"{acct}/insights", {"level": "adset", "limit": 500, "time_range": d365,
@@ -86,8 +89,11 @@ def main():
             a = tgt.get(r["adset_id"]) or {}
             k = lang(a.get("targeting"))
             sp, ld = _f(r.get("spend")), extract_results(r.get("actions"), tok)
-            n = sold.get((cpa.ad_key(r.get("campaign_name") or ""), cpa.ad_key(r.get("adset_name") or "")), 0)
-            gr = grp[k]; gr[0] += 1; gr[1] += sp; gr[2] += ld; gr[3] += n; gr[4] += _f(r.get("impressions"))
+            key = (cpa.ad_key(r.get("campaign_name") or ""), cpa.ad_key(r.get("adset_name") or ""))
+            n = sold.get(key, 0)
+            gr = grp[k]; gr[0] += 1; gr[1] += sp; gr[2] += ld; gr[4] += _f(r.get("impressions"))
+            if key not in seen[k]:
+                seen[k].add(key); gr[3] += n
             if k != "只锁中文" and sp >= 50:
                 examples[k].append((sp, f"{label} {r['adset_id']} {(r.get('adset_name') or '')[:30]} | {(r.get('campaign_name') or '')[:50]} · RM{sp:.0f} · {int(ld)} 报名 · {n} 单"))
     for k, (na, sp, ld, n, im) in sorted(grp.items(), key=lambda kv: -kv[1][1]):
