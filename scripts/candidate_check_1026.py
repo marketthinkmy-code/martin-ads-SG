@@ -108,6 +108,18 @@ def main():
                 continue
             last7 = d[-7:]
             rows.append((d[-1][0], label, aid, aset, camp, sum(v[1] for v in last7), int(sum(v[2] for v in last7))))
+        # creative level (rule 3 wording: 「它停之前最后 7 天」= the creative): every SG ad of it summed
+        # per calendar day; the 7 days ending on its last delivery day
+        byday = defaultdict(lambda: [0.0, 0.0])
+        for _lb, _a, aid, _s, _c in ads[k]:
+            for d0, sp_, ld_ in daily.get(aid, []):
+                byday[d0][0] += sp_; byday[d0][1] += ld_
+        if byday:
+            lastd = dt.date.fromisoformat(max(byday))
+            win = [(lastd - dt.timedelta(days=i)).isoformat() for i in range(7)]
+            sp7c, ld7c = sum(byday[d][0] for d in win if d in byday), sum(byday[d][1] for d in win if d in byday)
+            log.info("    规矩3（整支片，SG 所有广告合计）最后投放 %s · 之前 7 天 %s–%s · RM%.2f · %d 报名 · %s", lastd, win[-1], win[0],
+                     sp7c, int(ld7c), "✅ 有报名" if ld7c else "❌ 0 报名")
         for last, label, aid, aset, camp, sp7, ld7 in sorted(rows, reverse=True)[:4]:
             log.info("    规矩3 %-4s ad %s · 最后投放 %s · 最后7个投放日 RM%.2f · %d 报名 · %s | %s", label, aid, last, sp7, ld7,
                      aset[:28], camp[:56])
