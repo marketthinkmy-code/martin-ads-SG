@@ -131,6 +131,9 @@ kpi:
     - campaign_contains: "老片重开"       # 17 Oct: 9 dormant sellers relaunched on HK, ABO, RM80 zero-lead line
       min_spend_myr: 90.00
       campaign_zero_lead_spend_myr: 150.00
+    - campaign_contains: "| 中英文 |"     # 26 Oct: proven SG sellers on HK, English + Chinese, ABO RM50
+      min_spend_myr: 90.00
+      campaign_zero_lead_spend_myr: 150.00
   cpl_hold: []                           # 17 Oct operator 「监控完全部 SG 广告」: the 12 Sep hold list is cleared.
                                          # NOTE: a held ad is exempt from the zero-registration kill AND the
                                          # budget cut (code: monitor_cpl.evaluate_account), not only from CPL.
