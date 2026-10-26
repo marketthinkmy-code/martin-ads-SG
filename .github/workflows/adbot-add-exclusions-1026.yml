@@ -5,7 +5,14 @@ name: adbot · add exclusions to 中英文 Food and Drink + Milk (manual)
 # 中英文 ad sets. Idempotent.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      adset_ids:
+        description: "ad set ids to add exclusions to (default: the 中英文 Food and Drink + Milk ones)"
+        required: false
+      read_only_ids:
+        description: "ad set ids to only read exclusions from"
+        required: false
 
 jobs:
   build:
@@ -27,6 +34,8 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          ADBOT_ADSET_IDS: ${{ github.event.inputs.adset_ids }}
+          ADBOT_READ_ONLY_IDS: ${{ github.event.inputs.read_only_ids }}
         run: python scripts/add_exclusions_1026.py
       - name: Persist entity ids
         if: always()
