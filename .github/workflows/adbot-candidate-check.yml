@@ -9,6 +9,9 @@ on:
       names:
         description: "'|'-separated ad names"
         required: true
+      before:
+        description: "only count delivery before YYYY-MM-DD (rule 3 as of then)"
+        required: false
 
 jobs:
   check:
@@ -25,6 +28,7 @@ jobs:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
           ADBOT_NAMES: ${{ github.event.inputs.names }}
+          ADBOT_BEFORE: ${{ github.event.inputs.before }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}

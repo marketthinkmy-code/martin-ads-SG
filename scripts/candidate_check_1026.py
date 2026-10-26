@@ -45,6 +45,9 @@ def main():
     today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
     names = [n.strip() for n in (os.environ.get("ADBOT_NAMES") or "").split("|") if n.strip()]
     keys = {cpa.ad_key(n): n for n in names}
+    before = os.environ.get("ADBOT_BEFORE") or ""  # rule 3 as it stood the day before this date
+    if before:
+        log.info("规矩 3 只用 %s 之前的投放计算（看当时会不会过）", before)
 
     sales, _c, _h = cpa.parse_sales(SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab),
                                     s.cpa.price_myr)
@@ -89,7 +92,7 @@ def main():
                                                           "time_range": json.dumps({"since": lo.isoformat(), "until": hi.isoformat()}),
                                                           "filtering": json.dumps([{"field": "ad.id", "operator": "IN", "value": chunk}]),
                                                           "fields": "ad_id,spend,actions"}):
-                    if _f(r.get("spend")) > 0:
+                    if _f(r.get("spend")) > 0 and (not before or r["date_start"] < before):
                         daily[r["ad_id"]].append((r["date_start"], _f(r.get("spend")), extract_results(r.get("actions"), tok)))
 
     for k, nm in keys.items():
