@@ -77,6 +77,21 @@ def main():
                 if store is life and label != "MY" and _f(r.get("spend")) > 0 and _mkt(r.get("campaign_name") or "") == "SG":
                     ads[k].append((label, acct, r["ad_id"], r.get("adset_name") or "", r.get("campaign_name") or ""))
 
+    # daily rows for every candidate SG ad: one call per account per 30-day chunk
+    daily = defaultdict(list)
+    for label, acct in ACCTS[:2]:
+        ids = sorted({aid for k in ads for (lb, _a, aid, _s, _c) in ads[k] if lb == label})
+        for j in range(0, len(ids), 50):
+            chunk = ids[j:j + 50]
+            for i in range(13):
+                hi = today - dt.timedelta(days=30 * i); lo = hi - dt.timedelta(days=29)
+                for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "time_increment": 1,
+                                                          "time_range": json.dumps({"since": lo.isoformat(), "until": hi.isoformat()}),
+                                                          "filtering": json.dumps([{"field": "ad.id", "operator": "IN", "value": chunk}]),
+                                                          "fields": "ad_id,spend,actions"}):
+                    if _f(r.get("spend")) > 0:
+                        daily[r["ad_id"]].append((r["date_start"], _f(r.get("spend")), extract_results(r.get("actions"), tok)))
+
     for k, nm in keys.items():
         log.info("═" * 110)
         sd = sold[k]
@@ -88,21 +103,11 @@ def main():
                      sp, int(ld), f"RM{sp / ld:.0f}" if ld else "—", sp3, int(ld3), f"RM{sp3 / ld3:.0f}" if ld3 else "—")
         rows = []
         for label, acct, aid, aset, camp in ads[k]:
-            daily = []
-            for i in range(13):
-                hi = today - dt.timedelta(days=30 * i); lo = hi - dt.timedelta(days=29)
-                for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 100, "time_increment": 1,
-                                                          "time_range": json.dumps({"since": lo.isoformat(), "until": hi.isoformat()}),
-                                                          "filtering": json.dumps([{"field": "ad.id", "operator": "IN", "value": [aid]}]),
-                                                          "fields": "spend,actions"}):
-                    if _f(r.get("spend")) > 0:
-                        daily.append((r["date_start"], _f(r.get("spend")), extract_results(r.get("actions"), tok)))
-                if daily and lo.isoformat() < min(d for d, _, _ in daily):
-                    break
-            if not daily:
+            d = sorted(daily.get(aid, []))
+            if not d:
                 continue
-            daily.sort(); last7 = daily[-7:]
-            rows.append((daily[-1][0], label, aid, aset, camp, sum(v[1] for v in last7), int(sum(v[2] for v in last7))))
+            last7 = d[-7:]
+            rows.append((d[-1][0], label, aid, aset, camp, sum(v[1] for v in last7), int(sum(v[2] for v in last7))))
         for last, label, aid, aset, camp, sp7, ld7 in sorted(rows, reverse=True)[:4]:
             log.info("    规矩3 %-4s ad %s · 最后投放 %s · 最后7个投放日 RM%.2f · %d 报名 · %s | %s", label, aid, last, sp7, ld7,
                      aset[:28], camp[:56])
