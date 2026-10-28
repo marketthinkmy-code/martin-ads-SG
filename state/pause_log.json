@@ -251,5 +251,49 @@
     "cpl": null,
     "cpa": null,
     "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-28T02:26:37+00:00",
+    "entity_id": "120250464916170335",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 93.77,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-28T02:26:40+00:00",
+    "entity_id": "120250464915130335",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 103.15,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-28T02:26:42+00:00",
+    "entity_id": "120250464910570335",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 110.6,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-28T02:26:43+00:00",
+    "entity_id": "120250464912070335",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 100.12,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
   }
 ]
