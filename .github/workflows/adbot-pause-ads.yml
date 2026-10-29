@@ -1,0 +1,29 @@
+name: adbot · pause ads by id (manual)
+
+# Operator-ordered pauses (29 Oct: #12 Video 12 SG old, #16 Video 7 SG old, Video 5 HK). Ad level only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ad_ids:
+        description: "comma-separated ad ids (default: the 29 Oct three)"
+        required: false
+
+jobs:
+  pause:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Pause
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_AD_IDS: ${{ github.event.inputs.ad_ids }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/pause_ads_1029.py
