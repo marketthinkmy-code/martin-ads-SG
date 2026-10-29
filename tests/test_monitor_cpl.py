@@ -87,9 +87,9 @@ class _FakeGraph:
         return self._insights.get(ad_id)
 
 
-def _ad(ad_id, status="ACTIVE", event="COMPLETE_REGISTRATION", created_time="2026-01-01"):
+def _ad(ad_id, status="ACTIVE", event="COMPLETE_REGISTRATION", created_time="2026-01-01", adset="s"):
     return {"id": ad_id, "name": ad_id, "effective_status": status, "created_time": created_time,
-            "adset": {"promoted_object": {"custom_event_type": event} if event else {}}}
+            "adset": {"name": adset, "promoted_object": {"custom_event_type": event} if event else {}}}
 
 
 def _reg_insight(spend, results):
@@ -163,7 +163,7 @@ def test_evaluate_account_cpa_rescues_and_hard_stops():
     ads = {"A": [_ad("rescue_me"), _ad("kill_me")]}
     insights = {"rescue_me": _reg_insight(300, 0),   # 0 reg past the kill line -> would pause
                 "kill_me": _reg_insight(100, 4)}      # CPL 25 -> CPL keeps
-    sold = {sale_key("MTC - News", "rescue_me"): 10, sale_key("MTC - News", "kill_me"): 2}  # this campaign's own sales
+    sold = {sale_key("MTC - News", "s", "rescue_me"): 10, sale_key("MTC - News", "s", "kill_me"): 2}  # this campaign's own sales
     spend60 = {"rescue_me": 7000.0, "kill_me": 4000.0}  # CPA 700 (rescue) / 2000 (hard stop)
 
     by_name = {d.name: d for d in evaluate_account(
@@ -289,7 +289,7 @@ def test_high_cpl_kill_only_without_sales():
     ads = {"A": [_ad("sold"), _ad("unsold")]}
     insights = {"sold": _reg_insight(150, 1), "unsold": _reg_insight(150, 1)}
     from adbot import cpa as _cpa
-    ctx = ({sale_key("c", "sold"): 1}, {"sold": 300.0, "unsold": 150.0})
+    ctx = ({sale_key("c", "s", "sold"): 1}, {"sold": 300.0, "unsold": 150.0})
     out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings, cpa_ctx=ctx)}
     assert out["unsold"].should_pause and out["unsold"].reason == monitor_cpl.HIGH_CPL_NO_SALES
     assert not out["sold"].should_pause and out["sold"].reason == monitor_cpl.HIGH_CPL_HAS_SALES
@@ -308,7 +308,7 @@ def test_sale_in_another_campaign_does_not_protect_a_new_copy():
     insights = {"Video: 孩子15岁以上还有机会长高吗？": _reg_insight(126, 0),   # 0 reg past RM90
                 "Video 5：Kaya 面包配 Milo": _reg_insight(150, 1)}            # CPL 150 > 105
     old = "[sg] 儿童长高方程式 | health & wellness | 1-1-5"          # the sale's own (old) campaign
-    sold = {sale_key(old, "video: 孩子15岁以上还有机会长高吗？"): 1, sale_key(old, "video 5:kaya 面包配 milo"): 1}
+    sold = {sale_key(old, "s", "video: 孩子15岁以上还有机会长高吗？"): 1, sale_key(old, "s", "video 5:kaya 面包配 milo"): 1}
     spend60 = {"Video: 孩子15岁以上还有机会长高吗？": 190.0, "Video 5：Kaya 面包配 Milo": 150.0}
     out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
                                                cpa_ctx=(sold, spend60))}
@@ -318,12 +318,30 @@ def test_sale_in_another_campaign_does_not_protect_a_new_copy():
     assert high.should_pause and high.reason == monitor_cpl.HIGH_CPL_NO_SALES
 
     # the same sale, carrying THIS campaign's UTM (punctuation/width differences folded), protects
-    mine = {sale_key("[sg] 儿童长高方程式 | health and wellness | 老片重开 3 | 1-3-3",
+    mine = {sale_key("[sg] 儿童长高方程式 | health and wellness | 老片重开 3 | 1-3-3", "s",
                      "video: 孩子15岁以上还有机会长高吗？"): 1}
     out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
                                                cpa_ctx=(mine, spend60))}
     assert not out["Video: 孩子15岁以上还有机会长高吗？"].should_pause
     assert out["Video: 孩子15岁以上还有机会长高吗？"].reason == cpa.CPL_RESCUED
+
+
+def test_sale_in_another_ad_set_does_not_protect():
+    # 29 Oct operator: the sale must carry this ad's own campaign, ad set AND ad.
+    from adbot import monitor_cpl
+    settings = Settings(meta=MetaCfg(conversion_event="COMPLETE_REGISTRATION"),
+                        kpi=KpiCfg(cpl_target_myr=70, cpl_min_spend_myr=90, cpl_lookback="last_3d",
+                                   pause_zero_lead_after_spend=True),
+                        cpa=CpaCfg(enabled=True, hard_stop_myr=1300, conversion_days=14, min_spend_myr=1000))
+    campaigns = [{"id": "C", "name": "c", "effective_status": "ACTIVE"}]
+    ads = {"C": [_ad("v", adset="Interest: Family and Relationships")]}
+    insights = {"v": _reg_insight(95, 0)}
+    other = {sale_key("c", "Interest: Food and Drink + Milk", "v"): 1}
+    out = evaluate_account(_FakeGraph(campaigns, ads, insights), settings, cpa_ctx=(other, {"v": 95.0}))[0]
+    assert out.should_pause and out.reason == monitor_cpl.ZERO_RESULTS
+    own = {sale_key("c", "interest:family and relationships", "v"): 1}
+    out = evaluate_account(_FakeGraph(campaigns, ads, insights), settings, cpa_ctx=(own, {"v": 95.0}))[0]
+    assert not out.should_pause and out.reason == cpa.CPL_RESCUED
 
 
 def test_hard_stop_exemption_skips_only_the_cpa_line():
@@ -337,7 +355,7 @@ def test_hard_stop_exemption_skips_only_the_cpa_line():
     campaigns = [{"id": "A", "name": "c", "effective_status": "ACTIVE"}]
     ads = {"A": [_ad("keep_me"), _ad("other"), _ad("dry")]}
     insights = {"keep_me": _reg_insight(420, 8), "other": _reg_insight(420, 8), "dry": _reg_insight(120, 0)}
-    sold = {sale_key("c", "keep_me"): 1, sale_key("c", "other"): 1, sale_key("c", "dry"): 1}
+    sold = {sale_key("c", "s", "keep_me"): 1, sale_key("c", "s", "other"): 1, sale_key("c", "s", "dry"): 1}
     spend60 = {"keep_me": 2112.0, "other": 2112.0, "dry": 2112.0}
     out = {d.name: d for d in evaluate_account(_FakeGraph(campaigns, ads, insights), settings,
                                                cpa_ctx=(sold, spend60))}
