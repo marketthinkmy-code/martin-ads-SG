@@ -172,6 +172,7 @@ class AdDecision:
     age_days: Optional[int] = None  # ad age, for the conversion-window guard
     adset_id: Optional[str] = None  # for the budget-cut pass (aggregate per budget chain)
     cpa_spend: float = 0.0          # 60-day spend behind the CPA (raise gate)
+    campaign_id: Optional[str] = None  # to close a campaign left with no live ad
 
 
 def _mkey(name: str) -> str:
@@ -300,7 +301,8 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
             decisions.append(AdDecision(ad["id"], name, spend, results, cpl, should_pause, reason,
                                         cpa=cpa_val, cpa_sales=n_sales, age_days=age,
                                         adset_id=ad.get("adset_id"),
-                                        cpa_spend=spend60.get(ad["id"], 0.0) if use_cpa else 0.0))
+                                        cpa_spend=spend60.get(ad["id"], 0.0) if use_cpa else 0.0,
+                                        campaign_id=campaign["id"]))
     return decisions
 
 
@@ -370,6 +372,30 @@ def plan_budget_cuts(decisions: List[AdDecision], adsets: Dict[str, Dict[str, An
                       "spend": round(sp, 2), "results": res,
                       "at_floor": cur <= floor_cents})
     return plans
+
+
+# ── 29 Oct operator: never leave a campaign ON with all its ads / ad sets OFF ──────
+NOT_LIVE = ("PAUSED", "ADSET_PAUSED", "CAMPAIGN_PAUSED", "ARCHIVED", "DELETED")
+EMPTY_CAMPAIGN = "campaign_without_live_ads"
+
+
+def close_empty_campaigns(graph, campaign_ids, skip_ad_ids=(), *, dry_run: bool) -> List[str]:
+    """Pause every campaign in campaign_ids that has no live ad left (ads in skip_ad_ids count as
+    already off — they were just paused and Meta may not show it yet). Returns the ids closed."""
+    log = get_logger()
+    skip = set(skip_ad_ids)
+    closed = []
+    for cid in sorted({c for c in campaign_ids if c}):
+        live = [a for a in graph.list_ads_under_campaign(cid)
+                if a["id"] not in skip and a.get("effective_status") not in NOT_LIVE]
+        if live:
+            continue
+        log.info("  [%s] campaign %s — no live ad left", "WOULD PAUSE CAMPAIGN" if dry_run else "PAUSE CAMPAIGN", cid)
+        if not dry_run:
+            graph.update_status(cid, "PAUSED")
+            state.append_pause_log(cid, "campaign", EMPTY_CAMPAIGN, {})
+        closed.append(cid)
+    return closed
 
 
 # ── 29 Oct operator 「加 20%」「A」: automatic raise on CPA within target ──────────
@@ -644,6 +670,8 @@ def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, A
                                     "cpa": None if d.cpa is None or d.cpa == math.inf else round(d.cpa, 2),
                                     "cpa_sales": d.cpa_sales})
             paused += 1
+    emptied = close_empty_campaigns(graph, [d.campaign_id for d in to_pause], [d.ad_id for d in to_pause],
+                                    dry_run=dry_run)
 
     cuts = _budget_cut_pass(graph, settings, decisions, dry_run=dry_run)
     raises = _budget_raise_pass(graph, settings, decisions, dry_run=dry_run)
@@ -655,10 +683,10 @@ def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, A
                f"{verb} {len(to_pause) if dry_run else paused}, "
                f"{'would cut' if dry_run else 'cut'} {cuts} budget(s) -{settings.kpi.cpl_reduce_pct:.0f}%, "
                f"{'would raise' if dry_run else 'raised'} {raises} budget(s) +{settings.cpa.scale_up_pct:.0f}%, "
-               f"{verb} {camp_paused} whole 0-reg campaign(s), "
+               f"{verb} {camp_paused} whole 0-reg campaign(s) + {len(emptied)} left without live ads, "
                f"{active_left} remain (target CPL {settings.kpi.cpl_target_myr:.0f} MYR, "
                f"0-reg kill at {settings.kpi.cpl_min_spend_myr:.0f})")
     final_summary(log, summary)
     return {"evaluated": len(decisions), "paused": (len(to_pause) if dry_run else paused),
-            "budget_cuts": cuts, "budget_raises": raises, "campaign_pauses": camp_paused, "remaining": active_left,
+            "budget_cuts": cuts, "budget_raises": raises, "campaign_pauses": camp_paused + len(emptied), "remaining": active_left,
             "dry_run": dry_run}

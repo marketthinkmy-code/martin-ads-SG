@@ -394,3 +394,26 @@ def test_plan_budget_raises():
     assert plans["campX"]["type"] == "campaign" and plans["campX"]["new_cents"] == 12000
     assert plans["campX"]["ads"] == ["b", "b2"]
     assert plan_budget_raises(decisions, adsets, campaigns, CpaCfg(scale_up_pct=0), {}, today) == []
+
+
+# ── 29 Oct operator: a campaign is never left ON with no live ad ──────────────────
+def test_close_empty_campaigns(monkeypatch):
+    from adbot import monitor_cpl
+
+    class G:
+        def __init__(self):
+            self.paused = []
+
+        def list_ads_under_campaign(self, cid):
+            return {"empty": [{"id": "x", "effective_status": "ACTIVE"}, {"id": "y", "effective_status": "PAUSED"}],
+                    "busy": [{"id": "z", "effective_status": "ACTIVE"}, {"id": "w", "effective_status": "ACTIVE"}]}[cid]
+
+        def update_status(self, eid, status):
+            self.paused.append((eid, status))
+
+    monkeypatch.setattr(monitor_cpl.state, "append_pause_log", lambda *a, **k: None)
+    g = G()
+    assert monitor_cpl.close_empty_campaigns(g, ["empty", "busy"], ["x", "z"], dry_run=True) == ["empty"]
+    assert g.paused == []
+    assert monitor_cpl.close_empty_campaigns(g, ["empty", "busy"], ["x", "z"], dry_run=False) == ["empty"]
+    assert g.paused == [("empty", "PAUSED")]

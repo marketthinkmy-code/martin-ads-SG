@@ -1,6 +1,7 @@
 name: adbot · pause ads by id (manual)
 
-# Operator-ordered pauses (29 Oct: #12 Video 12 SG old, #16 Video 7 SG old, Video 5 HK). Ad level only.
+# Operator-ordered pauses (29 Oct: #12 Video 12 SG old, #16 Video 7 SG old, Video 5 HK), then any campaign
+# left with no live ad is paused too.
 
 on:
   workflow_dispatch:
@@ -8,6 +9,10 @@ on:
       ad_ids:
         description: "comma-separated ad ids (default: the 29 Oct three)"
         required: false
+      sweep:
+        description: "1 = also pause every ACTIVE campaign with no live ad (default 1)"
+        required: false
+        default: "1"
 
 jobs:
   pause:
@@ -24,6 +29,7 @@ jobs:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
           ADBOT_AD_IDS: ${{ github.event.inputs.ad_ids }}
+          ADBOT_SWEEP: ${{ github.event.inputs.sweep }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
         run: python scripts/pause_ads_1029.py
