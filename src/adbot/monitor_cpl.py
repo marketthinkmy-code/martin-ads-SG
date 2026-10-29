@@ -13,6 +13,9 @@ Registration), not a hardcoded "lead". Two daily rules (SG numbers; MY runs its 
 29 Oct operator 「B」: config turns rule 2 off (kpi.cpl_reduce_pct 0) and drops the CPL > 105 kill
 (kpi.high_cpl_kill_multiple 0); the RM90 zero-registration kill stays, and a sale only protects an
 ad when its UTM campaign, ad set and ad are all this ad's own (sale_key).
+29 Oct operator 「加 20%」「A」: an ad whose own 60-day CPA is at or under cpa.target_myr (past the
+conversion window, on enough spend) gets its budget owner raised by cpa.scale_up_pct, then left
+alone for cpa.scale_up_wait_days full days.
 
 The decision logic is pure (unit-tested); the runner reads insights via the Graph client,
 only ever acts on ACTIVE ads, and never un-pauses — re-activation is always a human (or
@@ -38,6 +41,7 @@ WITHIN_THRESHOLD = "within_threshold"
 NO_RESULTS_YET = "no_results_yet"
 MANUAL_HOLD = "manual_hold"  # owner asked to keep this ad running despite CPL
 BUDGET_CUT = "cpl_over_target_budget_cut"  # audit reason for a daily -30% budget cut
+BUDGET_RAISE = "cpa_within_target_budget_raise"  # 29 Oct: audit reason for a +20% raise
 CAMPAIGN_ZERO_RESULTS = "campaign_zero_results_over_line"
 HIGH_CPL_NO_SALES = "cpl_over_kill_multiple_no_sales"  # 19 Oct: CPL > 1.5x target and no 60d sale -> pause
 HIGH_CPL_HAS_SALES = "cpl_over_kill_multiple_has_sales"
@@ -167,6 +171,7 @@ class AdDecision:
     cpa_sales: int = 0              # 60-day matched paid sales
     age_days: Optional[int] = None  # ad age, for the conversion-window guard
     adset_id: Optional[str] = None  # for the budget-cut pass (aggregate per budget chain)
+    cpa_spend: float = 0.0          # 60-day spend behind the CPA (raise gate)
 
 
 def _mkey(name: str) -> str:
@@ -294,7 +299,8 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
 
             decisions.append(AdDecision(ad["id"], name, spend, results, cpl, should_pause, reason,
                                         cpa=cpa_val, cpa_sales=n_sales, age_days=age,
-                                        adset_id=ad.get("adset_id")))
+                                        adset_id=ad.get("adset_id"),
+                                        cpa_spend=spend60.get(ad["id"], 0.0) if use_cpa else 0.0))
     return decisions
 
 
@@ -364,6 +370,109 @@ def plan_budget_cuts(decisions: List[AdDecision], adsets: Dict[str, Dict[str, An
                       "spend": round(sp, 2), "results": res,
                       "at_floor": cur <= floor_cents})
     return plans
+
+
+# ── 29 Oct operator 「加 20%」「A」: automatic raise on CPA within target ──────────
+RAISE_LABEL = "ADBOT_BUDGET_UP_"
+
+
+def raise_qualifies(d: AdDecision, cfg) -> bool:
+    """The ad's own sales put its CPA at or under target, past the conversion window, on enough spend."""
+    return (not d.should_pause and d.cpa_sales > 0 and d.cpa is not None and d.cpa != math.inf
+            and d.cpa <= cfg.target_myr and d.age_days is not None and d.age_days >= cfg.conversion_days
+            and d.cpa_spend >= cfg.min_spend_myr)
+
+
+def plan_budget_raises(decisions: List[AdDecision], adsets: Dict[str, Dict[str, Any]],
+                       campaigns: Dict[str, Dict[str, Any]], cfg, last_raise: Dict[str, dt.date],
+                       today: dt.date) -> List[Dict[str, Any]]:
+    """Pure planner: which budgets to raise by cfg.scale_up_pct today.
+
+    One raise per budget chain (ABO: the ad set; CBO: the campaign) holding at least one
+    qualifying ad. After a raise the chain is left alone for cfg.scale_up_wait_days full days
+    (raised Thursday -> watch Friday and Saturday -> next raise Sunday at the earliest).
+    """
+    if cfg.scale_up_pct <= 0:
+        return []
+
+    def _cents(v) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    plans: Dict[str, Dict[str, Any]] = {}
+    for d in decisions:
+        if not d.adset_id or not raise_qualifies(d, cfg):
+            continue
+        info = adsets.get(d.adset_id) or {}
+        if _cents(info.get("daily_budget")) > 0:
+            eid, etype = d.adset_id, "adset"
+        else:
+            eid, etype = info.get("campaign_id") or "", "campaign"
+            info = campaigns.get(eid) or {}
+            if _cents(info.get("daily_budget")) <= 0:
+                continue                           # lifetime budget or unknown -> not ours to raise
+        if eid in plans:
+            plans[eid]["ads"].append(d.name)
+            continue
+        last = last_raise.get(eid)
+        if last and (today - last).days <= cfg.scale_up_wait_days:
+            continue
+        cur = _cents(info.get("daily_budget"))
+        plans[eid] = {"id": eid, "type": etype, "name": info.get("name") or eid, "old_cents": cur,
+                      "new_cents": int(round(cur * (1.0 + cfg.scale_up_pct / 100.0))),
+                      "ads": [d.name], "cpa": round(d.cpa, 2), "sales": d.cpa_sales}
+    return list(plans.values())
+
+
+def _budget_raise_pass(graph, settings: Settings, decisions: List[AdDecision], *, dry_run: bool) -> int:
+    """Fetch budgets + raise labels, plan today's raises, apply them.
+
+    Like the cut pass, the wait guard is stateless on Meta: a raise stamps the budget owner
+    with an "ADBOT_BUDGET_UP_<date>" label (added to its existing labels).
+    """
+    log = get_logger()
+    cfg = settings.cpa
+    if cfg.scale_up_pct <= 0 or not cfg.enabled:
+        return 0
+    acct = settings.meta.account_path
+    adsets = {a["id"]: a for a in graph._get_all(
+        f"{acct}/adsets", {"fields": "id,name,campaign_id,daily_budget,adlabels", "limit": 500})}
+    campaigns = {c["id"]: c for c in graph._get_all(
+        f"{acct}/campaigns", {"fields": "id,name,daily_budget,adlabels", "limit": 200})}
+    today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+    last_raise: Dict[str, dt.date] = {}
+    for ent in list(adsets.values()) + list(campaigns.values()):
+        for n in _label_names(ent):
+            day = cpa.parse_date(n[len(RAISE_LABEL):]) if n.startswith(RAISE_LABEL) else None
+            if day and (ent["id"] not in last_raise or day > last_raise[ent["id"]]):
+                last_raise[ent["id"]] = day
+    applied = 0
+    for p in plan_budget_raises(decisions, adsets, campaigns, cfg, last_raise, today):
+        tag = (f"{p['type']} {p['name']}  CPA={p['cpa']:.0f} ({p['sales']} sale) · "
+               f"{', '.join(a[:30] for a in p['ads'])}")
+        if dry_run:
+            log.info("  [WOULD RAISE +%.0f%%] %s  RM%.2f -> RM%.2f /day", cfg.scale_up_pct, tag,
+                     p["old_cents"] / 100, p["new_cents"] / 100)
+            continue
+        graph.update_daily_budget(p["id"], p["new_cents"])
+        try:
+            ent = adsets.get(p["id"]) or campaigns.get(p["id"]) or {}
+            labels = ent.get("adlabels") or []
+            if isinstance(labels, dict):
+                labels = labels.get("data") or []
+            keep = [l["id"] for l in labels if isinstance(l, dict) and l.get("id")]
+            graph.set_ad_labels(p["id"], keep + [graph.get_or_create_label(acct, f"{RAISE_LABEL}{today.isoformat()}")])
+        except Exception as exc:  # noqa: BLE001 — the raise stands; the next run could raise again
+            log.warning("  !! could not label %s after the raise (%s) — wait guard weakened", p["id"], exc)
+        state.append_pause_log(p["id"], p["type"], BUDGET_RAISE,
+                               {"old_daily_myr": p["old_cents"] / 100.0, "new_daily_myr": p["new_cents"] / 100.0,
+                                "cpa": p["cpa"], "sales": p["sales"], "ads": p["ads"]})
+        log.info("  [RAISE +%.0f%%] %s  RM%.2f -> RM%.2f /day", cfg.scale_up_pct, tag,
+                 p["old_cents"] / 100, p["new_cents"] / 100)
+        applied += 1
+    return applied
 
 
 def _label_names(entity: Dict[str, Any]) -> List[str]:
@@ -483,7 +592,7 @@ def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
     if not extras:
         return _run_one(graph, settings, dry_run=dry_run)
     log = get_logger()
-    totals: Dict[str, Any] = {"evaluated": 0, "paused": 0, "budget_cuts": 0, "campaign_pauses": 0,
+    totals: Dict[str, Any] = {"evaluated": 0, "paused": 0, "budget_cuts": 0, "budget_raises": 0, "campaign_pauses": 0,
                               "remaining": 0, "dry_run": dry_run, "accounts": {}}
     for path in [settings.meta.account_path] + extras:
         s2 = settings.model_copy(deep=True)
@@ -491,7 +600,7 @@ def run(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, Any]:
         log.info("═════════ monitor pass: %s ═════════", path)
         r = _run_one(graph, s2, dry_run=dry_run)
         totals["accounts"][path] = r
-        for k in ("evaluated", "paused", "budget_cuts", "campaign_pauses", "remaining"):
+        for k in ("evaluated", "paused", "budget_cuts", "budget_raises", "campaign_pauses", "remaining"):
             totals[k] += int(r.get(k) or 0)
     return totals
 
@@ -537,6 +646,7 @@ def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, A
             paused += 1
 
     cuts = _budget_cut_pass(graph, settings, decisions, dry_run=dry_run)
+    raises = _budget_raise_pass(graph, settings, decisions, dry_run=dry_run)
     camp_paused = _campaign_zero_lead_pass(graph, settings, dry_run=dry_run)
 
     active_left = len([d for d in decisions if not d.should_pause])
@@ -544,10 +654,11 @@ def _run_one(graph, settings: Settings, *, dry_run: bool = False) -> Dict[str, A
     summary = (f"CPL monitor ({event}): evaluated {len(decisions)} active ads, "
                f"{verb} {len(to_pause) if dry_run else paused}, "
                f"{'would cut' if dry_run else 'cut'} {cuts} budget(s) -{settings.kpi.cpl_reduce_pct:.0f}%, "
+               f"{'would raise' if dry_run else 'raised'} {raises} budget(s) +{settings.cpa.scale_up_pct:.0f}%, "
                f"{verb} {camp_paused} whole 0-reg campaign(s), "
                f"{active_left} remain (target CPL {settings.kpi.cpl_target_myr:.0f} MYR, "
                f"0-reg kill at {settings.kpi.cpl_min_spend_myr:.0f})")
     final_summary(log, summary)
     return {"evaluated": len(decisions), "paused": (len(to_pause) if dry_run else paused),
-            "budget_cuts": cuts, "campaign_pauses": camp_paused, "remaining": active_left,
+            "budget_cuts": cuts, "budget_raises": raises, "campaign_pauses": camp_paused, "remaining": active_left,
             "dry_run": dry_run}
