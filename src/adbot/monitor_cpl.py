@@ -13,8 +13,8 @@ Registration), not a hardcoded "lead". Two daily rules (SG numbers; MY runs its 
 29 Oct operator 「B」: config turns rule 2 off (kpi.cpl_reduce_pct 0) and drops the CPL > 105 kill
 (kpi.high_cpl_kill_multiple 0); the RM90 zero-registration kill stays, and a sale only protects an
 ad when its UTM campaign, ad set and ad are all this ad's own (sale_key).
-29 Oct operator 「加 20%」「A」: an ad whose own 60-day CPA is at or under cpa.target_myr (on enough
-spend, any age) gets its budget owner raised by cpa.scale_up_pct, then left
+29 Oct operator 「加 20%」「A」: an ad whose own 60-day CPA is at or under cpa.target_myr (any age,
+any spend: one own sale is enough) gets its budget owner raised by cpa.scale_up_pct, then left
 alone for cpa.scale_up_wait_days full days.
 
 The decision logic is pure (unit-tested); the runner reads insights via the Graph client,
@@ -377,10 +377,10 @@ RAISE_LABEL = "ADBOT_BUDGET_UP_"
 
 
 def raise_qualifies(d: AdDecision, cfg) -> bool:
-    """The ad's own sales put its CPA at or under target, on enough spend. No age gate (29 Oct
-    operator 「不需要写死上线天数」: a new ad that sells right away can be raised)."""
+    """The ad's own sales put its CPA at or under target. No age or spend gate (29 Oct operator
+    「不需要写死上线天数」, then 「A」: one own sale at CPA <= target is enough)."""
     return (not d.should_pause and d.cpa_sales > 0 and d.cpa is not None and d.cpa != math.inf
-            and d.cpa <= cfg.target_myr and d.cpa_spend >= cfg.min_spend_myr)
+            and d.cpa <= cfg.target_myr)
 
 
 def plan_budget_raises(decisions: List[AdDecision], adsets: Dict[str, Dict[str, Any]],
