@@ -101,12 +101,12 @@ kpi:
   #   带 leads 的高 CPL 不再被直接关；cpl_hold 名单照旧不动，60d 真实成交的 CPA 救援/硬线照旧。
   #   (MY 市场的同款规则是 RM60 / RM90，住在 martin-ads-MY repo。)
   cpl_target_myr: 70.00                  # SG 目标 CPL — 超过就降预算（2 Oct operator）
-  cpl_reduce_pct: 30                     # 每日降幅 %
+  cpl_reduce_pct: 0                      # 29 Oct operator 「B」: 不按 CPL 降预算了（原 30%/天；0 = 关掉降预算）
   cpl_threshold_myr: 70.00               # legacy display ceiling for report scripts (= target; no longer a pause line)
   cpl_min_spend_myr: 90.00               # 17 Oct operator 「花了 RM90 还没有报名的，直接停掉」: verdict gate AND the 0-registration kill line, every SG ad
   monitor_paused_until: "2026-09-11"     # 9 Sep operator: "今晚不要關，明天晚上才開直播" — monitor closes NOTHING Tue/Wed nights, resumes Thu 9/11 by itself
   cpl_lookback: "week_thu"               # week-to-date from Thursday (the weekly ON/reset)
-  high_cpl_kill_multiple: 1.5             # 19 Oct operator 「CPL 超过 105、又没有成交的，直接关」: CPL > 70 x 1.5 with no 60d SG sale -> pause
+  high_cpl_kill_multiple: 0               # 29 Oct operator 「B」: CPL 超过 105 的关停线取消（19 Oct 是 1.5）；只留 RM90 零报名线，判生死看 CPA
   pause_zero_lead_after_spend: true      # spent >= cpl_min_spend with 0 results -> infinite CPL -> pause
   cpl_min_spend_overrides:               # per-campaign 0-reg kill line (account-wide line above stays 105)
     # campaign_zero_lead_spend_myr (9 Oct operator, 1 到 4 都做): a CBO test campaign that spends this
@@ -143,14 +143,14 @@ cpa:                                     # cost per real PAID acquisition (joins
   enabled: true
   spreadsheet_id: "1DsKtcDpsWp3Njfah6Fw3PBizhGiy017ULw5qKeV-RSA"   # "Paid Student List" sheet (shared with MY; share with the SA email)
   sales_tab: "Paid Student List (RM1997)"   # cloned from MY
-  # 3 Sep: operator confirmed the SG price is RM2,399 and re-benchmarked the CPA bands on it
-  # (same 30/40/50%-of-revenue rule as before): target 720 = 3.33x ROAS, acceptable 960 = 40%,
-  # hard stop 1,200 = 50%. Matches the Apr-Jun weighted historical CPA of RM716.82.
-  price_myr: 2399.00                     # default pax price (sheet's Amount column overrides per row)
-  target_myr: 720.00                     # primary target CPA (RM2,399 / 3.33x)
-  healthy_max_myr: 800.00                # end of healthy range (NOT an auto-pause line)
-  max_acceptable_myr: 960.00             # above here -> pause candidate after diagnosis (40%)
-  hard_stop_myr: 1200.00                 # above here (with real sales) -> auto-pause (50%)
+  # 29 Oct operator 「改成 740 / 860 / 1,040 / 1,300」: same bands as Martin MY. Every paid-sheet row
+  # Jul-Oct (SG, MY, no UTM) is RM2,591 (scripts/sg_price_1029.py), so the 3 Sep RM2,399 bands
+  # (720 / 800 / 960 / 1,200) were out of date. 740 / 860 / 1,040 / 1,300 = 28.6 / 33.2 / 40.1 / 50.2% of RM2,591.
+  price_myr: 2591.00                     # default pax price (sheet's Amount column overrides per row)
+  target_myr: 740.00                     # primary target CPA
+  healthy_max_myr: 860.00                # end of healthy range (NOT an auto-pause line)
+  max_acceptable_myr: 1040.00            # above here -> pause candidate after diagnosis
+  hard_stop_myr: 1300.00                 # above here (with real sales) -> auto-pause
   conversion_days: 14                    # don't judge CPA / 'no sales' until this old
   min_spend_myr: 1000.00                 # need >= this spend before a CPA verdict is fair
   hard_stop_exempt_ad_ids:               # never auto-paused on the CPA hard stop (CPL lines still apply)

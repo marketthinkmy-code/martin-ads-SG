@@ -10,6 +10,10 @@ Registration), not a hardcoded "lead". Two daily rules (SG numbers; MY runs its 
      to main by the workflow), floored at the RM50 ad-set minimum. High CPL with real
      leads is no longer auto-PAUSED — the cut replaces the old kill line.
 
+29 Oct operator 「B」: config turns rule 2 off (kpi.cpl_reduce_pct 0) and drops the CPL > 105 kill
+(kpi.high_cpl_kill_multiple 0); the RM90 zero-registration kill stays, and a sale only protects an
+ad when its UTM campaign, ad set and ad are all this ad's own (sale_key).
+
 The decision logic is pure (unit-tested); the runner reads insights via the Graph client,
 only ever acts on ACTIVE ads, and never un-pauses — re-activation is always a human (or
 weekly_on) decision. cpl_hold names stay exempt; the 60d real-sales CPA rescue and hard
@@ -173,13 +177,17 @@ def _mkey(name: str) -> str:
     return cpa.norm(s)
 
 
-def sale_key(campaign: str, ad: str) -> Tuple[str, str]:
-    """(campaign, ad) key shared by the sheet's UTM values and Meta names."""
-    return cpa.ad_key(campaign), cpa.ad_key(ad)
+def sale_key(campaign: str, adset: str, ad: str) -> Tuple[str, str, str]:
+    """(campaign, ad set, ad) key shared by the sheet's UTM values and Meta names.
+
+    29 Oct operator 「自己的 campaign，ad set，ad 还没有自己的成交，就关」: a sale protects an ad
+    only when all three of its UTM names are this ad's own.
+    """
+    return cpa.ad_key(campaign), cpa.ad_key(adset), cpa.ad_key(ad)
 
 
 def build_cpa_context(graph, settings: Settings, today: dt.date):
-    """(60-day sales by sale_key(campaign, ad), 60-day spend by ad_id) for the CPA gate.
+    """(60-day sales by sale_key(campaign, ad set, ad), 60-day spend by ad_id) for the CPA gate.
 
     Returns empty dicts when CPA is disabled or any source is unavailable, so a Sheets/Meta
     hiccup degrades the monitor to CPL-only rather than breaking it.
@@ -197,11 +205,11 @@ def build_cpa_context(graph, settings: Settings, today: dt.date):
         # the RM90 zero-registration kill (HK 15岁以上 Health and Wellness: RM138.73, 0 reg, kept).
         # The SG UTM campaign now carries {{campaign.name}}; sale_key() folds width and
         # punctuation on both parts so the sheet value matches the Meta name.
-        sold: Dict[Tuple[str, str], int] = {}
+        sold: Dict[Tuple[str, str, str], int] = {}
         for s in sales:
             if s.date and s.date > cutoff:
-                key = sale_key(s.campaign, s.ad)
-                if key[0] and key[1]:
+                key = sale_key(s.campaign, s.adset, s.ad)
+                if all(key):
                     sold[key] = sold.get(key, 0) + 1
         spend: Dict[str, float] = {}
         for row in graph.account_insights(
@@ -262,7 +270,8 @@ def evaluate_account(graph, settings: Settings, *, cpa_ctx=None) -> List[AdDecis
             n_sales, age = 0, None
             should_pause, reason = cpl_pause, cpl_reason
             if use_cpa:
-                n_sales = sold60.get(sale_key(campaign.get("name") or "", name), 0)
+                adset_name = (ad.get("adset") or {}).get("name") or ""
+                n_sales = sold60.get(sale_key(campaign.get("name") or "", adset_name, name), 0)
                 sp60 = spend60.get(ad["id"], 0.0)
                 cpa_val = cpa.cpa(sp60, n_sales)
                 created = cpa.parse_date((ad.get("created_time") or "")[:10])

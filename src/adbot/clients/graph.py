@@ -219,7 +219,7 @@ class GraphClient:
         # adset{promoted_object} rides along so the monitor can tell which conversion event
         # each ad is optimized for (and never judge a non-registration ad on registration CPL).
         return self._get_all(f"{campaign_id}/ads",
-                            {"fields": "id,name,effective_status,created_time,adset_id,adset{promoted_object}",
+                            {"fields": "id,name,effective_status,created_time,adset_id,adset{name,promoted_object}",
                              "limit": 200})
 
     def get_ad_insight(self, ad_id: str, date_preset: Optional[str] = None,
