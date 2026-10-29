@@ -65,16 +65,29 @@ def main():
     for label, acct in ACCTS:
         for v in g._get_all(f"{acct}/advideos", {"fields": "id,title", "limit": 500}):
             titles[v["id"]] = v.get("title") or ""
-        life = defaultdict(lambda: [0.0, 0.0])     # ads made since SINCE: 30-day chunks cover their whole life
+        life = defaultdict(lambda: [0.0, 0.0])     # ads made since SINCE: chunks cover their whole life
+
+        def pull(since: dt.date, until: dt.date) -> None:
+            try:
+                rows = g._get_all(f"{acct}/insights", {"level": "ad", "limit": 200, "fields": "ad_id,spend,actions",
+                                                       "time_range": json.dumps({"since": since.isoformat(),
+                                                                                 "until": until.isoformat()})})
+            except GraphError:
+                if since >= until:
+                    raise
+                mid = since + (until - since) // 2      # Meta refused the range: split it in two
+                pull(since, mid)
+                pull(mid + dt.timedelta(days=1), until)
+                return
+            for r in rows:
+                life[r["ad_id"]][0] += _f(r.get("spend"))
+                life[r["ad_id"]][1] += extract_results(r.get("actions"), tok)
+
         start = dt.date.fromisoformat(SINCE)
         today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
         while start <= today:
-            end = min(start + dt.timedelta(days=29), today)
-            for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "fields": "ad_id,spend,actions",
-                                                     "time_range": json.dumps({"since": start.isoformat(),
-                                                                               "until": end.isoformat()})}):
-                life[r["ad_id"]][0] += _f(r.get("spend"))
-                life[r["ad_id"]][1] += extract_results(r.get("actions"), tok)
+            end = min(start + dt.timedelta(days=13), today)
+            pull(start, end)
             start = end + dt.timedelta(days=1)
         n = 0
         for a in g._get_all(f"{acct}/ads", {"fields": AD_F, "limit": 200,
