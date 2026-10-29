@@ -178,6 +178,8 @@ class CpaCfg(BaseModel):
     conversion_days: int = 14           # don't judge CPA / 'no sales' until this old
     min_spend_myr: float = 1000.0       # need at least this much spend to fairly judge CPA
     hard_stop_exempt_ad_ids: List[str] = Field(default_factory=list)  # never auto-paused on CPA
+    scale_up_pct: float = 0.0           # >0: raise the budget of an ad at CPA <= target by this %
+    scale_up_wait_days: int = 2         # full days to watch after a raise before the next one
 
 
 class NotionCfg(BaseModel):

@@ -6,7 +6,7 @@ from adbot import cpa
 from adbot.monitor_cpl import (INSUFFICIENT_SPEND, MANUAL_HOLD, NO_RESULTS_YET, OVER_THRESHOLD,
                                WITHIN_THRESHOLD, ZERO_RESULTS, AdDecision, cpl_window, decide,
                                evaluate_account, extract_results, parse_metrics,
-                               plan_budget_cuts, result_action_type, sale_key, _week_start_thursday)
+                               plan_budget_cuts, plan_budget_raises, result_action_type, sale_key, _week_start_thursday)
 from adbot.settings import CpaCfg, KpiCfg, MetaCfg, Settings
 
 KPI = KpiCfg(cpl_target_myr=40, cpl_threshold_myr=40, cpl_min_spend_myr=80,
@@ -362,3 +362,35 @@ def test_hard_stop_exemption_skips_only_the_cpa_line():
     assert not out["keep_me"].should_pause and out["keep_me"].reason == monitor_cpl.HARD_STOP_EXEMPT
     assert out["other"].should_pause and out["other"].reason == cpa.HARD_STOP
     assert out["dry"].should_pause and out["dry"].reason == monitor_cpl.ZERO_RESULTS
+
+
+# ── 29 Oct operator 「加 20%」「A」: raise on CPA within target ─────────────────────
+def test_plan_budget_raises():
+    cfg = CpaCfg(enabled=True, target_myr=740, conversion_days=14, min_spend_myr=1000,
+                 scale_up_pct=20, scale_up_wait_days=2)
+    D = AdDecision
+    good = dict(cpa=700.0, cpa_sales=3, age_days=30, cpa_spend=2100.0)
+    decisions = [
+        D("a", "a", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s1", **good),           # ABO -> raise s1
+        D("b", "b", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s2", **good),           # CBO -> raise campX
+        D("b2", "b2", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s2b", **good),        # same campaign: once
+        D("c", "c", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s3", **dict(good, cpa=800.0)),     # over target
+        D("d", "d", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s4", **dict(good, age_days=10)),   # too young
+        D("e", "e", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s5", **dict(good, cpa_spend=900.0)),  # too little spend
+        D("f", "f", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s6", **good),           # raised 2 days ago -> wait
+        D("g", "g", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s7", **good),           # raised 3 days ago -> raise
+        D("h", "h", 95, 0, math.inf, True, ZERO_RESULTS, adset_id="s8", **good),          # being paused
+    ]
+    adsets = {k: {"id": k, "name": k, "daily_budget": "5000", "campaign_id": "campA"}
+              for k in ("s1", "s3", "s4", "s5", "s6", "s7", "s8")}
+    adsets["s2"] = {"id": "s2", "name": "s2", "daily_budget": None, "campaign_id": "campX"}
+    adsets["s2b"] = {"id": "s2b", "name": "s2b", "daily_budget": None, "campaign_id": "campX"}
+    campaigns = {"campX": {"id": "campX", "name": "campX", "daily_budget": "10000"}}
+    today = dt.date(2026, 10, 29)
+    plans = {p["id"]: p for p in plan_budget_raises(
+        decisions, adsets, campaigns, cfg, {"s6": dt.date(2026, 10, 27), "s7": dt.date(2026, 10, 26)}, today)}
+    assert set(plans) == {"s1", "campX", "s7"}
+    assert plans["s1"]["new_cents"] == 6000
+    assert plans["campX"]["type"] == "campaign" and plans["campX"]["new_cents"] == 12000
+    assert plans["campX"]["ads"] == ["b", "b2"]
+    assert plan_budget_raises(decisions, adsets, campaigns, CpaCfg(scale_up_pct=0), {}, today) == []
