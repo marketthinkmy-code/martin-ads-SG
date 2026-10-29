@@ -1,8 +1,8 @@
 """Keep or close? Every live ad on SG old + HK, judged on sales (read-only, 29 Oct).
 
 Operator: 目前的广告有什么值得留、关的吗？ Per live ad: own sales (UTM campaign + ad set + ad) in 60 days
-and all time, spend / registrations in 60 days and all time (all time = 30-day chunks since the ad
-was created), own CPA and its band (cpa.target 740 / healthy 860 / max acceptable 1,040 / hard
+and all time, spend / registrations in 60 days and all time (one insights call per window, filtered to the
+live ad ids, to stay under Meta's per-account call limit), own CPA and its band (cpa.target 740 / healthy 860 / max acceptable 1,040 / hard
 stop 1,300), spend since Thursday; the creative across accounts (rule 4): SG sales of the ad name
 (paid sheet, any campaign) and MY sales + MY 60-day spend / registrations of the same ad name. No writes.
 """
@@ -13,7 +13,9 @@ import json
 from collections import defaultdict
 
 from adbot import cpa
-from adbot.clients.graph import GraphError
+import sys
+
+from adbot.clients.graph import GraphError, TransientGraphError
 from adbot.clients.sheets import SheetsClient
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
@@ -70,53 +72,58 @@ def main():
         elif "[my]" in c or "martin-my" in c:
             my_name[cpa.ad_key(x.ad)] += 1
 
-    def ins(ad_id, since, until):
-        r = (g._get_all(f"{ad_id}/insights", {"fields": "spend,actions",
-                                              "time_range": json.dumps({"since": since.isoformat(), "until": until.isoformat()})})
-             or [{}])[0]
-        return _f(r.get("spend")), extract_results(r.get("actions"), tok)
+    LIVE = ["ACTIVE", "IN_PROCESS", "PENDING_REVIEW", "WITH_ISSUES", "PREAPPROVED"]
+
+    def by_ad(acct, ids, **when):                     # one insights call per window, filtered to the live ads
+        out = {}
+        for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 200, "fields": "ad_id,spend,actions",
+                                                 "filtering": json.dumps([{"field": "ad.id", "operator": "IN", "value": ids}]),
+                                                 **when}):
+            out[r["ad_id"]] = (_f(r.get("spend")), extract_results(r.get("actions"), tok))
+        return out
+
+    def tr(a, b):
+        return {"time_range": json.dumps({"since": a.isoformat(), "until": b.isoformat()})}
 
     rows = []
     for label, acct in ACCTS:
-        for c in g._get_all(f"{acct}/campaigns", {"fields": "id,name,effective_status", "limit": 300}):
-            if c.get("effective_status") != "ACTIVE":
-                continue
-            for a in g._get_all(f"{c['id']}/ads", {"fields": "id,name,effective_status,created_time,adset{name}", "limit": 200}):
-                if a.get("effective_status") in DEAD:
-                    continue
-                name, st = a.get("name") or "", (a.get("adset") or {}).get("name") or ""
-                k = (cpa.ad_key(c.get("name") or ""), cpa.ad_key(st), cpa.ad_key(name))
-                created = dt.date.fromisoformat((a.get("created_time") or today.isoformat())[:10])
-                life_sp = life_reg = 0.0
-                start = created
-                while start <= today:                       # all time in 30-day chunks
-                    end = min(start + dt.timedelta(days=29), today)
-                    sp, rg = ins(a["id"], start, end)
-                    life_sp, life_reg = life_sp + sp, life_reg + rg
-                    start = end + dt.timedelta(days=1)
-                sp60, rg60 = ins(a["id"], max(d60, created), today)
-                spw, rgw = ins(a["id"], thu, today)
-                rows.append({"acct": label, "id": a["id"], "name": name, "campaign": c.get("name") or "", "adset": st,
-                             "created": created, "life_sp": life_sp, "life_reg": life_reg, "sp60": sp60, "rg60": rg60,
-                             "spw": spw, "rgw": rgw, "own_all": own_all.get(k, 0), "own60": own60.get(k, 0),
-                             "sg_name": sg_name.get(cpa.ad_key(name), 0), "my_name": my_name.get(cpa.ad_key(name), 0)})
+        ads = [a for a in g._get_all(f"{acct}/ads", {
+            "fields": "id,name,effective_status,created_time,campaign{name,effective_status},adset{name}", "limit": 200,
+            "filtering": json.dumps([{"field": "effective_status", "operator": "IN", "value": LIVE}])})
+            if a.get("effective_status") not in DEAD]
+        ids = [a["id"] for a in ads]
+        if not ids:
+            continue
+        life = by_ad(acct, ids, date_preset="maximum")
+        s60 = by_ad(acct, ids, **tr(d60, today))
+        wk = by_ad(acct, ids, **tr(thu, today))
+        for a in ads:
+            name, st = a.get("name") or "", (a.get("adset") or {}).get("name") or ""
+            cname = (a.get("campaign") or {}).get("name") or ""
+            k = (cpa.ad_key(cname), cpa.ad_key(st), cpa.ad_key(name))
+            (life_sp, life_reg), (sp60, rg60), (spw, rgw) = (life.get(a["id"], (0.0, 0.0)), s60.get(a["id"], (0.0, 0.0)),
+                                                              wk.get(a["id"], (0.0, 0.0)))
+            rows.append({"acct": label, "id": a["id"], "name": name, "campaign": cname, "adset": st,
+                         "created": (a.get("created_time") or "")[:10], "life_sp": life_sp, "life_reg": life_reg,
+                         "sp60": sp60, "rg60": rg60, "spw": spw, "rgw": rgw, "own_all": own_all.get(k, 0),
+                         "own60": own60.get(k, 0), "sg_name": sg_name.get(cpa.ad_key(name), 0),
+                         "my_name": my_name.get(cpa.ad_key(name), 0)})
 
-    my60 = {}
-    for nm in sorted({r["name"] for r in rows}):
-        try:
-            got = g._get_all(f"{MY}/insights", {"level": "account", "fields": "spend,actions",
-                                                 "time_range": json.dumps({"since": d60.isoformat(), "until": today.isoformat()}),
-                                                 "filtering": json.dumps([{"field": "ad.name", "operator": "EQUAL", "value": nm}])})
-            r = (got or [{}])[0]
-            my60[nm] = (_f(r.get("spend")), extract_results(r.get("actions"), tok))
-        except GraphError as exc:
-            my60[nm] = None
-            log.info("MY %r 读不到：%s", nm, str(exc)[:80])
+    my60 = defaultdict(lambda: [0.0, 0.0])
+    names = sorted({r["name"] for r in rows})
+    try:
+        for r in g._get_all(f"{MY}/insights", {"level": "ad", "limit": 200, "fields": "ad_name,spend,actions",
+                                                "filtering": json.dumps([{"field": "ad.name", "operator": "IN", "value": names}]),
+                                                **tr(d60, today)}):
+            my60[r.get("ad_name")][0] += _f(r.get("spend"))
+            my60[r.get("ad_name")][1] += extract_results(r.get("actions"), tok)
+    except GraphError as exc:
+        log.info("MY 读不到：%s", str(exc)[:120])
 
     cfg = s.cpa
     for r in sorted(rows, key=lambda r: (r["own_all"] == 0, -(r["own_all"]), r["acct"])):
         cpa_life = r["life_sp"] / r["own_all"] if r["own_all"] else None
-        m = my60.get(r["name"])
+        m = my60.get(r["name"]) if r["name"] in my60 else (0.0, 0.0)
         log.info("%s ad %s %r · campaign %r · ad set %r · 建于 %s", r["acct"], r["id"], r["name"][:40], r["campaign"][:60],
                  r["adset"][:30], r["created"])
         log.info("    自己的成交 全期 %d / 60 天 %d · 全期花 RM%.2f 报名 %d · CPA %s（%s）· CPL %s · 60 天花 RM%.2f 报名 %d · 本周花 RM%.2f 报名 %d",
@@ -124,11 +131,15 @@ def main():
                  band(cpa_life, cfg), f"RM{r['life_sp'] / r['life_reg']:.0f}" if r["life_reg"] else "—", r["sp60"], r["rg60"],
                  r["spw"], r["rgw"])
         log.info("    同名片（规矩 4）：SG 成交表 %d 笔 · MY 成交表 %d 笔 · MY 60 天 %s", r["sg_name"], r["my_name"],
-                 f"花 RM{m[0]:.2f} 报名 {m[1]:.0f}" if m else "读不到")
+                 f"花 RM{m[0]:.2f} 报名 {m[1]:.0f}")
     n0 = [r for r in rows if not r["own_all"]]
     final_summary(log, f"在跑 {len(rows)} 支 · 有自己成交 {len(rows) - len(n0)} · 零自己成交 {len(n0)} · "
                        f"零成交的全期花 RM{sum(r['life_sp'] for r in n0):.2f} 报名 {sum(r['life_reg'] for r in n0):.0f}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TransientGraphError as exc:
+        get_logger().error("RATE LIMITED: %s — re-dispatch in ~30 min.", str(exc)[:200])
+        sys.exit(75)
