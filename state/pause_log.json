@@ -451,5 +451,50 @@
     "ads": [
       "Video 12：15歲以上試了五六種方法沒長高"
     ]
+  },
+  {
+    "ts": "2026-10-29T23:25:33+00:00",
+    "entity_id": "120258189819400093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 93.01,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-29T23:25:35+00:00",
+    "entity_id": "120257496415810093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 102.06,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-29T23:25:36+00:00",
+    "entity_id": "120257496414280093",
+    "entity_type": "campaign",
+    "reason": "campaign_without_live_ads"
+  },
+  {
+    "ts": "2026-10-29T23:25:48+00:00",
+    "entity_id": "120250067491600335",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 102.55,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-29T23:25:49+00:00",
+    "entity_id": "120250067471130335",
+    "entity_type": "campaign",
+    "reason": "campaign_without_live_ads"
   }
 ]
