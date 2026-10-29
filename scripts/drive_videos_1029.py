@@ -8,6 +8,7 @@ CPL, own sales (UTM campaign + ad set + ad) and SG sales of the same ad name (pa
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 from collections import defaultdict
 
@@ -64,12 +65,17 @@ def main():
     for label, acct in ACCTS:
         for v in g._get_all(f"{acct}/advideos", {"fields": "id,title", "limit": 500}):
             titles[v["id"]] = v.get("title") or ""
-        life = {}
-        for r in g._get_all(f"{acct}/insights", {"level": "ad", "date_preset": "maximum", "limit": 500,
-                                                 "fields": "ad_id,spend,actions",
-                                                 "filtering": json.dumps([{"field": "ad.created_time", "operator": "GREATER_THAN",
-                                                                           "value": SINCE}])}):
-            life[r["ad_id"]] = (_f(r.get("spend")), extract_results(r.get("actions"), tok))
+        life = defaultdict(lambda: [0.0, 0.0])     # ads made since SINCE: 30-day chunks cover their whole life
+        start = dt.date.fromisoformat(SINCE)
+        today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+        while start <= today:
+            end = min(start + dt.timedelta(days=29), today)
+            for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "fields": "ad_id,spend,actions",
+                                                     "time_range": json.dumps({"since": start.isoformat(),
+                                                                               "until": end.isoformat()})}):
+                life[r["ad_id"]][0] += _f(r.get("spend"))
+                life[r["ad_id"]][1] += extract_results(r.get("actions"), tok)
+            start = end + dt.timedelta(days=1)
         n = 0
         for a in g._get_all(f"{acct}/ads", {"fields": AD_F, "limit": 200,
                                             "filtering": json.dumps([{"field": "created_time", "operator": "GREATER_THAN",
