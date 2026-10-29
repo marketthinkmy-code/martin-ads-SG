@@ -41,9 +41,15 @@ def main():
         for c in camps:
             sets = [a for a in g._get_all(f"{c['id']}/adsets", {"fields": "id,name,effective_status,daily_budget", "limit": 100})
                     if a.get("effective_status") == "ACTIVE"]
-            ads = g._get_all(f"{c['id']}/ads", {"fields": "id,name,effective_status", "limit": 200})
-            st = Counter(a.get("effective_status") for a in ads if a.get("effective_status") not in ("PAUSED", "ADSET_PAUSED", "ARCHIVED", "DELETED"))
-            budget = _c(c.get("daily_budget")) or sum(_c(a.get("daily_budget")) for a in sets)
+            ads = g._get_all(f"{c['id']}/ads", {"fields": "id,name,effective_status,adset_id", "limit": 200})
+            live = [a for a in ads if a.get("effective_status") not in ("PAUSED", "ADSET_PAUSED", "CAMPAIGN_PAUSED",
+                                                                          "ARCHIVED", "DELETED")]
+            st = Counter(a.get("effective_status") for a in live)
+            live_sets = {a.get("adset_id") for a in live}
+            # ABO: only ad sets with a live ad spend — an ACTIVE ad set whose ads are all paused does not
+            budget = _c(c.get("daily_budget")) or sum(_c(a.get("daily_budget")) for a in sets if a["id"] in live_sets)
+            for a in live:
+                log.info("      ad %s %r · %s", a["id"], a.get("name"), a.get("effective_status"))
             total += budget
             log.info("%s · campaign %s %r · 每天 RM%.0f · %s", label, c["id"], c.get("name"), budget / 100, dict(st))
         ins = {}
