@@ -3,8 +3,8 @@
 ADBOT_MODE=check (default, read-only): for every target ad, its campaign / ad set / ad statuses and
 budgets, plus every OTHER ad in the same campaign that would start delivering once the target's
 ad set and campaign are ACTIVE (its own status ACTIVE and its ad set ACTIVE or being opened).
-ADBOT_MODE=go: set each target ad ACTIVE, then its ad set, then its campaign; nothing else is
-touched (other ads keep their own status). Reads every target back. No budget changes.
+ADBOT_MODE=go: first pause those other ads (operator 29 Oct 「没有成交过的 ad，就关掉」), then set each
+target ad ACTIVE, then its ad set, then its campaign. Reads every target back. No budget changes.
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def main():
     for n, acct, aid in TARGETS:
         by_camp[ads[aid]["campaign_id"]].append((n, acct, aid))
 
-    extras_total = 0
+    extras = []
     for cid, tl in by_camp.items():
         c = g.get_object(cid, CAMP_F)
         log.info("═" * 100)
@@ -74,13 +74,17 @@ def main():
                 continue
             s = sets.get(o.get("adset_id")) or {}
             if s.get("status") == "ACTIVE" or o.get("adset_id") in open_sets:
-                extras_total += 1
+                extras.append(o)
                 log.info("  ⚠ 会一起跑：ad %s %r · ad set %s %r (%s · 日预算 %s)", o["id"], o.get("name"),
                          s.get("id"), s.get("name"), s.get("status"), _rm(s.get("daily_budget")))
 
     if not go:
-        final_summary(log, f"重开检查（只读）· 目标 {len(TARGETS)} 支 · {len(by_camp)} 个 campaign · 会一起跑的其他广告 {extras_total} 支")
+        final_summary(log, f"重开检查（只读）· 目标 {len(TARGETS)} 支 · {len(by_camp)} 个 campaign · 会一起跑的其他广告 {len(extras)} 支")
         return
+
+    for o in extras:                               # pause the non-sellers BEFORE any campaign opens
+        g.update_status(o["id"], "PAUSED")
+        log.info("  ⏸ 关掉 ad %s %r → %s", o["id"], o.get("name"), g.get_object(o["id"], "status").get("status"))
 
     done, failed = [], []
     for n, acct, aid in TARGETS:
@@ -94,7 +98,7 @@ def main():
         except GraphError as exc:
             failed.append(f"#{n} {acct} {aid}")
             log.error("  ❌ #%d %s ad %s %r 开不了：%s", n, acct, aid, a.get("name"), str(exc)[:200])
-    final_summary(log, f"重开 {len(done)} 支 · 失败 {len(failed)} · {' | '.join(done)}" + (f" · 失败 {failed}" if failed else ""))
+    final_summary(log, f"关掉没成交的 {len(extras)} 支 · 重开 {len(done)} 支 · 失败 {len(failed)} · {' | '.join(done)}" + (f" · 失败 {failed}" if failed else ""))
 
 
 if __name__ == "__main__":
