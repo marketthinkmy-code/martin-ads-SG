@@ -155,8 +155,9 @@ cpa:                                     # cost per real PAID acquisition (joins
   min_spend_myr: 1000.00                 # need >= this spend before a CPA verdict is fair
   # 29 Oct operator 「加 20%」「A」: the monitor raises the budget owner (ABO ad set / CBO campaign) by 20%
   # when an ad's OWN sales (UTM campaign + ad set + ad) put its 60-day CPA at or under target_myr,
-  # it is past conversion_days and its 60-day spend >= min_spend_myr. Then 2 full days of watching
-  # before the same budget is raised again (label ADBOT_BUDGET_UP_<date> on Meta). No ceiling.
+  # and its 60-day spend >= min_spend_myr — any age (operator 「不需要写死上线天数」). Then 2 full days
+  # of watching before the same budget is raised again (label ADBOT_BUDGET_UP_<date> on Meta).
+  # No ceiling on the SG daily total (operator 29 Oct 「B」).
   scale_up_pct: 20
   scale_up_wait_days: 2
   hard_stop_exempt_ad_ids:               # never auto-paused on the CPA hard stop (CPL lines still apply)

@@ -375,7 +375,7 @@ def test_plan_budget_raises():
         D("b", "b", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s2", **good),           # CBO -> raise campX
         D("b2", "b2", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s2b", **good),        # same campaign: once
         D("c", "c", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s3", **dict(good, cpa=800.0)),     # over target
-        D("d", "d", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s4", **dict(good, age_days=10)),   # too young
+        D("d", "d", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s4", **dict(good, age_days=3)),    # new ad: no age gate
         D("e", "e", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s5", **dict(good, cpa_spend=900.0)),  # too little spend
         D("f", "f", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s6", **good),           # raised 2 days ago -> wait
         D("g", "g", 50, 1, 50, False, WITHIN_THRESHOLD, adset_id="s7", **good),           # raised 3 days ago -> raise
@@ -389,7 +389,7 @@ def test_plan_budget_raises():
     today = dt.date(2026, 10, 29)
     plans = {p["id"]: p for p in plan_budget_raises(
         decisions, adsets, campaigns, cfg, {"s6": dt.date(2026, 10, 27), "s7": dt.date(2026, 10, 26)}, today)}
-    assert set(plans) == {"s1", "campX", "s7"}
+    assert set(plans) == {"s1", "campX", "s4", "s7"}
     assert plans["s1"]["new_cents"] == 6000
     assert plans["campX"]["type"] == "campaign" and plans["campX"]["new_cents"] == 12000
     assert plans["campX"]["ads"] == ["b", "b2"]
