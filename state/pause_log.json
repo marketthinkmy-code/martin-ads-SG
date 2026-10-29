@@ -295,5 +295,161 @@
     "cpl": null,
     "cpa": null,
     "cpa_sales": 0
+  },
+  {
+    "ts": "2026-10-29T13:45:39+00:00",
+    "entity_id": "120258728158280093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 224.12,
+    "sales": 1,
+    "ads": [
+      "Hook 3：倒掉牛奶"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:45:44+00:00",
+    "entity_id": "120258493502800093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 100.0,
+    "new_daily_myr": 120.0,
+    "cpa": 124.59,
+    "sales": 1,
+    "ads": [
+      "Hook 3：倒掉牛奶"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:45:49+00:00",
+    "entity_id": "120257884626570093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 65.0,
+    "new_daily_myr": 78.0,
+    "cpa": 432.6,
+    "sales": 1,
+    "ads": [
+      "🌟 Hook 2：你還在把麵包當早餐？"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:45:54+00:00",
+    "entity_id": "120257269400010093",
+    "entity_type": "campaign",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 119.96,
+    "sales": 1,
+    "ads": [
+      "Video 12：15歲以上試了五六種方法沒長高"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:45:59+00:00",
+    "entity_id": "120256599020440093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 34.58,
+    "sales": 1,
+    "ads": [
+      "MAR Video Hook 3: 准备早餐面包"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:04+00:00",
+    "entity_id": "120257934304620093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 225.35,
+    "sales": 1,
+    "ads": [
+      "MAR Video Hook 3: 准备早餐面包"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:06+00:00",
+    "entity_id": "120241408854930093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 25.29,
+    "sales": 1,
+    "ads": [
+      "Video 1: 流鼻涕 咳嗽 allergy 每晚睡不好"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:10+00:00",
+    "entity_id": "120242606093210093",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 27.2,
+    "sales": 1,
+    "ads": [
+      "Hook 7: 担心孩子的高度没跟得上年龄该有的高度"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:26+00:00",
+    "entity_id": "120250067332510335",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 646.97,
+    "sales": 2,
+    "ads": [
+      "MAR Video 5：林書豪story"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:32+00:00",
+    "entity_id": "120250066977460335",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 165.55,
+    "sales": 1,
+    "ads": [
+      "Hook 3：倒掉牛奶"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:36+00:00",
+    "entity_id": "120250013469590335",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 563.69,
+    "sales": 1,
+    "ads": [
+      "Hook 3：倒掉牛奶"
+    ]
+  },
+  {
+    "ts": "2026-10-29T13:46:40+00:00",
+    "entity_id": "120250013348250335",
+    "entity_type": "adset",
+    "reason": "cpa_within_target_budget_raise",
+    "old_daily_myr": 50.0,
+    "new_daily_myr": 60.0,
+    "cpa": 239.06,
+    "sales": 1,
+    "ads": [
+      "Video 12：15歲以上試了五六種方法沒長高"
+    ]
   }
 ]
