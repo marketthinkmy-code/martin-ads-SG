@@ -11,7 +11,9 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 
-from adbot.clients.graph import GraphError
+import sys
+
+from adbot.clients.graph import GraphError, TransientGraphError
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
@@ -102,4 +104,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TransientGraphError as exc:
+        get_logger().error("RATE LIMITED: %s — re-dispatch in ~30 min (go mode is safe to re-run).", str(exc)[:200])
+        sys.exit(75)
