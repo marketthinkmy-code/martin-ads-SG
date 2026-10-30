@@ -1,0 +1,36 @@
+name: adbot · drop a campaign name suffix (manual)
+
+# Operator 30 Oct 「A」: rename SG old 120258845186730093 back to its UTM name (drop " | OCT 8") so the
+# monitor sees Video 2's own sale again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      campaign_id:
+        description: "campaign id"
+        required: false
+      suffix:
+        description: "suffix to drop (must match the end of the name exactly)"
+        required: false
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Rename
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_CAMPAIGN_ID: ${{ github.event.inputs.campaign_id }}
+          ADBOT_SUFFIX: ${{ github.event.inputs.suffix }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/rename_campaign_1030.py
