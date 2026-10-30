@@ -4,7 +4,8 @@ Operator: 目前的广告有什么值得留、关的吗？ Per live ad: own sale
 and all time, spend / registrations in 60 days and all time (one insights call per window, filtered to the
 live ad ids, to stay under Meta's per-account call limit), own CPA and its band (cpa.target 740 / healthy 860 / max acceptable 1,040 / hard
 stop 1,300), spend since Thursday; the creative across accounts (rule 4): SG sales of the ad name
-(paid sheet, any campaign) and MY sales + MY 60-day spend / registrations of the same ad name. No writes.
+(paid sheet, any campaign) and MY sales of the same
+ad name (MY spend is not read: Meta refuses ad.name filters). No writes.
 """
 from __future__ import annotations
 
@@ -109,29 +110,19 @@ def main():
                          "own60": own60.get(k, 0), "sg_name": sg_name.get(cpa.ad_key(name), 0),
                          "my_name": my_name.get(cpa.ad_key(name), 0)})
 
-    my60 = defaultdict(lambda: [0.0, 0.0])
-    names = sorted({r["name"] for r in rows})
-    try:
-        for r in g._get_all(f"{MY}/insights", {"level": "ad", "limit": 200, "fields": "ad_name,spend,actions",
-                                                "filtering": json.dumps([{"field": "ad.name", "operator": "IN", "value": names}]),
-                                                **tr(d60, today)}):
-            my60[r.get("ad_name")][0] += _f(r.get("spend"))
-            my60[r.get("ad_name")][1] += extract_results(r.get("actions"), tok)
-    except GraphError as exc:
-        log.info("MY 读不到：%s", str(exc)[:120])
-
     cfg = s.cpa
     for r in sorted(rows, key=lambda r: (r["own_all"] == 0, -(r["own_all"]), r["acct"])):
         cpa_life = r["life_sp"] / r["own_all"] if r["own_all"] else None
-        m = my60.get(r["name"]) if r["name"] in my60 else (0.0, 0.0)
         log.info("%s ad %s %r · campaign %r · ad set %r · 建于 %s", r["acct"], r["id"], r["name"][:40], r["campaign"][:60],
                  r["adset"][:30], r["created"])
         log.info("    自己的成交 全期 %d / 60 天 %d · 全期花 RM%.2f 报名 %d · CPA %s（%s）· CPL %s · 60 天花 RM%.2f 报名 %d · 本周花 RM%.2f 报名 %d",
                  r["own_all"], r["own60"], r["life_sp"], r["life_reg"], f"RM{cpa_life:.0f}" if cpa_life is not None else "—",
                  band(cpa_life, cfg), f"RM{r['life_sp'] / r['life_reg']:.0f}" if r["life_reg"] else "—", r["sp60"], r["rg60"],
                  r["spw"], r["rgw"])
-        log.info("    同名片（规矩 4）：SG 成交表 %d 笔 · MY 成交表 %d 笔 · MY 60 天 %s", r["sg_name"], r["my_name"],
-                 f"花 RM{m[0]:.2f} 报名 {m[1]:.0f}")
+        log.info("    同名片（规矩 4）：SG 成交表 %d 笔 · MY 成交表 %d 笔", r["sg_name"], r["my_name"])
+        nxt = r["life_sp"] / (r["own_all"] + 1)        # CPA if the next sale came now (30 Oct test)
+        log.info("    ▶ 判定：现在 CPA %s · 如果下一单现在来 CPA RM%.0f（%s）",
+                 f"RM{cpa_life:.0f}" if cpa_life is not None else "—（零成交）", nxt, band(nxt, cfg))
     n0 = [r for r in rows if not r["own_all"]]
     final_summary(log, f"在跑 {len(rows)} 支 · 有自己成交 {len(rows) - len(n0)} · 零自己成交 {len(n0)} · "
                        f"零成交的全期花 RM{sum(r['life_sp'] for r in n0):.2f} 报名 {sum(r['life_reg'] for r in n0):.0f}")
