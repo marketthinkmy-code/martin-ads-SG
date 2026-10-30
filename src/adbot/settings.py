@@ -180,6 +180,8 @@ class CpaCfg(BaseModel):
     hard_stop_exempt_ad_ids: List[str] = Field(default_factory=list)  # never auto-paused on CPA
     scale_up_pct: float = 0.0           # >0: raise the budget of an ad at CPA <= target by this %
     scale_up_wait_days: int = 2         # full days to watch after a raise before the next one
+    scale_up_recent_days: int = 2       # window for the recent-registration gate below
+    scale_up_min_recent_results: float = 0.0  # >0: no raise unless this many registrations in that window
 
 
 class NotionCfg(BaseModel):

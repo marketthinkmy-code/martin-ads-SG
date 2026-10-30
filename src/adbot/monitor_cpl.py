@@ -402,16 +402,21 @@ def close_empty_campaigns(graph, campaign_ids, skip_ad_ids=(), *, dry_run: bool)
 RAISE_LABEL = "ADBOT_BUDGET_UP_"
 
 
-def raise_qualifies(d: AdDecision, cfg) -> bool:
+def raise_qualifies(d: AdDecision, cfg, recent: Optional[Dict[str, float]] = None) -> bool:
     """The ad's own sales put its CPA at or under target. No age or spend gate (29 Oct operator
-    「不需要写死上线天数」, then 「A」: one own sale at CPA <= target is enough)."""
-    return (not d.should_pause and d.cpa_sales > 0 and d.cpa is not None and d.cpa != math.inf
-            and d.cpa <= cfg.target_myr)
+    「不需要写死上线天数」, then 「A」: one own sale at CPA <= target is enough). 30 Oct 「B」: and at least
+    cfg.scale_up_min_recent_results registrations in the last cfg.scale_up_recent_days days
+    (recent = ad_id -> registrations; None skips that check, for picking candidates)."""
+    ok = (not d.should_pause and d.cpa_sales > 0 and d.cpa is not None and d.cpa != math.inf
+          and d.cpa <= cfg.target_myr)
+    if ok and recent is not None and cfg.scale_up_min_recent_results > 0:
+        ok = recent.get(d.ad_id, 0.0) >= cfg.scale_up_min_recent_results
+    return ok
 
 
 def plan_budget_raises(decisions: List[AdDecision], adsets: Dict[str, Dict[str, Any]],
                        campaigns: Dict[str, Dict[str, Any]], cfg, last_raise: Dict[str, dt.date],
-                       today: dt.date) -> List[Dict[str, Any]]:
+                       today: dt.date, recent: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """Pure planner: which budgets to raise by cfg.scale_up_pct today.
 
     One raise per budget chain (ABO: the ad set; CBO: the campaign) holding at least one
@@ -429,7 +434,7 @@ def plan_budget_raises(decisions: List[AdDecision], adsets: Dict[str, Dict[str, 
 
     plans: Dict[str, Dict[str, Any]] = {}
     for d in decisions:
-        if not d.adset_id or not raise_qualifies(d, cfg):
+        if not d.adset_id or not raise_qualifies(d, cfg, recent if recent is not None else {}):
             continue
         info = adsets.get(d.adset_id) or {}
         if _cents(info.get("daily_budget")) > 0:
@@ -475,7 +480,18 @@ def _budget_raise_pass(graph, settings: Settings, decisions: List[AdDecision], *
             if day and (ent["id"] not in last_raise or day > last_raise[ent["id"]]):
                 last_raise[ent["id"]] = day
     applied = 0
-    for p in plan_budget_raises(decisions, adsets, campaigns, cfg, last_raise, today):
+    recent: Dict[str, float] = {}                 # registrations in the last scale_up_recent_days days
+    if cfg.scale_up_min_recent_results > 0:
+        token = result_action_type(settings.meta.conversion_event)
+        since = today - dt.timedelta(days=max(cfg.scale_up_recent_days, 1) - 1)
+        for d in decisions:
+            if raise_qualifies(d, cfg):
+                ins = graph.get_ad_insight(d.ad_id, time_range={"since": since.isoformat(), "until": today.isoformat()})
+                recent[d.ad_id] = parse_metrics(ins, token)[1]
+                if recent[d.ad_id] < cfg.scale_up_min_recent_results:
+                    log.info("  [NO RAISE] %s  CPA=%.0f but %.0f registration(s) since %s", d.name, d.cpa,
+                             recent[d.ad_id], since)
+    for p in plan_budget_raises(decisions, adsets, campaigns, cfg, last_raise, today, recent):
         tag = (f"{p['type']} {p['name']}  CPA={p['cpa']:.0f} ({p['sales']} sale) · "
                f"{', '.join(a[:30] for a in p['ads'])}")
         if dry_run:
