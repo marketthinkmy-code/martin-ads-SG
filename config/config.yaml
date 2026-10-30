@@ -158,8 +158,13 @@ cpa:                                     # cost per real PAID acquisition (joins
   # — any age, any spend (operator 「不需要写死上线天数」, then 「A」: 1 own sale is enough). Then 2 full days
   # of watching before the same budget is raised again (label ADBOT_BUDGET_UP_<date> on Meta).
   # No ceiling on the SG daily total (operator 29 Oct 「B」).
-  scale_up_pct: 20
+  # 30 Oct operator 「B：最近 2 天至少要有 1 个报名，才加」+「目前先不加」: the gate below is in, and raises
+  # are OFF for now (scale_up_pct 0; set back to 20 to turn them on). 29 Oct 21:45 the monitor raised
+  # 12 budgets 20% (state/pause_log.json, reason cpa_within_target_budget_raise).
+  scale_up_pct: 0
   scale_up_wait_days: 2
+  scale_up_recent_days: 2
+  scale_up_min_recent_results: 1
   hard_stop_exempt_ad_ids:               # never auto-paused on the CPA hard stop (CPL lines still apply)
     - "120250236479810335"               # 24 Oct operator 「重开」: HK Video 5：Kaya 面包配 Milo, Food and Drink + Milk (CPA 2,112, CPL 53)
 

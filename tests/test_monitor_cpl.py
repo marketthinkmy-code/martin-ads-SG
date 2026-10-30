@@ -417,3 +417,16 @@ def test_close_empty_campaigns(monkeypatch):
     assert g.paused == []
     assert monitor_cpl.close_empty_campaigns(g, ["empty", "busy"], ["x", "z"], dry_run=False) == ["empty"]
     assert g.paused == [("empty", "PAUSED")]
+
+
+def test_raise_needs_a_recent_registration():
+    # 30 Oct operator 「B」: no raise unless >= 1 registration in the last 2 days
+    cfg = CpaCfg(enabled=True, target_myr=740, scale_up_pct=20, scale_up_wait_days=2,
+                 scale_up_recent_days=2, scale_up_min_recent_results=1)
+    D = AdDecision
+    good = dict(cpa=600.0, cpa_sales=1, age_days=30, cpa_spend=600.0)
+    decisions = [D("quiet", "quiet", 168, 0, None, False, INSUFFICIENT_SPEND, adset_id="s1", **good),
+                 D("busy", "busy", 100, 1, 100, False, WITHIN_THRESHOLD, adset_id="s2", **good)]
+    adsets = {k: {"id": k, "name": k, "daily_budget": "5000", "campaign_id": "c"} for k in ("s1", "s2")}
+    plans = plan_budget_raises(decisions, adsets, {}, cfg, {}, dt.date(2026, 10, 30), {"quiet": 0.0, "busy": 1.0})
+    assert [p["id"] for p in plans] == ["s2"]
