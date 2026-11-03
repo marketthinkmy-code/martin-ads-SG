@@ -21,14 +21,16 @@ def main():
     g = graph_client(load_settings())
     done, failed = [], []
     for label, acct in ACCTS:
-        for c in g.list_campaigns(acct):
-            if c.get("effective_status") != "ACTIVE":
+        # configured status, not effective_status: a campaign that is ON but shows IN_PROCESS /
+        # WITH_ISSUES still delivers (the first run missed two that way)
+        for c in g._get_all(f"{acct}/campaigns", {"fields": "id,name,status,effective_status", "limit": 300}):
+            if c.get("status") != "ACTIVE":
                 continue
             try:
                 g.update_status(c["id"], "PAUSED")
                 back = g.get_object(c["id"], "status").get("status")
                 done.append(f"{label} {c['id']}")
-                log.info("⏸ %s campaign %s %r → %s", label, c["id"], c.get("name"), back)
+                log.info("⏸ %s campaign %s %r (%s) → %s", label, c["id"], c.get("name"), c.get("effective_status"), back)
             except TransientGraphError:
                 raise
             except GraphError as exc:
