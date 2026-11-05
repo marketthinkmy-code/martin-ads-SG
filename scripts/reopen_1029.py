@@ -80,9 +80,9 @@ def main():
             log.info("  #%d 目标 ad %s %r · %s/%s · ad set %s %r · %s · 日预算 %s", n, aid, a.get("name"),
                      a.get("status"), a.get("effective_status"), s.get("id"), s.get("name"), s.get("status"),
                      _rm(s.get("daily_budget")))
-        targets = {aid for _n, _a, aid in tl}
+        tids = {aid for _n, _a, aid in tl}
         for o in g._get_all(f"{cid}/ads", {"fields": AD_F, "limit": 500}):
-            if o["id"] in targets or o.get("status") != "ACTIVE":
+            if o["id"] in tids or o.get("status") != "ACTIVE":
                 continue
             s = sets.get(o.get("adset_id")) or {}
             if s.get("status") == "ACTIVE" or o.get("adset_id") in open_sets:
