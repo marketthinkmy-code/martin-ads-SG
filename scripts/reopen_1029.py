@@ -37,6 +37,13 @@ TARGETS = [  # (#, account, ad id) — the table sent to the operator on 29 Oct
     (16, "SG老户", "120256985982080093"),  # Video 7 · Family & Relationships A (CBO)
 ]
 AD_F = "id,name,status,effective_status,adset_id,campaign_id"
+ACCT_LABEL = {"1024930575770087": "SG老户", "1179668409969241": "HK"}
+
+
+def _targets():
+    """ADBOT_AD_IDS (comma-separated) replaces the 29 Oct list — e.g. 5 Nov operator 「A」: 5 sellers."""
+    raw = [x.strip() for x in (os.environ.get("ADBOT_AD_IDS") or "").split(",") if x.strip()]
+    return [(i + 1, "?", aid) for i, aid in enumerate(raw)] if raw else TARGETS
 SET_F = "id,name,status,effective_status,daily_budget"
 CAMP_F = "id,name,status,effective_status,daily_budget"
 
@@ -52,10 +59,13 @@ def main():
     log = get_logger()
     g = graph_client(load_settings())
     go = (os.environ.get("ADBOT_MODE") or "check").strip().lower() == "go"
-    ads = {aid: g.get_object(aid, AD_F) for _n, _a, aid in TARGETS}
+    targets = _targets()
+    ads = {aid: g.get_object(aid, AD_F + ",account_id") for _n, _a, aid in targets}
+    targets = [(n, ACCT_LABEL.get(str(ads[aid].get("account_id")), acct) if acct == "?" else acct, aid)
+               for n, acct, aid in targets]
     open_sets = {a["adset_id"] for a in ads.values()}
     by_camp = defaultdict(list)
-    for n, acct, aid in TARGETS:
+    for n, acct, aid in targets:
         by_camp[ads[aid]["campaign_id"]].append((n, acct, aid))
 
     extras = []
@@ -81,7 +91,7 @@ def main():
                          s.get("id"), s.get("name"), s.get("status"), _rm(s.get("daily_budget")))
 
     if not go:
-        final_summary(log, f"重开检查（只读）· 目标 {len(TARGETS)} 支 · {len(by_camp)} 个 campaign · 会一起跑的其他广告 {len(extras)} 支")
+        final_summary(log, f"重开检查（只读）· 目标 {len(targets)} 支 · {len(by_camp)} 个 campaign · 会一起跑的其他广告 {len(extras)} 支")
         return
 
     for o in extras:                               # pause the non-sellers BEFORE any campaign opens
@@ -89,7 +99,7 @@ def main():
         log.info("  ⏸ 关掉 ad %s %r → %s", o["id"], o.get("name"), g.get_object(o["id"], "status").get("status"))
 
     done, failed = [], []
-    for n, acct, aid in TARGETS:
+    for n, acct, aid in targets:
         a = ads[aid]
         try:
             for eid in (aid, a["adset_id"], a["campaign_id"]):

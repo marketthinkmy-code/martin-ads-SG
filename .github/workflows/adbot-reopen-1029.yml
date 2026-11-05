@@ -10,6 +10,9 @@ on:
         description: "check (read-only) or go"
         required: false
         default: "check"
+      ad_ids:
+        description: "comma-separated ad ids (default: the 29 Oct 16)"
+        required: false
 
 jobs:
   reopen:
@@ -26,6 +29,7 @@ jobs:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
           ADBOT_MODE: ${{ github.event.inputs.mode }}
+          ADBOT_AD_IDS: ${{ github.event.inputs.ad_ids }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
         run: python scripts/reopen_1029.py
