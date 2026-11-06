@@ -26,11 +26,16 @@ same registration-date range / qualified leads. Not yet scored = Pending, never 
 never mixed in. ADBOT_FROM / ADBOT_TO pick the registration-date range (default: first survey date to
 today).
 
-Supplement (operator 2026-11-06): registrations before the survey launch (ADBOT_SURVEY_LAUNCH, else the
-first registration date with any answer, marked as inferred) that have no answer are
-"Pre-launch / Not Invited" and stay out of the completion / qualified denominators; after launch they
-are "Eligible Pending". Fewer than ADBOT_MIN_SCORED (10) scored leads = INSUFFICIENT DATA, else WATCH —
-this report never says REDUCE / PAUSE. No-UTM surveys are not called a tracking error without
+Supplement + rule lock (operator 2026-11-06): the survey analysis starts provisionally on 2026-11-06
+(ADBOT_SURVEY_LAUNCH overrides); earlier registrations with no answer are "Pre-launch Registration /
+Invitation Unknown" (never "not invited" / "refused") and stay out of every rate denominator; after it
+they are "Eligible Pending". Per batch: raw rows and de-duplicated people, Valid Registrations
+(eligible), Survey Completed, Completion Rate, Score Coverage Rate, Pending, Qualified (>= 70) over
+Valid and over Completed (different denominators), Core ICP. Preliminary CPQL = matched spend /
+qualified whenever qualified > 0, else N/A (never RM0). Fewer than ADBOT_MIN_SCORED (10) scored =
+PRELIMINARY / INSUFFICIENT DATA, else WATCH; batches younger than ADBOT_MATURE_DAYS (3) are flagged not
+mature. Computability and decision reliability are reported apart; this report never says SCALE /
+REDUCE / PAUSE and does not touch the CPL / CPA monitor. No-UTM surveys are not called a tracking error without
 evidence; the UTM-retention check compares surveyed vs not-surveyed rows and same-person rows. The SG
 accounts' billing currency is read and must be one currency. A CPQL readiness checklist closes the run.
 """
@@ -250,25 +255,29 @@ def main():
     d_from = dt.date.fromisoformat(env_from) if env_from else (start or today)
     d_to = dt.date.fromisoformat(env_to) if env_to else today
     env_launch = os.environ.get("ADBOT_SURVEY_LAUNCH")
-    launch = dt.date.fromisoformat(env_launch) if env_launch else (start or today)
-    min_scored = int(os.environ.get("ADBOT_MIN_SCORED") or 10)       # per campaign / ad set / ad
-    min_total = int(os.environ.get("ADBOT_MIN_TOTAL") or 30)         # SG overall, before CPQL is read
-    log.info("问卷上线日：%s（%s）· 上线前报名、又没有任何答案的 = Pre-launch / Not Invited，不进完成率分母", launch,
-             "operator 给的" if env_launch else "推定 = 最早有答案的报名日期，未经确认")
+    launch = dt.date.fromisoformat(env_launch or "2026-11-06")       # operator 2026-11-06: provisional start
+    min_scored = int(os.environ.get("ADBOT_MIN_SCORED") or 10)       # decision reliability only, never a CPQL gate
+    min_total = int(os.environ.get("ADBOT_MIN_TOTAL") or 30)
+    mature_days = int(os.environ.get("ADBOT_MATURE_DAYS") or 3)      # batches younger than this are not mature
+    log.info("问卷分析起始日（暂定，不代表 %s 报名的人都收到邀请）：%s · 之前报名、又没有答案的 = %s，"
+             "不进比率分母，也不算拒绝填写", launch, launch, PRE)
     g_fmt = Counter(re.sub(r"\d", "9", cell(r, "date"))[:25] for r in rows[-300:] if cell(r, "date"))
     log.info("G 栏日期格式（最近 300 行，数字换成 9）：%s", dict(g_fmt.most_common(3)))
     win = [x for x in recs if x["d"] and d_from <= x["d"] <= d_to]
-    best = {}
+    best, raw_n = {}, Counter()
     dups = 0
     for x in win:
         if x["cls"] not in sg_cls:
             continue
         k = (x["d"], x["id"] or id(x))
+        raw_n[k] += 1
         if k in best:
             dups += 1
             if (x["u"] is not None, x["nq"]) <= (best[k]["u"] is not None, best[k]["nq"]):
                 continue
         best[k] = x
+    for k, x in best.items():
+        x["raw_n"] = raw_n[k]
     sg = list(best.values())
 
     def status(x):
@@ -278,10 +287,10 @@ def main():
             return "缺分待查"
         if x["nq"] > 0:
             return "部分作答"
-        return "Pre-launch / Not Invited" if x["d"] < launch else "Eligible Pending"
+        return PRE if x["d"] < launch else "Eligible Pending"
 
     def eligible(x):
-        return status(x) != "Pre-launch / Not Invited"
+        return status(x) != PRE
 
     def is_core(x):
         return (x["u"] is not None and x["u"] >= 70 and isinstance(x["q2"], (int, float)) and x["q2"] >= 20
@@ -294,7 +303,9 @@ def main():
         return f"RM{v:.2f}"
 
     def stats(xs, spend=None, pre_ok=True):
+        # rates use Eligible as "Valid Registrations" (pre-launch rows are left out of every denominator)
         n = len(xs)
+        raw = sum(x.get("raw_n", 1) for x in xs)
         el = [x for x in xs if eligible(x)]
         e = len(el)
         done = sum(1 for x in el if x["u"] is not None or x["nq"] == 5)
@@ -303,17 +314,20 @@ def main():
         st = Counter(status(x) for x in xs)
         sc = [x["u"] for x in el if x["u"] is not None]
         gr = Counter(grade(u) for u in sc)
-        verdict = "INSUFFICIENT DATA" if len(sc) < min_scored else "WATCH"
-        txt = (f"[{verdict}] 有效报名 {n} · Eligible {e} · Pre-launch/Not Invited {st['Pre-launch / Not Invited']}"
-               f" · 完成问卷 {done}（Survey Completion {pct(done, e)}）· 已评分 {st['已评分']} · Eligible Pending {st['Eligible Pending']}"
-               f" · 部分作答 {st['部分作答']} · 缺分待查 {st['缺分待查']} · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'}"
-               f" · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
-               f" · Qualified(≥70) {q}（Qualified Lead Rate {pct(q, e)}）· Core ICP {core}（{pct(core, e)}）")
+        tags = ["PRELIMINARY / INSUFFICIENT DATA" if len(sc) < min_scored else "WATCH"]
+        if any(x["d"] > today - dt.timedelta(days=mature_days) for x in xs):
+            tags.append(f"含最近 {mature_days} 天报名，数据未成熟")
+        txt = (f"[{' · '.join(tags)}] 原始报名 {raw} 笔 · 去重后 {n} 人 · Pre-launch/邀请未知 {st[PRE]} · Valid Registrations(Eligible) {e}"
+               f" · Survey Completed {done}（Completion {pct(done, e)}）· 已评分 {len(sc)}（Score Coverage {pct(len(sc), e)}）"
+               f" · Eligible Pending {st['Eligible Pending']} · 部分作答 {st['部分作答']} · 缺分待查 {st['缺分待查']}"
+               f" · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'} · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
+               f" · Qualified(≥70) {q}（÷Valid {pct(q, e)} · ÷Completed {pct(q, done)}）· Core ICP {core}")
         if spend is not None:
-            cpql = (rm(spend / q) if q else "—（0 qualified）") if pre_ok else "—（区间含问卷上线前的日子，不算）"
-            txt += f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · CPQL {cpql}"
-            if pre_ok:
-                txt += f" · 每个 Core ICP {rm(spend / core) if core else '—'}"
+            cpql = rm(spend / q) if q else "N/A（0 qualified）"
+            txt += f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · Preliminary CPQL {cpql}"
+            txt += f" · 每个 Core ICP {rm(spend / core) if core else 'N/A'}"
+            if not pre_ok:
+                txt += "（花费区间含问卷起始日之前）"
         return txt
 
     # Meta spend, SG old + HK only, same date range, per ad (three names) and per day
@@ -329,7 +343,8 @@ def main():
     total_sp = sum(sp_ad.values())
 
     log.info("═" * 100)
-    log.info("A. SG 报名 / 问卷（报名日期 %s ~ %s，读最新评分状态 · 同一天同一人只算 1 次，去掉重复 %d 行）", d_from, d_to, dups)
+    log.info("A. SG 报名 / 问卷（报名日期 %s ~ %s，读最新评分状态）· 去重口径：同一报名日期 + 同一人（姓名+电邮+电话）算 1 人，"
+             "原始 %d 笔 → 去重 %d 人（去掉 %d 笔）", d_from, d_to, sum(raw_n.values()), len(sg), dups)
     post = d_from >= launch
     log.info("SG 已验证合计：%s", stats(sg, total_sp, post))
     for c in sg_cls:
@@ -348,8 +363,8 @@ def main():
     log.info("═" * 100)
     log.info("B. 分数分布（SG 已验证，%s ~ %s）：%s", d_from, d_to,
              dict(Counter(grade(x["u"]) if x["u"] is not None else status(x) for x in sg)))
-    log.info("   样本规则：每个 campaign / ad set / ad 有分 < %d 个 = INSUFFICIENT DATA，≥ %d = WATCH；这个报告不出 REDUCE / PAUSE",
-             min_scored, min_scored)
+    log.info("   标记：有分 < %d 个 = PRELIMINARY / INSUFFICIENT DATA，≥ %d = WATCH。Qualified = 0 时 CPQL = N/A，不代表广告差；"
+             "这个报告不出 SCALE / REDUCE / PAUSE，原有 CPL / CPA 规则和监控照旧", min_scored, min_scored)
 
     # ── C / D: by campaign, ad set, ad (spend from the same names, same dates) ───────────────────
     for lvl, n_keys in (("campaign", 1), ("ad set", 2), ("ad", 3)):
@@ -416,20 +431,22 @@ def main():
                  a.get("timezone_name"), a.get("account_status"))
     cur_ok = len(set(cur.values())) == 1
 
-    # ── is CPQL readable yet? ───────────────────────────────────────────────────────────────────
+    # ── computability vs decision reliability (kept apart, operator 2026-11-06) ──────────────────
     sg_post = [x for x in sg if x["d"] >= launch]
     scored_sg = sum(1 for x in sg_post if x["u"] is not None)
-    checks = [("问卷上线日由 operator 确认", bool(env_launch)),
-              ("SG 两个户口结算币种一致", cur_ok),
-              (f"SG 已验证、上线后报名、有分 ≥ {min_total}（现在 {scored_sg}）", scored_sg >= min_total),
-              (f"带 SG 广告 UTM 又做了问卷 ≥ {min_scored}，可验证 UTM 保留（现在 {len(sg_surv)}）", utm_ok),
-              ("报名日期区间全部在问卷上线之后", post)]
+    q_sg = sum(1 for x in sg_post if x["u"] is not None and x["u"] >= 70)
+    computable = q_sg > 0 and cur_ok
+    reliab = [("SG 两个户口结算币种一致", cur_ok),
+              (f"SG 已验证、起始日后报名、有分 ≥ {min_total}（现在 {scored_sg}）", scored_sg >= min_total),
+              (f"带 SG 广告 UTM 又做了问卷 ≥ {min_scored}，可验证 UTM 保留（现在 {len(sg_surv)}）", utm_ok)]
     log.info("═" * 100)
-    log.info("CPQL 条件：%s", "READY" if all(c[1] for c in checks) else "NOT READY — INSUFFICIENT DATA")
-    for name, ok in checks:
+    log.info("统计可计算性：Preliminary CPQL %s（起始日后 SG Qualified = %d）", "可以算" if computable else "N/A", q_sg)
+    log.info("决策可靠性（只作参考，不触发任何 SCALE / REDUCE / PAUSE）：%s",
+             "够" if all(c[1] for c in reliab) else "PRELIMINARY / INSUFFICIENT DATA")
+    for name, ok in reliab:
         log.info("   %s %s", "✓" if ok else "✗", name)
     final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp, post)} · 币种 {cur} · CPQL "
-                       f"{'READY' if all(c[1] for c in checks) else 'NOT READY'}")
+                       f"{'可算（初步）' if computable else 'N/A'} · 决策可靠性 {'够' if all(c[1] for c in reliab) else '不足'}")
 
 
 if __name__ == "__main__":
