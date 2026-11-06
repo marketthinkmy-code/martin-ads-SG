@@ -43,3 +43,6 @@
 7. 分级：A 85–100、B 70–84、C 50–69、D 0–49；Core ICP = 总分 ≥70 且 Q2 ≥20 且 Q5 ≥16（Q2 / Q5 由原始答案对表算）。
 8. 只算验证过的 SG 报名（UTM 对上 SG老户 / HK 的 campaign）；[MY]、MY 户口、无 UTM、来源不明的单独列，不归入 SG；ad 名字不能单独用来归因。MY 与 SG 分开，不混预算或币种。
 9. 不改 Google Sheet、GHL Workflow、广告自动化，不新增字段。
+10. 问卷上线前报名、又没收到问卷邀请的 = Pre-launch / Not Invited，不进完成率和 Qualified Lead Rate 的分母；上线后还没做的 = Eligible Pending（operator 2026-11-06 补充）。
+11. 没有 UTM 的问卷记录不代表问卷弄丢了 UTM；没有证据不判定 tracking error，先看带真实广告 UTM 的报名做完问卷后 campaign / ad set / ad 是否还在。
+12. 样本不够时只输出 WATCH / INSUFFICIENT DATA，不因 Qualified 暂时为 0 就建议 REDUCE 或 PAUSE。Meta 花费要确认户口结算币种，市场与币种一致。

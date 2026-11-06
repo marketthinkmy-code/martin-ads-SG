@@ -25,6 +25,14 @@ spend of the same market (SG old + HK), same attribution scope (same campaign / 
 same registration-date range / qualified leads. Not yet scored = Pending, never low quality. MY is
 never mixed in. ADBOT_FROM / ADBOT_TO pick the registration-date range (default: first survey date to
 today).
+
+Supplement (operator 2026-11-06): registrations before the survey launch (ADBOT_SURVEY_LAUNCH, else the
+first registration date with any answer, marked as inferred) that have no answer are
+"Pre-launch / Not Invited" and stay out of the completion / qualified denominators; after launch they
+are "Eligible Pending". Fewer than ADBOT_MIN_SCORED (10) scored leads = INSUFFICIENT DATA, else WATCH —
+this report never says REDUCE / PAUSE. No-UTM surveys are not called a tracking error without
+evidence; the UTM-retention check compares surveyed vs not-surveyed rows and same-person rows. The SG
+accounts' billing currency is read and must be one currency. A CPQL readiness checklist closes the run.
 """
 from __future__ import annotations
 
@@ -241,6 +249,14 @@ def main():
     env_from, env_to = os.environ.get("ADBOT_FROM"), os.environ.get("ADBOT_TO")
     d_from = dt.date.fromisoformat(env_from) if env_from else (start or today)
     d_to = dt.date.fromisoformat(env_to) if env_to else today
+    env_launch = os.environ.get("ADBOT_SURVEY_LAUNCH")
+    launch = dt.date.fromisoformat(env_launch) if env_launch else (start or today)
+    min_scored = int(os.environ.get("ADBOT_MIN_SCORED") or 10)       # per campaign / ad set / ad
+    min_total = int(os.environ.get("ADBOT_MIN_TOTAL") or 30)         # SG overall, before CPQL is read
+    log.info("问卷上线日：%s（%s）· 上线前报名、又没有任何答案的 = Pre-launch / Not Invited，不进完成率分母", launch,
+             "operator 给的" if env_launch else "推定 = 最早有答案的报名日期，未经确认")
+    g_fmt = Counter(re.sub(r"\d", "9", cell(r, "date"))[:25] for r in rows[-300:] if cell(r, "date"))
+    log.info("G 栏日期格式（最近 300 行，数字换成 9）：%s", dict(g_fmt.most_common(3)))
     win = [x for x in recs if x["d"] and d_from <= x["d"] <= d_to]
     best = {}
     dups = 0
@@ -258,7 +274,14 @@ def main():
     def status(x):
         if x["u"] is not None:
             return "已评分"
-        return "缺分待查" if x["nq"] == 5 else "Pending"
+        if x["nq"] == 5:
+            return "缺分待查"
+        if x["nq"] > 0:
+            return "部分作答"
+        return "Pre-launch / Not Invited" if x["d"] < launch else "Eligible Pending"
+
+    def eligible(x):
+        return status(x) != "Pre-launch / Not Invited"
 
     def is_core(x):
         return (x["u"] is not None and x["u"] >= 70 and isinstance(x["q2"], (int, float)) and x["q2"] >= 20
@@ -270,20 +293,27 @@ def main():
     def rm(v):
         return f"RM{v:.2f}"
 
-    def stats(xs, spend=None):
+    def stats(xs, spend=None, pre_ok=True):
         n = len(xs)
-        done = sum(1 for x in xs if x["u"] is not None or x["nq"] == 5)
-        q = sum(1 for x in xs if x["u"] is not None and x["u"] >= 70)
-        core = sum(1 for x in xs if is_core(x))
+        el = [x for x in xs if eligible(x)]
+        e = len(el)
+        done = sum(1 for x in el if x["u"] is not None or x["nq"] == 5)
+        q = sum(1 for x in el if x["u"] is not None and x["u"] >= 70)
+        core = sum(1 for x in el if is_core(x))
         st = Counter(status(x) for x in xs)
-        sc = [x["u"] for x in xs if x["u"] is not None]
+        sc = [x["u"] for x in el if x["u"] is not None]
         gr = Counter(grade(u) for u in sc)
-        txt = (f"有效报名 {n} · 完成问卷 {done}（Survey Completion {pct(done, n)}）· 已评分 {st['已评分']} · Pending {st['Pending']}"
-               f" · 缺分待查 {st['缺分待查']} · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'} · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
-               f" · Qualified(≥70) {q}（Qualified Lead Rate {pct(q, n)}）· Core ICP {core}（{pct(core, n)}）")
+        verdict = "INSUFFICIENT DATA" if len(sc) < min_scored else "WATCH"
+        txt = (f"[{verdict}] 有效报名 {n} · Eligible {e} · Pre-launch/Not Invited {st['Pre-launch / Not Invited']}"
+               f" · 完成问卷 {done}（Survey Completion {pct(done, e)}）· 已评分 {st['已评分']} · Eligible Pending {st['Eligible Pending']}"
+               f" · 部分作答 {st['部分作答']} · 缺分待查 {st['缺分待查']} · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'}"
+               f" · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
+               f" · Qualified(≥70) {q}（Qualified Lead Rate {pct(q, e)}）· Core ICP {core}（{pct(core, e)}）")
         if spend is not None:
-            txt += (f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · CPQL {rm(spend / q) if q else '—（0 qualified）'}"
-                    f" · 每个 Core ICP {rm(spend / core) if core else '—'}")
+            cpql = (rm(spend / q) if q else "—（0 qualified）") if pre_ok else "—（区间含问卷上线前的日子，不算）"
+            txt += f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · CPQL {cpql}"
+            if pre_ok:
+                txt += f" · 每个 Core ICP {rm(spend / core) if core else '—'}"
         return txt
 
     # Meta spend, SG old + HK only, same date range, per ad (three names) and per day
@@ -300,7 +330,8 @@ def main():
 
     log.info("═" * 100)
     log.info("A. SG 报名 / 问卷（报名日期 %s ~ %s，读最新评分状态 · 同一天同一人只算 1 次，去掉重复 %d 行）", d_from, d_to, dups)
-    log.info("SG 已验证合计：%s", stats(sg, total_sp))
+    post = d_from >= launch
+    log.info("SG 已验证合计：%s", stats(sg, total_sp, post))
     for c in sg_cls:
         log.info("   其中 %s：%s", c, stats([x for x in sg if x["cls"] == c]))
     others = Counter(x["cls"] for x in win if x["cls"] not in sg_cls)
@@ -311,12 +342,14 @@ def main():
         by_day[x["d"]].append(x)
     d = d_from
     while d <= d_to:
-        log.info("   %s %s · %s", d, "一二三四五六日"[d.weekday()], stats(by_day.get(d, []), sp_day.get(d, 0.0)))
+        log.info("   %s %s · %s", d, "一二三四五六日"[d.weekday()], stats(by_day.get(d, []), sp_day.get(d, 0.0), d >= launch))
         d += dt.timedelta(days=1)
 
     log.info("═" * 100)
     log.info("B. 分数分布（SG 已验证，%s ~ %s）：%s", d_from, d_to,
              dict(Counter(grade(x["u"]) if x["u"] is not None else status(x) for x in sg)))
+    log.info("   样本规则：每个 campaign / ad set / ad 有分 < %d 个 = INSUFFICIENT DATA，≥ %d = WATCH；这个报告不出 REDUCE / PAUSE",
+             min_scored, min_scored)
 
     # ── C / D: by campaign, ad set, ad (spend from the same names, same dates) ───────────────────
     for lvl, n_keys in (("campaign", 1), ("ad set", 2), ("ad", 3)):
@@ -338,7 +371,7 @@ def main():
         keys = sorted(set(grp) | {k for k, v in spk.items() if v > 0},
                       key=lambda k: (-sum(1 for x in grp.get(k, []) if x["u"] is not None and x["u"] >= 70), -spk.get(k, 0.0)))
         for k in keys[:30]:
-            log.info("   %s · %s", names[k], stats(grp.get(k, []), spk.get(k, 0.0)))
+            log.info("   %s · %s", names[k], stats(grp.get(k, []), spk.get(k, 0.0), post))
 
     # ── E: attribution ──────────────────────────────────────────────────────────────────────────
     log.info("═" * 100)
@@ -353,7 +386,50 @@ def main():
             log.info("   %s 最常见的 UTM（campaign / ad set / ad）：", c)
             for k, n in top:
                 log.info("      %3d × %s", n, " / ".join(repr(v) for v in k))
-    final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp)}")
+    # ── UTM retention after the survey (evidence only, no tracking-error verdict without it) ─────
+    log.info("═" * 100)
+    post_rows = [x for x in recs if x["d"] and x["d"] >= launch]
+    surveyed = [x for x in post_rows if x["nq"] > 0 or x["u"] is not None]
+    not_surv = [x for x in post_rows if not (x["nq"] > 0 or x["u"] is not None)]
+    by_person = defaultdict(list)
+    for x in recs:
+        if x["id"]:
+            by_person[x["id"]].append(x)
+    no_utm_s = [x for x in surveyed if not x["J"]]
+    twin = sum(1 for x in no_utm_s if any(y is not x and y["J"] for y in by_person.get(x["id"], [])))
+    sg_surv = [x for x in surveyed if x["cls"] in sg_cls]
+    log.info("UTM 保留检查（%s 起报名）：做了问卷 %d 行，其中带 UTM %d（%s）· 没做问卷 %d 行，其中带 UTM %d（%s）",
+             launch, len(surveyed), sum(1 for x in surveyed if x["J"]), pct(sum(1 for x in surveyed if x["J"]), len(surveyed)),
+             len(not_surv), sum(1 for x in not_surv if x["J"]), pct(sum(1 for x in not_surv if x["J"]), len(not_surv)))
+    log.info("   做了问卷但没 UTM 的 %d 行：同一人另有带 UTM 的报名行 %d 行 · 带真实 SG 广告 UTM 又做了问卷的 %d 行（campaign + ad set + ad 都还在：%d）",
+             len(no_utm_s), twin, len(sg_surv), sum(1 for x in sg_surv if x["J"] and x["K"] and x["L"]))
+    utm_ok = len(sg_surv) >= min_scored
+    log.info("   判断：%s", "样本够，可以看保留情况" if utm_ok else
+             f"带 SG 广告 UTM 又做了问卷的只有 {len(sg_surv)} 行（< {min_scored}），证据不足，不判定 tracking error")
+
+    # ── billing currency of the SG accounts ─────────────────────────────────────────────────────
+    cur = {}
+    for label, acct in SG_ACCTS:
+        a = g.get_object(acct, "name,currency,account_status,timezone_name")
+        cur[label] = a.get("currency")
+        log.info("账户 %s %s %r：结算币种 %s · 时区 %s · 状态 %s", label, acct, a.get("name"), a.get("currency"),
+                 a.get("timezone_name"), a.get("account_status"))
+    cur_ok = len(set(cur.values())) == 1
+
+    # ── is CPQL readable yet? ───────────────────────────────────────────────────────────────────
+    sg_post = [x for x in sg if x["d"] >= launch]
+    scored_sg = sum(1 for x in sg_post if x["u"] is not None)
+    checks = [("问卷上线日由 operator 确认", bool(env_launch)),
+              ("SG 两个户口结算币种一致", cur_ok),
+              (f"SG 已验证、上线后报名、有分 ≥ {min_total}（现在 {scored_sg}）", scored_sg >= min_total),
+              (f"带 SG 广告 UTM 又做了问卷 ≥ {min_scored}，可验证 UTM 保留（现在 {len(sg_surv)}）", utm_ok),
+              ("报名日期区间全部在问卷上线之后", post)]
+    log.info("═" * 100)
+    log.info("CPQL 条件：%s", "READY" if all(c[1] for c in checks) else "NOT READY — INSUFFICIENT DATA")
+    for name, ok in checks:
+        log.info("   %s %s", "✓" if ok else "✗", name)
+    final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp, post)} · 币种 {cur} · CPQL "
+                       f"{'READY' if all(c[1] for c in checks) else 'NOT READY'}")
 
 
 if __name__ == "__main__":
