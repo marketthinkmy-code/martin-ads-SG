@@ -507,5 +507,16 @@
     "cpl": null,
     "cpa": null,
     "cpa_sales": 0
+  },
+  {
+    "ts": "2026-11-06T21:39:48+00:00",
+    "entity_id": "120250914933320093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 96.89,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
   }
 ]
