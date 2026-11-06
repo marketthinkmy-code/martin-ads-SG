@@ -11,6 +11,9 @@ on:
       date_to:
         description: "registration date to YYYY-MM-DD (default: today)"
         required: false
+      survey_launch:
+        description: "survey launch date YYYY-MM-DD confirmed by operator (default: inferred)"
+        required: false
 
 jobs:
   since:
@@ -28,6 +31,7 @@ jobs:
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
           ADBOT_FROM: ${{ github.event.inputs.date_from }}
           ADBOT_TO: ${{ github.event.inputs.date_to }}
+          ADBOT_SURVEY_LAUNCH: ${{ github.event.inputs.survey_launch }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
