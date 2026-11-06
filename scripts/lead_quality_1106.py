@@ -38,7 +38,8 @@ TAB = "Register"
 COL = {"date": "G", "source": "H", "campaign": "J", "adset": "K", "ad": "L",
        "q1": "P", "q2": "Q", "q3": "R", "q4": "S", "q5": "T", "score": "U"}
 # brief's tables; keys are matched as substrings of the NFKC-folded answer (simplified + traditional)
-Q2_MAP = [(("身高记录", "身高記錄", "成长变慢", "成長變慢", "长得慢", "長得慢"), 25),
+Q2_MAP = [(("身高记录", "身高記錄", "成长变慢", "成長變慢", "长得慢", "長得慢", "有记录孩子身高", "有記錄孩子身高",
+           "速度明显变慢", "速度明顯變慢"), 25),
           (("成长评估", "成長評估", "评估", "評估"), 25),
           (("比同龄", "比同齡", "同龄人矮", "同齡人矮", "比较矮", "比較矮"), 20),
           (("不确定", "不確定", "是否正常"), 12),
@@ -189,6 +190,12 @@ def main():
         recs.append({"d": d, "src": cell(r, "source") or "（空）", "cls": cls, "J": cell(r, "campaign"), "K": cell(r, "adset"),
                      "L": cell(r, "ad"), "nq": sum(1 for v in qs if v), "u": u, "q2": q2, "q5": q5,
                      "id": ident, "u_raw": cell(r, "score")})
+    for L in ("M", "N", "O"):                           # the older 3-question survey, outside the brief's P–T
+        i = idx(L)
+        ds = [cpa.parse_date(r[idx("G")]) for r in rows if i < len(r) and (r[i] or "").strip() and idx("G") < len(r)]
+        ds = [d for d in ds if d]
+        log.info("旧问卷栏 %s %r：有答案 %d 行 · 报名日期 %s ~ %s", L, header[i] if i < len(header) else "", len(ds),
+                 min(ds, default=None), max(ds, default=None))
     dup_people = sum(1 for v in seen.values() if v > 1)
     dup_rows = sum(v - 1 for v in seen.values() if v > 1)
 
