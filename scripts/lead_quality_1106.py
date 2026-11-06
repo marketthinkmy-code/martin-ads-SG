@@ -59,6 +59,7 @@ from adbot.settings import load_settings
 SG_ACCTS = [("SG老户", "act_1024930575770087"), ("HK", "act_1179668409969241")]
 MY = "act_1011719073600566"
 TAB = "Register"
+PRE = "Pre-launch Registration / Invitation Unknown"   # before the provisional survey start, no answer
 COL = {"date": "G", "source": "H", "campaign": "J", "adset": "K", "ad": "L",
        "q1": "P", "q2": "Q", "q3": "R", "q4": "S", "q5": "T", "score": "U"}
 # brief's tables; keys are matched as substrings of the NFKC-folded answer (simplified + traditional)
