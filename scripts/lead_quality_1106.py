@@ -16,11 +16,22 @@ High = U >= 70. Core ICP = U >= 70 and Q2 >= 20 and Q5 >= 16, Q2 / Q5 scored fro
 text with the brief's table (every distinct answer is printed with the score given, so the mapping
 can be checked). Rows whose name or email contains "test" / 测试 are set aside as suspected internal
 tests (count only). No names, emails or phones are printed — only counts. No writes anywhere.
+
+Date rules (operator 2026-11-06, final): every number is keyed on the registration date (column G),
+read at the latest score status; a survey finished days later counts on the original registration
+date. Survey Completion Rate = completed in that registration batch / valid registrations of that
+batch; Qualified Lead Rate = score >= 70 in the batch / valid registrations of the batch; CPQL = Meta
+spend of the same market (SG old + HK), same attribution scope (same campaign / ad set / ad names) and
+same registration-date range / qualified leads. Not yet scored = Pending, never low quality. MY is
+never mixed in. ADBOT_FROM / ADBOT_TO pick the registration-date range (default: first survey date to
+today).
 """
 from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -99,7 +110,6 @@ def main():
     s = load_settings()
     g = graph_client(s)
     today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
-    yday = today - dt.timedelta(days=1)
 
     values = SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, TAB)
     hi = next((i for i, r in enumerate(values[:10]) if any("utm" in (c or "").lower() for c in r)), 0)
@@ -223,88 +233,118 @@ def main():
              sum(1 for x in u_vals if x["u"] is None), [x["u_raw"][:15] for x in u_vals if x["u"] is None][:5],
              sum(1 for x in u_vals if x["u"] is not None and not 0 <= x["u"] <= 100))
 
-    # ── SG scope ────────────────────────────────────────────────────────────────────────────────
+    # ── SG scope, operator 2026-11-06 rules ─────────────────────────────────────────────────────
+    # Every number is keyed on the registration date (G); a survey done days later still counts on the
+    # day the parent registered, read at its latest status. Valid registration = SG-verified, not a
+    # suspected test, one per person per registration date. No score yet = Pending, never "low quality".
     sg_cls = ("SG✔ 三层", "SG✔ campaign")
-    win = [x for x in recs if x["d"] and start and x["d"] >= start]
+    env_from, env_to = os.environ.get("ADBOT_FROM"), os.environ.get("ADBOT_TO")
+    d_from = dt.date.fromisoformat(env_from) if env_from else (start or today)
+    d_to = dt.date.fromisoformat(env_to) if env_to else today
+    win = [x for x in recs if x["d"] and d_from <= x["d"] <= d_to]
+    best = {}
+    dups = 0
+    for x in win:
+        if x["cls"] not in sg_cls:
+            continue
+        k = (x["d"], x["id"] or id(x))
+        if k in best:
+            dups += 1
+            if (x["u"] is not None, x["nq"]) <= (best[k]["u"] is not None, best[k]["nq"]):
+                continue
+        best[k] = x
+    sg = list(best.values())
 
-    def summary(label, xs):
+    def status(x):
+        if x["u"] is not None:
+            return "已评分"
+        return "缺分待查" if x["nq"] == 5 else "Pending"
+
+    def is_core(x):
+        return (x["u"] is not None and x["u"] >= 70 and isinstance(x["q2"], (int, float)) and x["q2"] >= 20
+                and isinstance(x["q5"], (int, float)) and x["q5"] >= 16)
+
+    def pct(a, b):
+        return f"{a / b * 100:.1f}%" if b else "—"
+
+    def rm(v):
+        return f"RM{v:.2f}"
+
+    def stats(xs, spend=None):
         n = len(xs)
-        full = sum(1 for x in xs if x["nq"] == 5)
-        part = sum(1 for x in xs if 0 < x["nq"] < 5)
-        scored = [x for x in xs if x["u"] is not None]
-        miss = sum(1 for x in xs if x["nq"] > 0 and x["u"] is None)
-        gr = Counter(grade(x["u"]) for x in scored)
-        hi_ = [x for x in scored if x["u"] >= 70]
-        core = [x for x in hi_ if isinstance(x["q2"], (int, float)) and x["q2"] >= 20
-                and isinstance(x["q5"], (int, float)) and x["q5"] >= 16]
-        unk = sum(1 for x in hi_ if not isinstance(x["q2"], (int, float)) or not isinstance(x["q5"], (int, float)))
-        avg = sum(x["u"] for x in scored) / len(scored) if scored else None
-        log.info("%s：报名 %d · 问卷 5 题全答 %d（%s）· 只答部分 %d · 有分 %d · 有答题没分 %d · 平均分 %s · A %d B %d C %d D %d · "
-                 "高分(≥70) %d（占有分 %s）· Core ICP %d（占有分 %s）· 高分但 Q2/Q5 对不上表 %d",
-                 label, n, full, f"{full / n * 100:.1f}%" if n else "—", part, len(scored), miss,
-                 f"{avg:.1f}" if avg is not None else "—", gr["A"], gr["B"], gr["C"], gr["D"], len(hi_),
-                 f"{len(hi_) / len(scored) * 100:.1f}%" if scored else "—", len(core),
-                 f"{len(core) / len(scored) * 100:.1f}%" if scored else "—", unk)
-        return {"n": n, "full": full, "scored": len(scored), "hi": len(hi_), "core": len(core), "avg": avg, "gr": gr}
+        done = sum(1 for x in xs if x["u"] is not None or x["nq"] == 5)
+        q = sum(1 for x in xs if x["u"] is not None and x["u"] >= 70)
+        core = sum(1 for x in xs if is_core(x))
+        st = Counter(status(x) for x in xs)
+        sc = [x["u"] for x in xs if x["u"] is not None]
+        gr = Counter(grade(u) for u in sc)
+        txt = (f"有效报名 {n} · 完成问卷 {done}（Survey Completion {pct(done, n)}）· 已评分 {st['已评分']} · Pending {st['Pending']}"
+               f" · 缺分待查 {st['缺分待查']} · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'} · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
+               f" · Qualified(≥70) {q}（Qualified Lead Rate {pct(q, n)}）· Core ICP {core}（{pct(core, n)}）")
+        if spend is not None:
+            txt += (f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · CPQL {rm(spend / q) if q else '—（0 qualified）'}"
+                    f" · 每个 Core ICP {rm(spend / core) if core else '—'}")
+        return txt
+
+    # Meta spend, SG old + HK only, same date range, per ad (three names) and per day
+    sp_ad, sp_day = defaultdict(float), defaultdict(float)
+    for _label, acct in SG_ACCTS:
+        for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "time_increment": 1,
+                                                 "fields": "ad_name,adset_name,campaign_name,spend",
+                                                 "time_range": json.dumps({"since": d_from.isoformat(), "until": d_to.isoformat()})}):
+            v = float(r.get("spend") or 0)
+            sp_ad[(cpa.ad_key(r.get("campaign_name") or ""), cpa.ad_key(r.get("adset_name") or ""),
+                   cpa.ad_key(r.get("ad_name") or ""))] += v
+            sp_day[dt.date.fromisoformat(r["date_start"])] += v
+    total_sp = sum(sp_ad.values())
 
     log.info("═" * 100)
-    log.info("A. 报名 / 问卷（%s 起，按报名日期）", start)
-    for c in ("SG✔ 三层", "SG✔ campaign", "SG 标记未验证", "冲突", "MY", "无 UTM", "其他"):
-        summary(c, [x for x in win if x["cls"] == c])
-    sg = [x for x in win if x["cls"] in sg_cls]
-    summary("SG 已验证合计（三层 + campaign）", sg)
-    log.info("按报名日期（SG 已验证）——同一批报名后来做了问卷的人数：")
+    log.info("A. SG 报名 / 问卷（报名日期 %s ~ %s，读最新评分状态 · 同一天同一人只算 1 次，去掉重复 %d 行）", d_from, d_to, dups)
+    log.info("SG 已验证合计：%s", stats(sg, total_sp))
+    for c in sg_cls:
+        log.info("   其中 %s：%s", c, stats([x for x in sg if x["cls"] == c]))
+    others = Counter(x["cls"] for x in win if x["cls"] not in sg_cls)
+    log.info("不算进 SG 的报名（同一日期区间）：%s", dict(others))
+    log.info("按报名日期（每一批报名，读最新状态）：")
     by_day = defaultdict(list)
     for x in sg:
         by_day[x["d"]].append(x)
-    for d in sorted(by_day)[-21:]:
-        xs = by_day[d]
-        log.info("   %s %s · 报名 %d · 已全答 %d · 有分 %d · 高分 %d", d, "一二三四五六日"[d.weekday()], len(xs),
-                 sum(1 for x in xs if x["nq"] == 5), sum(1 for x in xs if x["u"] is not None),
-                 sum(1 for x in xs if x["u"] is not None and x["u"] >= 70))
-    log.info("昨天 %s：SG 已验证报名 %d · 其中已经有分 %d（问卷提交日期表上没有的话，'昨天提交问卷人数' 算不出）",
-             yday, len(by_day.get(yday, [])), sum(1 for x in by_day.get(yday, []) if x["u"] is not None))
+    d = d_from
+    while d <= d_to:
+        log.info("   %s %s · %s", d, "一二三四五六日"[d.weekday()], stats(by_day.get(d, []), sp_day.get(d, 0.0)))
+        d += dt.timedelta(days=1)
 
-    # ── B: distribution across cycles ───────────────────────────────────────────────────────────
     log.info("═" * 100)
-    log.info("B. 分数分布（SG 已验证，按直播周期 星期四~星期二）")
-    cyc = defaultdict(list)
-    for x in sg:
-        thu = x["d"] - dt.timedelta(days=(x["d"].weekday() - 3) % 7)
-        cyc[thu].append(x)
-    for thu in sorted(cyc):
-        summary(f"   周期 {thu}~{thu + dt.timedelta(days=5)}（直播 {thu + dt.timedelta(days=6)}）", cyc[thu])
+    log.info("B. 分数分布（SG 已验证，%s ~ %s）：%s", d_from, d_to,
+             dict(Counter(grade(x["u"]) if x["u"] is not None else status(x) for x in sg)))
 
-    # ── C / D: by campaign, ad set, ad ──────────────────────────────────────────────────────────
-    for lvl, keyf in (("campaign", lambda x: (x["J"],)), ("ad set", lambda x: (x["J"], x["K"])),
-                      ("ad", lambda x: (x["J"], x["K"], x["L"]))):
+    # ── C / D: by campaign, ad set, ad (spend from the same names, same dates) ───────────────────
+    for lvl, n_keys in (("campaign", 1), ("ad set", 2), ("ad", 3)):
         log.info("═" * 100)
-        log.info("C/D. 按 %s（只算三层都对上的 SG 报名；按高分人数排）", lvl)
-        grp = defaultdict(list)
+        log.info("C/D. 按 %s（%s；花费 = 同名字、同日期区间的 Meta 花费）", lvl,
+                 "三层 + 只对上 campaign 的报名" if lvl == "campaign" else "只算三层都对上的报名")
+        grp, names, spk = defaultdict(list), {}, defaultdict(float)
         for x in sg:
-            if x["cls"] == "SG✔ 三层" or lvl == "campaign":
-                grp[keyf(x)].append(x)
-        def stats(xs):
-            sc = [x for x in xs if x["u"] is not None]
-            h = [x for x in sc if x["u"] >= 70]
-            core = [x for x in h if isinstance(x["q2"], (int, float)) and x["q2"] >= 20
-                    and isinstance(x["q5"], (int, float)) and x["q5"] >= 16]
-            return sc, h, core
-        ranked = sorted(grp.items(), key=lambda kv: (-len(stats(kv[1])[1]), -len(kv[1])))
-        for k, xs in ranked[:25]:
-            sc, h, core = stats(xs)
-            gr = Counter(grade(x["u"]) for x in sc)
-            log.info("   %s · 报名 %d · 有分 %d · 平均 %s · A%d B%d C%d D%d · 高分 %d（%s）· Core ICP %d（%s）",
-                     " / ".join(v[:55] for v in k), len(xs), len(sc),
-                     f"{sum(x['u'] for x in sc) / len(sc):.1f}" if sc else "—", gr["A"], gr["B"], gr["C"], gr["D"],
-                     len(h), f"{len(h) / len(sc) * 100:.0f}%" if sc else "—", len(core),
-                     f"{len(core) / len(sc) * 100:.0f}%" if sc else "—")
+            if lvl != "campaign" and x["cls"] != "SG✔ 三层":
+                continue
+            k = (cpa.ad_key(x["J"]), cpa.ad_key(x["K"]), cpa.ad_key(x["L"]))[:n_keys]
+            grp[k].append(x)
+            names.setdefault(k, " / ".join(v[:50] for v in (x["J"], x["K"], x["L"])[:n_keys]))
+        for k3, v in sp_ad.items():
+            k = k3[:n_keys]
+            hit = next((gk for gk in grp if gk == k or (len(gk[0]) >= 12 and k[0].startswith(gk[0]) and gk[1:] == k[1:])), k)
+            spk[hit] += v
+            names.setdefault(hit, " / ".join(k))
+        keys = sorted(set(grp) | {k for k, v in spk.items() if v > 0},
+                      key=lambda k: (-sum(1 for x in grp.get(k, []) if x["u"] is not None and x["u"] >= 70), -spk.get(k, 0.0)))
+        for k in keys[:30]:
+            log.info("   %s · %s", names[k], stats(grp.get(k, []), spk.get(k, 0.0)))
 
     # ── E: attribution ──────────────────────────────────────────────────────────────────────────
     log.info("═" * 100)
     tagged = [x for x in win if tag(x["J"]) == "SG" or x["cls"] in sg_cls]
-    log.info("E. 归因：%s 起带 [SG] 或对上 SG 户口的报名 %d · 三层对上 %d · 只对上 campaign %d · 带 [SG] 但户口里没有 %d · 冲突 %d",
-             start, len(tagged), sum(1 for x in tagged if x["cls"] == "SG✔ 三层"),
+    log.info("E. 归因（报名日期 %s ~ %s）：带 [SG] 或对上 SG 户口的报名 %d · 三层对上 %d · 只对上 campaign %d · 带 [SG] 但户口里没有 %d · 冲突 %d",
+             d_from, d_to, len(tagged), sum(1 for x in tagged if x["cls"] == "SG✔ 三层"),
              sum(1 for x in tagged if x["cls"] == "SG✔ campaign"), sum(1 for x in tagged if x["cls"] == "SG 标记未验证"),
              sum(1 for x in tagged if x["cls"] == "冲突"))
     for c in ("SG✔ campaign", "SG 标记未验证", "冲突", "其他"):
@@ -313,8 +353,7 @@ def main():
             log.info("   %s 最常见的 UTM（campaign / ad set / ad）：", c)
             for k, n in top:
                 log.info("      %3d × %s", n, " / ".join(repr(v) for v in k))
-    final_summary(log, f"Register {len(recs)} 行（测试排除 {sum(tests.values())}）· 问卷起 {start} · SG 已验证 {len(sg)} · "
-                       f"归属 {dict(Counter(x['cls'] for x in win))}")
+    final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp)}")
 
 
 if __name__ == "__main__":
