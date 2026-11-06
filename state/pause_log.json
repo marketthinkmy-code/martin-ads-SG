@@ -496,5 +496,16 @@
     "entity_id": "120250067471130335",
     "entity_type": "campaign",
     "reason": "campaign_without_live_ads"
+  },
+  {
+    "ts": "2026-11-06T16:18:47+00:00",
+    "entity_id": "120244879844730093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 96.64,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
   }
 ]
