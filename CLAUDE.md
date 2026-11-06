@@ -43,6 +43,7 @@
 7. 分级：A 85–100、B 70–84、C 50–69、D 0–49；Core ICP = 总分 ≥70 且 Q2 ≥20 且 Q5 ≥16（Q2 / Q5 由原始答案对表算）。
 8. 只算验证过的 SG 报名（UTM 对上 SG老户 / HK 的 campaign）；[MY]、MY 户口、无 UTM、来源不明的单独列，不归入 SG；ad 名字不能单独用来归因。MY 与 SG 分开，不混预算或币种。
 9. 不改 Google Sheet、GHL Workflow、广告自动化，不新增字段。
-10. 问卷上线前报名、又没收到问卷邀请的 = Pre-launch / Not Invited，不进完成率和 Qualified Lead Rate 的分母；上线后还没做的 = Eligible Pending（operator 2026-11-06 补充）。
+10. 问卷分析暂定从 2026-11-06 起算（不代表 11/6 报名的人都收到邀请）。之前报名、又没有答案的 = Pre-launch Registration / Invitation Unknown，没有发送记录不能说 Not Invited，也不算拒绝填写，不进任何比率分母；起始日后还没做的 = Eligible Pending（operator 2026-11-06 定）。
 11. 没有 UTM 的问卷记录不代表问卷弄丢了 UTM；没有证据不判定 tracking error，先看带真实广告 UTM 的报名做完问卷后 campaign / ad set / ad 是否还在。
-12. 样本不够时只输出 WATCH / INSUFFICIENT DATA，不因 Qualified 暂时为 0 就建议 REDUCE 或 PAUSE。Meta 花费要确认户口结算币种，市场与币种一致。
+12. Qualified > 0 就算 Preliminary CPQL = 对上的 Meta 花费 ÷ Qualified；Qualified = 0 时 CPQL = N/A（不写 RM0，也不判广告差）。样本少时标 PRELIMINARY / INSUFFICIENT DATA；统计可计算性和预算决策可靠性分开写。不能只凭问卷分数 SCALE / REDUCE / PAUSE，原有 CPL / CPA / 花费规则、每小时监控、预算建议照旧。Meta 花费要确认户口结算币种（SG老户、HK 都是 MYR），市场与币种一致。
+13. 每个报名批次都要列：原始报名笔数、去重人数（同一报名日期 + 同一人算 1 人）、Valid Registrations、Survey Completed、Completion Rate、Score Coverage Rate、Pending、Qualified（≥70）÷ Valid 和 ÷ Completed（两个分母不同）、Core ICP；最近 3 天的批次标"数据未成熟"。
