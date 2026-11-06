@@ -29,3 +29,17 @@
 - 回复用中文，先给结论，数字放进表格。
 - 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。
 - 建 SG 广告默认用自动版位（Advantage+ 版位），地区选"住在、常在、最近在新加坡"三种；定向复制好之后先过 src/adbot/sg_build_defaults.py 的 apply_sg_build_defaults()（operator 2026-10-22 批准）。
+
+## Lead Quality 统计规则（operator 2026-11-06 最终确认）
+
+数据：Register 分页，G=报名日期、H=source、J/K/L=UTM campaign / ad set / ad、P–T=问卷 Q1–Q5、U=Martin Lead Quality Score（GHL 已算好，不重算）。脚本 scripts/lead_quality_1106.py（workflow adbot-lead-quality.yml，手动、只读）。
+
+1. 所有 Lead Quality 报告一律用 G 栏报名日期；不需要、也不新增问卷提交时间栏。
+2. 家长隔几天才做问卷，分数仍算回原本的报名日期；每日分析按报名日期读最新评分状态。
+3. Survey Completion Rate = 同一报名批次已完成问卷人数 ÷ 该批次有效报名人数。
+4. Qualified Lead Rate = 同一报名批次 Score ≥70 人数 ÷ 该批次有效报名人数。
+5. CPQL = 同市场（SG老户 + HK）、同广告归因范围（同 campaign / ad set / ad 名字）、同报名日期区间的花费 ÷ Qualified 人数。
+6. 还没做问卷的一律标 Pending，不算低质量。
+7. 分级：A 85–100、B 70–84、C 50–69、D 0–49；Core ICP = 总分 ≥70 且 Q2 ≥20 且 Q5 ≥16（Q2 / Q5 由原始答案对表算）。
+8. 只算验证过的 SG 报名（UTM 对上 SG老户 / HK 的 campaign）；[MY]、MY 户口、无 UTM、来源不明的单独列，不归入 SG；ad 名字不能单独用来归因。MY 与 SG 分开，不混预算或币种。
+9. 不改 Google Sheet、GHL Workflow、广告自动化，不新增字段。
