@@ -31,7 +31,7 @@ from adbot.clients.graph import TransientGraphError
 from adbot.clients.sheets import SheetsClient
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
-from adbot.monitor_cpl import extract_results, result_action_type
+from adbot.monitor_cpl import _week_start_thursday, extract_results, result_action_type
 from adbot.settings import load_settings
 
 ACCTS = [("SG老户", "act_1024930575770087"), ("HK", "act_1179668409969241")]
@@ -63,8 +63,9 @@ def main():
     cfg = s.cpa
     now = dt.datetime.utcnow() + dt.timedelta(hours=8)
     today = now.date()
-    c_from = dt.date.fromisoformat(os.environ.get("ADBOT_CYCLE_FROM") or "2026-11-05")
-    c_end = dt.date.fromisoformat(os.environ.get("ADBOT_CYCLE_END") or "2026-11-10")
+    c_from = dt.date.fromisoformat(os.environ.get("ADBOT_CYCLE_FROM") or _week_start_thursday(today).isoformat())
+    c_end = dt.date.fromisoformat(os.environ.get("ADBOT_CYCLE_END") or (c_from + dt.timedelta(days=5)).isoformat())
+    yday = today - dt.timedelta(days=1)
     d60 = today - dt.timedelta(days=60)
     log.info("读数 %s SGT · 本期 %s ~ 今天 · 本期最后一天 %s（星期二）", now.strftime("%Y-%m-%d %H:%M"), c_from, c_end)
 
@@ -80,7 +81,12 @@ def main():
             regs[key3(x.campaign, x.adset, x.ad)] += 1
 
     out, budgets, today_sp = [], [], 0.0
+    yd = {}
     for label, acct in ACCTS:
+        for d0 in (yday, today - dt.timedelta(days=2)):
+            r0 = (g._get_all(f"{acct}/insights", {"fields": "spend,actions",
+                                                  "time_range": json.dumps({"since": d0.isoformat(), "until": d0.isoformat()})}) or [{}])[0]
+            yd[(label, d0)] = (_f(r0.get("spend")), extract_results(r0.get("actions"), tok))
         cyc = g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500,
                                               "fields": "ad_id,ad_name,adset_name,campaign_name,spend,actions",
                                               "time_range": json.dumps({"since": c_from.isoformat(), "until": today.isoformat()})})
@@ -89,8 +95,13 @@ def main():
             "level": "ad", "limit": 500, "fields": "ad_id,spend",
             "time_range": json.dumps({"since": today.isoformat(), "until": today.isoformat()})})}
         ids = [r["ad_id"] for r in cyc]
-        life = {}
+        life, s60 = {}, {}
         for i in range(0, len(ids), 50):
+            for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "fields": "ad_id,spend",
+                                                     "time_range": json.dumps({"since": d60.isoformat(), "until": today.isoformat()}),
+                                                     "filtering": json.dumps([{"field": "ad.id", "operator": "IN",
+                                                                               "value": ids[i:i + 50]}])}):
+                s60[r["ad_id"]] = _f(r.get("spend"))
             for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "fields": "ad_id,spend",
                                                      "date_preset": "maximum",
                                                      "filtering": json.dumps([{"field": "ad.id", "operator": "IN",
@@ -107,7 +118,8 @@ def main():
                         "rg": extract_results(r.get("actions"), tok), "sheet": regs.get(k, 0),
                         "own": len(own.get(k, [])), "own60": sum(1 for d in ds if d > d60),
                         "last_sale": ds[-1] if ds else None, "life": life.get(r["ad_id"], 0.0),
-                        "today": tdy.get(r["ad_id"], 0.0)})
+                        "today": tdy.get(r["ad_id"], 0.0), "sp60": s60.get(r["ad_id"], 0.0),
+                        "camp": r.get("campaign_name") or "", "set": r.get("adset_name") or ""})
             if live:
                 c, st = a.get("campaign") or {}, a.get("adset") or {}
                 owner = ("campaign", c.get("id"), _f(c.get("daily_budget"))) if c.get("daily_budget") else \
@@ -151,11 +163,29 @@ def main():
         for lab, v in (("Meta", cpl_m), ("报名表", cpl_s)):
             if v is not None:
                 flags.append(f"{lab} CPL {'≤82 达标' if v <= 82 else '≤144 可接受' if v <= 144 else '>144 偏高'}")
-        log.info("   %s ad %s %r · 本期花 RM%.2f（今天 RM%.2f）· Meta 报名 %d（CPL %s）· 报名表 %d（CPL %s）· 自己成交 全期 %d / 60 天 %d"
-                 "（最后 %s）· 全期 CPA %s（%s）· %s", r["acct"], r["id"], r["name"][:40], r["sp"], r["today"], r["rg"],
-                 f"RM{cpl_m:.2f}" if cpl_m else "—", r["sheet"], f"RM{cpl_s:.2f}" if cpl_s else "—", r["own"], r["own60"],
+        cpa60 = r["sp60"] / r["own60"] if r["own60"] else None
+        roas60 = r["own60"] * cfg.price_myr / r["sp60"] if r["sp60"] else None
+        log.info("   %s %s › %s · ad %s %r · 本期花 RM%.2f（今天 RM%.2f）· Meta 报名 %d（CPL %s）· 报名表 %d（CPL %s）"
+                 " · 60 天花 RM%.2f 自己成交 %d CPA %s ROAS %s · 全期成交 %d（最后 %s）CPA %s（%s）· %s",
+                 r["acct"], r["camp"][:45], r["set"][:30], r["id"], r["name"][:40], r["sp"], r["today"], r["rg"],
+                 f"RM{cpl_m:.2f}" if cpl_m else "—", r["sheet"], f"RM{cpl_s:.2f}" if cpl_s else "—", r["sp60"], r["own60"],
+                 f"RM{cpa60:.2f}" if cpa60 else "—", f"{roas60:.2f}" if roas60 is not None else "—", r["own"],
                  r["last_sale"], f"RM{cpa_v:.2f}" if cpa_v else "—", band(cpa_v), " · ".join(flags) or "—")
 
+    log.info("═" * 100)
+    for label, _a in ACCTS:
+        (s1, r1), (s2, r2) = yd[(label, yday)], yd[(label, today - dt.timedelta(days=2))]
+        log.info("D. %s 昨天 %s 花 RM%.2f 报名 %d CPL %s · 前天 花 RM%.2f 报名 %d CPL %s", label, yday, s1, r1,
+                 f"RM{s1 / r1:.2f}" if r1 else "—", s2, r2, f"RM{s2 / r2:.2f}" if r2 else "—")
+    try:                                             # the monitor's actions in the last 24 h (state/pause_log.json on main)
+        plog = json.load(open(os.path.join(os.environ.get("ADBOT_ROOT", "."), "state", "pause_log.json")))
+        cut = (dt.datetime.utcnow() - dt.timedelta(hours=24)).isoformat()
+        recent = [e for e in plog if e.get("ts", "") >= cut]
+        log.info("E. 监控过去 24 小时的动作 %d 条：%s", len(recent),
+                 [f"{e.get('ts', '')[:16]}Z {e.get('entity_type')} {e.get('entity_id')} {e.get('reason')} 花 {e.get('spend')}"
+                  for e in recent] or "没有")
+    except (OSError, ValueError) as exc:
+        log.info("E. 读不到监控记录：%s", exc)
     owners = {}
     for label, (lvl, oid, b) in [(x[0], x[1]) for x in budgets]:
         owners[(label, lvl, oid)] = b / 100
