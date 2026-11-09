@@ -1,4 +1,4 @@
-"""11月新片 7 支 on HK, ABO 1-7-7, campaign PAUSED (operator 9 Nov: 「直接开跑，paused，我自己开」).
+"""11月新片 7 支 on SG老户 (first built on HK, deleted on the operator's word), ABO 1-7-7, campaign PAUSED (operator 9 Nov: 「直接开跑，paused，我自己开」).
 
 Operator approved 9 Nov:
   · Videos 1, 2, 3, 5, 6, 7, 8 (Video 4 not run); file = 「Martin Sep Video 0N…」 in Drive — the
@@ -33,9 +33,14 @@ from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
 from adbot.sg_build_defaults import apply_sg_build_defaults
 
-STATE_PATH = Path("state") / "entities_nov7_1109.json"
-HK_ACCT = "act_1179668409969241"
-TEMPLATE_ADSET = "120250464911610335"           # HK Interest: Food and Drink + Milk
+# account → (ad account, template ad set to clone targeting / pixel from, state file)
+ACCOUNTS = {
+    # 9 Nov first build on HK; operator then chose 「B，建在 SG老户，HK 那个删掉」 (this cycle SG老户 CPL
+    # RM141.69 vs HK RM205.89, scripts/budget_now_1029.py 11/9 15:44)
+    "HK": ("act_1179668409969241", "120250464911610335", Path("state") / "entities_nov7_1109.json"),
+    # SG老户 Interest: Food and Drink + Milk ad set that carried Hook 7 (10 own sales)
+    "SG": ("act_1024930575770087", "120242606093210093", Path("state") / "entities_nov7_sg_1109.json"),
+}
 CAMPAIGN_NAME = "[SG] 儿童长高方程式 | Food and Drink + Milk | 11月新片7支 | 1-7-7"
 ADSET_NAME = "Interest: Food and Drink + Milk"
 DAILY_MINOR = 5000                               # RM50 per ad set (operator 「B」)
@@ -266,8 +271,30 @@ def main() -> None:
     log = get_logger()
     s = load_settings()
     m = s.meta
-    go = (os.environ.get("ADBOT_MODE") or "check").strip().lower() == "go"
+    mode = (os.environ.get("ADBOT_MODE") or "check").strip().lower()
+    go = mode == "go"
     g = graph_client(s)
+    if mode == "delete_hk":                        # operator 9 Nov: HK 那个删掉
+        hk_state = ACCOUNTS["HK"][2]
+        hst = json.loads(hk_state.read_text()) if hk_state.exists() else {}
+        cid = hst.get("campaign_id")
+        if not cid:
+            log.error("❌ state 里没有 HK campaign id（%s），什么都没删。", hk_state)
+            sys.exit(1)
+        before = g.get_object(cid, "name,account_id,status")
+        if str(before.get("account_id")) != ACCOUNTS["HK"][0].replace("act_", "") or "11月新片7支" not in (before.get("name") or ""):
+            log.error("❌ %s 不是 HK 的 11月新片7支 campaign（%s），不删。", cid, before)
+            sys.exit(1)
+        g.update_status(cid, "DELETED")
+        after = g.get_object(cid, "status,effective_status")
+        log.info("🗑 HK campaign %s %r → %s / %s（ad set 和广告跟着删除）· ad sets %s · ads %s", cid, before.get("name"),
+                 after.get("status"), after.get("effective_status"), list((hst.get("adsets") or {}).values()),
+                 list((hst.get("ads") or {}).values()))
+        final_summary(log, f"删掉 HK campaign {cid}：{after.get('status')}")
+        return
+    acct_key = (os.environ.get("ADBOT_ACCOUNT") or "SG").strip().upper()
+    ACCT, TEMPLATE_ADSET, STATE_PATH = ACCOUNTS[acct_key]
+    log.info("账户 %s %s · 模板 ad set %s · 模式 %s", acct_key, ACCT, TEMPLATE_ADSET, mode)
     drive = DriveClient(s.secrets.google_sa_json)
     st: Dict[str, Any] = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
 
@@ -304,7 +331,7 @@ def main() -> None:
     tpl = g.get_object(TEMPLATE_ADSET, "name,targeting,promoted_object,optimization_goal,billing_event,bid_strategy")
     t = apply_sg_build_defaults(copy.deepcopy(tpl.get("targeting") or {}))
     ints = [x.get("name") for fs in t.get("flexible_spec") or [] for x in fs.get("interests") or []]
-    log.info("  模板 HK %s %r · %s-%s · Adv+ %s · 兴趣 %s · 地区 %s · 版位 自动", TEMPLATE_ADSET, tpl.get("name"),
+    log.info("  模板 %s %s %r · %s-%s · Adv+ %s · 兴趣 %s · 地区 %s · 版位 自动", acct_key, TEMPLATE_ADSET, tpl.get("name"),
              t.get("age_min"), t.get("age_max"), (t.get("targeting_automation") or {}).get("advantage_audience"),
              "/".join(ints), t.get("geo_locations"))
     if not go:
@@ -319,8 +346,8 @@ def main() -> None:
         k = str(v["n"])
         if not st["videos"].get(k):
             path = drive.download_file(v["drive_id"], Path(f"/tmp/nov_v{k}.mp4"))
-            log.info("  ↓ Video %s %.1f MB → 上传 HK…", k, path.stat().st_size / 1e6)
-            vid = g.upload_video(HK_ACCT, str(path), name=v["ad_name"])
+            log.info("  ↓ Video %s %.1f MB → 上传 " + acct_key + "…", k, path.stat().st_size / 1e6)
+            vid = g.upload_video(ACCT, str(path), name=v["ad_name"])
             st["videos"][k] = {"video_id": vid, "thumb": g.get_video_thumbnail(vid)}
             persist()
             path.unlink(missing_ok=True)
@@ -335,7 +362,7 @@ def main() -> None:
             fields = {"name": v["ad_name"], "object_story_spec": story}
             if m.url_tags:
                 fields["url_tags"] = m.url_tags
-            st["creatives"][k] = g.create_adcreative(HK_ACCT, **fields)["id"]
+            st["creatives"][k] = g.create_adcreative(ACCT, **fields)["id"]
             persist()
             time.sleep(0.8)
         log.info("  ✔ Video %s → video %s · creative %s", k, st["videos"][k]["video_id"], st["creatives"][k])
@@ -346,7 +373,7 @@ def main() -> None:
                   "special_ad_categories": m.special_ad_categories, "is_adset_budget_sharing_enabled": False}
         if m.regional_regulated_categories:
             fields["regional_regulated_categories"] = m.regional_regulated_categories
-        st["campaign_id"] = g.create_campaign(HK_ACCT, **fields)["id"]
+        st["campaign_id"] = g.create_campaign(ACCT, **fields)["id"]
         persist()
         log.info("+ campaign %s %r ABO PAUSED", st["campaign_id"], CAMPAIGN_NAME)
         time.sleep(1.0)
@@ -366,11 +393,11 @@ def main() -> None:
                 fields["regional_regulated_categories"] = m.regional_regulated_categories
             if m.regional_regulation_identities:
                 fields["regional_regulation_identities"] = m.regional_regulation_identities
-            st["adsets"][k] = g.create_adset(HK_ACCT, **fields)["id"]
+            st["adsets"][k] = g.create_adset(ACCT, **fields)["id"]
             persist()
             time.sleep(1.0)
         if not st["ads"].get(k):
-            st["ads"][k] = g.create_ad(HK_ACCT, name=v["ad_name"], adset_id=st["adsets"][k],
+            st["ads"][k] = g.create_ad(ACCT, name=v["ad_name"], adset_id=st["adsets"][k],
                                        creative={"creative_id": st["creatives"][k]}, status="ACTIVE",
                                        conversion_domain=conv)["id"]
             persist()
@@ -393,7 +420,7 @@ def main() -> None:
                  st["ads"][k], ad.get("name"), ad.get("status"), ad.get("effective_status"),
                  ((ad.get("creative") or {}).get("body") or "")[:20], (ad.get("creative") or {}).get("title"))
         rows.append(f"V{k} ad {st['ads'][k]}")
-    final_summary(log, f"建好：HK campaign {st['campaign_id']} PAUSED · 7 ad set RM50 · {' | '.join(rows)}")
+    final_summary(log, f"建好：{acct_key} campaign {st['campaign_id']} PAUSED · 7 ad set RM50 · {' | '.join(rows)}")
 
 
 if __name__ == "__main__":

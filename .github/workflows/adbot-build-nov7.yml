@@ -1,7 +1,7 @@
-name: adbot · 11月新片7支 1-7-7 on HK (manual)
+name: adbot · 11月新片7支 1-7-7 on SG old (manual)
 
-# MUTATING in mode=go, operator-ordered (9 Nov 「直接开跑，paused，我自己开」): one ABO campaign on the
-# HK account, Food and Drink + Milk, one ad set per video (Video 1/2/3/5/6/7/8), RM50 each,
+# MUTATING in mode=go, operator-ordered (9 Nov 「直接开跑，paused，我自己开」; then 「B，建在 SG老户，HK 那个删掉」): one ABO campaign on the
+# SG old account (account=SG), Food and Drink + Milk, one ad set per video (Video 1/2/3/5/6/7/8), RM50 each,
 # campaign PAUSED for the operator to switch on. mode=check (default) is a read-only preflight.
 # Idempotent; 75 = rate limit.
 
@@ -9,9 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "check (read-only preflight) or go (build)"
+        description: "check (read-only preflight) / go (build) / delete_hk (delete the HK copy)"
         required: false
         default: "check"
+      account:
+        description: "SG (SG老户, default) or HK"
+        required: false
+        default: "SG"
 
 jobs:
   build:
@@ -30,6 +34,7 @@ jobs:
           ADBOT_ROOT: ${{ github.workspace }}
           ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
           ADBOT_MODE: ${{ github.event.inputs.mode }}
+          ADBOT_ACCOUNT: ${{ github.event.inputs.account }}
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
