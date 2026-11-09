@@ -1,0 +1,46 @@
+name: adbot · 11月新片7支 1-7-7 on HK (manual)
+
+# MUTATING in mode=go, operator-ordered (9 Nov 「直接开跑，paused，我自己开」): one ABO campaign on the
+# HK account, Food and Drink + Milk, one ad set per video (Video 1/2/3/5/6/7/8), RM50 each,
+# campaign PAUSED for the operator to switch on. mode=check (default) is a read-only preflight.
+# Idempotent; 75 = rate limit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check (read-only preflight) or go (build)"
+        required: false
+        default: "check"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build (campaign PAUSED)
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_MODE: ${{ github.event.inputs.mode }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_nov7_1109.py
+      - name: Persist entity ids
+        if: always() && github.event.inputs.mode == 'go'
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist 11月新片7支 ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
