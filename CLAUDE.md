@@ -23,7 +23,7 @@
 ## 一直有效的旧规矩
 
 - 文案先给 operator 批，批了才建。
-- 不用 Claude 会话去做后台提醒、定时唤醒或盯盘，监控只靠 GitHub 上的 adbot-monitor。
+- 不用 Claude 会话去做后台提醒、定时唤醒或盯盘，监控只靠 GitHub 上的 adbot-monitor。例外：每天早上的广告晨报用 Claude 定时会话「Martin SG 每日晨报」（每天 09:36 SGT，跑 adbot-cycle-check.yml；operator 2026-11-09 要求、照 MY 的做法）。晨报只读，只汇报和提建议；关广告、改预算仍只靠 adbot-monitor 或 operator 的话。
 - 不要动 MY 账户，除非 operator 明确要求。
 - 监控的 RM90 零报名线只放过最近 60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告；成交在 60 天前的旧卖家照样会被关。重开旧片前要先讲清楚这一点（operator 2026-11-07 选 A，维持不改）。
 - 关广告时，campaign 里没有在跑的广告了，就连 campaign 一起关；不要留 ad / ad set 关了但 campaign 还开着（operator 2026-10-29 定；监控和 scripts/pause_ads_1029.py 都会这样做）。
