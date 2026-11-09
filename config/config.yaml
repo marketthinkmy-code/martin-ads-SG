@@ -134,7 +134,7 @@ kpi:
     - campaign_contains: "| 中英文 |"     # 26 Oct: proven SG sellers on HK, English + Chinese, ABO RM50
       min_spend_myr: 90.00
       campaign_zero_lead_spend_myr: 150.00
-    - campaign_contains: "11月新片7支"    # 9 Nov: Video 1/2/3/5/6/7/8 on HK, ABO RM50, one ad set per video (rule 1)
+    - campaign_contains: "11月新片7支"    # 9 Nov: Video 1/2/3/5/6/7/8 on SG old campaign 120259458979710093 (HK copy deleted), ABO RM50, one ad set per video (rule 1)
       min_spend_myr: 90.00
       campaign_zero_lead_spend_myr: 150.00
   cpl_hold: []                           # 17 Oct operator 「监控完全部 SG 广告」: the 12 Sep hold list is cleared.
