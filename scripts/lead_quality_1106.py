@@ -550,7 +550,7 @@ def main():
              "够" if all(c[1] for c in reliab) else "PRELIMINARY / INSUFFICIENT DATA")
     for name, ok in reliab:
         log.info("   %s %s", "✓" if ok else "✗", name)
-    final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp, post)} · 币种 {cur} · CPQL "
+    final_summary(log, f"{d_from}~{d_to} · SG 已验证 {stats(sg, total_sp, post, 'SG老户+HK 全部广告 Blended')} · 币种 {cur} · CPQL "
                        f"{'可算（初步）' if computable else 'N/A'} · 决策可靠性 {'够' if all(c[1] for c in reliab) else '不足'}")
 
 
