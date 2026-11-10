@@ -54,6 +54,7 @@ from adbot.clients.graph import TransientGraphError
 from adbot.clients.sheets import SheetsClient
 from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
+from adbot.monitor_cpl import extract_results, result_action_type
 from adbot.settings import load_settings
 
 SG_ACCTS = [("SG老户", "act_1024930575770087"), ("HK", "act_1179668409969241")]
@@ -191,7 +192,7 @@ def main():
     recs, tests, bad_date = [], Counter(), 0
     seen = Counter()
     q_answers = {q: Counter() for q in ("q1", "q2", "q3", "q4", "q5")}
-    for r in rows:
+    for ri, r in enumerate(rows):
         if not any((c or "").strip() for c in r):
             continue
         p = " ".join((r[i] if i < len(r) else "") for i in pii).lower()
@@ -213,7 +214,7 @@ def main():
         q2, q5 = score_answer(qs[1], Q2_MAP), score_answer(qs[4], Q5_MAP)
         recs.append({"d": d, "src": cell(r, "source") or "（空）", "cls": cls, "J": cell(r, "campaign"), "K": cell(r, "adset"),
                      "L": cell(r, "ad"), "nq": sum(1 for v in qs if v), "u": u, "q2": q2, "q5": q5,
-                     "id": ident, "u_raw": cell(r, "score")})
+                     "id": ident, "u_raw": cell(r, "score"), "row": hi + 2 + ri})
     for L in ("M", "N", "O"):                           # the older 3-question survey, outside the brief's P–T
         i = idx(L)
         ds = [cpa.parse_date(r[idx("G")]) for r in rows if i < len(r) and (r[i] or "").strip() and idx("G") < len(r)]
@@ -333,14 +334,22 @@ def main():
 
     # Meta spend, SG old + HK only, same date range, per ad (three names) and per day
     sp_ad, sp_day = defaultdict(float), defaultdict(float)
+    res_ad, first_day = defaultdict(float), {}
+    tok = result_action_type(s.meta.conversion_event)
     for _label, acct in SG_ACCTS:
         for r in g._get_all(f"{acct}/insights", {"level": "ad", "limit": 500, "time_increment": 1,
-                                                 "fields": "ad_name,adset_name,campaign_name,spend",
+                                                 "fields": "ad_name,adset_name,campaign_name,spend,actions",
                                                  "time_range": json.dumps({"since": d_from.isoformat(), "until": d_to.isoformat()})}):
             v = float(r.get("spend") or 0)
             sp_ad[(cpa.ad_key(r.get("campaign_name") or ""), cpa.ad_key(r.get("adset_name") or ""),
                    cpa.ad_key(r.get("ad_name") or ""))] += v
             sp_day[dt.date.fromisoformat(r["date_start"])] += v
+            k3 = (cpa.ad_key(r.get("campaign_name") or ""), cpa.ad_key(r.get("adset_name") or ""),
+                  cpa.ad_key(r.get("ad_name") or ""))
+            res_ad[k3] += extract_results(r.get("actions"), tok)
+            if v > 0:
+                d0 = dt.date.fromisoformat(r["date_start"])
+                first_day[k3] = min(first_day.get(k3, d0), d0)
     total_sp = sum(sp_ad.values())
 
     log.info("═" * 100)
@@ -372,7 +381,7 @@ def main():
         log.info("═" * 100)
         log.info("C/D. 按 %s（%s；花费 = 同名字、同日期区间的 Meta 花费）", lvl,
                  "三层 + 只对上 campaign 的报名" if lvl == "campaign" else "只算三层都对上的报名")
-        grp, names, spk = defaultdict(list), {}, defaultdict(float)
+        grp, names, spk, rsk = defaultdict(list), {}, defaultdict(float), defaultdict(float)
         for x in sg:
             if lvl != "campaign" and x["cls"] != "SG✔ 三层":
                 continue
@@ -383,11 +392,15 @@ def main():
             k = k3[:n_keys]
             hit = next((gk for gk in grp if gk == k or (len(gk[0]) >= 12 and k[0].startswith(gk[0]) and gk[1:] == k[1:])), k)
             spk[hit] += v
+            rsk[hit] += res_ad.get(k3, 0.0)
             names.setdefault(hit, " / ".join(k))
         keys = sorted(set(grp) | {k for k, v in spk.items() if v > 0},
                       key=lambda k: (-sum(1 for x in grp.get(k, []) if x["u"] is not None and x["u"] >= 70), -spk.get(k, 0.0)))
         for k in keys[:30]:
-            log.info("   %s · %s", names[k], stats(grp.get(k, []), spk.get(k, 0.0), post))
+            sc_list = sorted((x["u"] for x in grp.get(k, []) if x["u"] is not None), reverse=True)
+            log.info("   %s · %s · Meta 平台报名 %d（只作对照，不当 Register 归因人数）· 分数 %s", names[k],
+                     stats(grp.get(k, []), spk.get(k, 0.0), post), rsk.get(k, 0.0),
+                     [int(u) if float(u).is_integer() else u for u in sc_list] or "—")
 
     # ── E: attribution ──────────────────────────────────────────────────────────────────────────
     log.info("═" * 100)
@@ -422,6 +435,41 @@ def main():
     utm_ok = len(sg_surv) >= min_scored
     log.info("   判断：%s", "样本够，可以看保留情况" if utm_ok else
              f"带 SG 广告 UTM 又做了问卷的只有 {len(sg_surv)} 行（< {min_scored}），证据不足，不判定 tracking error")
+
+    # ── F: every scored / surveyed SG row in the window (row number, no personal data) ──────────
+    log.info("═" * 100)
+    all_sg_win = [x for x in win if x["cls"] in sg_cls and (x["u"] is not None or x["nq"] > 0)]
+    log.info("F. SG 有问卷 / 分数的每一行（%s ~ %s，原始行，不去重）：%d 行", d_from, d_to, len(all_sg_win))
+    for x in sorted(all_sg_win, key=lambda y: y["row"]):
+        same = by_person.get(x["id"], []) if x["id"] else []
+        log.info("   第 %d 行 · 报名 %s · H %s · %s · U %s（%s）· 作答 %d/5 · Q2 %s · Q5 %s · Core ICP %s · 同一人共 %d 行（日期 %s）· UTM %r / %r / %r",
+                 x["row"], x["d"], x["src"], x["cls"], x["u_raw"] or "—", grade(x["u"]) if x["u"] is not None else "无分",
+                 x["nq"], x["q2"], x["q5"], "是" if is_core(x) else "否", len(same),
+                 sorted({str(y["d"]) for y in same}), x["J"][:70], x["K"][:35], x["L"][:40])
+        if x["u"] is not None and not (0 <= x["u"] <= 100):
+            log.info("      ⚠ U 超出 0–100")
+    # ── G: survey completion by registration date, every market (facts only, no cause) ─────────
+    log.info("═" * 100)
+    log.info("G. 每个报名日期的问卷完成情况（全部市场，原始行）：")
+    d = d_from
+    while d <= d_to:
+        day = [x for x in recs if x["d"] == d]
+        by_c = defaultdict(lambda: [0, 0, 0])
+        for x in day:
+            by_c[x["cls"]][0] += 1
+            by_c[x["cls"]][1] += 1 if x["nq"] > 0 else 0
+            by_c[x["cls"]][2] += 1 if x["u"] is not None else 0
+        log.info("   %s %s · 全部 %d 行 · 有作答 %d · 有分 %d · 按归属（行 / 有作答 / 有分）%s", d, "一二三四五六日"[d.weekday()],
+                 len(day), sum(1 for x in day if x["nq"] > 0), sum(1 for x in day if x["u"] is not None),
+                 {c: tuple(v) for c, v in sorted(by_c.items())})
+        sgd = Counter(x["J"][:70] for x in day if x["cls"] in sg_cls)
+        if sgd:
+            log.info("      SG 报名来自 campaign：%s", dict(sgd.most_common(6)))
+        d += dt.timedelta(days=1)
+    fd = sorted(((v, k) for k, v in first_day.items() if "11月新片7支" in k[0]), key=lambda z: z[0])
+    if fd:
+        log.info("   11月新片7支 每支广告第一天有花费（Meta 日报，%s ~ %s 内）：%s", d_from, d_to,
+                 " | ".join(f"{k[2][:30]} {v}" for v, k in fd))
 
     # ── billing currency of the SG accounts ─────────────────────────────────────────────────────
     cur = {}
