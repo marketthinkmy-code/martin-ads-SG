@@ -13,8 +13,12 @@ the SG ad accounts (SG老户 act_1024930575770087 + HK act_1179668409969241, who
   其他      J set, no market tag, no match
 Ad name alone is never used to attribute. Grades from U: A 85–100, B 70–84, C 50–69, D 0–49.
 High = U >= 70. Core ICP = U >= 70 and Q2 >= 20 and Q5 >= 16, Q2 / Q5 scored from the raw answer
-text with the brief's table (every distinct answer is printed with the score given, so the mapping
-can be checked). Rows whose name or email contains "test" / 测试 are set aside as suspected internal
+text: GHL's exact option wording mapped to the brief's table (operator 2026-11-10; an answer not in
+the list is UNMAPPED / NEEDS REVIEW, never "not Core ICP"; every distinct answer is printed with its
+mapping). Returning Lead = the same person (name + email + phone) has an earlier registration date;
+the registration keeps its own UTM attribution, but First-time and Returning are counted apart. The
+SG total and per-day CPQL use all SG old + HK spend and are labelled Blended, never compared with one
+ad's CPQL. Rows whose name or email contains "test" / 测试 are set aside as suspected internal
 tests (count only). No names, emails or phones are printed — only counts. No writes anywhere.
 
 Date rules (operator 2026-11-06, final): every number is keyed on the registration date (column G),
@@ -46,6 +50,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 import sys
 from collections import Counter, defaultdict
 
@@ -63,17 +68,36 @@ TAB = "Register"
 PRE = "Pre-launch Registration / Invitation Unknown"   # before the provisional survey start, no answer
 COL = {"date": "G", "source": "H", "campaign": "J", "adset": "K", "ad": "L",
        "q1": "P", "q2": "Q", "q3": "R", "q4": "S", "q5": "T", "score": "U"}
-# brief's tables; keys are matched as substrings of the NFKC-folded answer (simplified + traditional)
-Q2_MAP = [(("身高记录", "身高記錄", "成长变慢", "成長變慢", "长得慢", "長得慢", "有记录孩子身高", "有記錄孩子身高",
-           "速度明显变慢", "速度明顯變慢"), 25),
-          (("成长评估", "成長評估", "评估", "評估"), 25),
-          (("比同龄", "比同齡", "同龄人矮", "同齡人矮", "比较矮", "比較矮"), 20),
-          (("不确定", "不確定", "是否正常"), 12),
-          (("提前学习", "提前學習", "提前了解"), 5)]
-Q5_MAP = [(("专业指导", "專業指導", "持续跟进", "持續跟進"), 20),
-          (("系统性", "系統性", "按步骤", "按步驟"), 16),
-          (("先了解", "再决定", "再決定"), 10),
-          (("免费资讯", "免費資訊", "免费", "免費"), 4)]
+# GHL option text, exact (operator 2026-11-10): Q2 / Q5 scores from the brief's table matched to GHL's real
+# option wording; Q1 / Q3 / Q4 are only recognised (their score table is not on file). An answer not in
+# the list is UNMAPPED / NEEDS REVIEW, never "not Core ICP". Only wording seen in Register is listed; not yet seen:
+# Q2 "只是提前学习" option and any other Q1 age band.
+UNMAPPED = "UNMAPPED / NEEDS REVIEW"
+Q2_MAP = {"有记录孩子身高，发现最近长高速度明显变慢": 25,
+          "曾经带孩子做成长评估，希望进一步了解或改善": 25,
+          "孩子明显比同龄人矮，担心差距越来越大": 20,
+          "不确定孩子目前的成长情况是否正常": 12}
+Q5_MAP = {"希望有专业人士了解孩子的情况，给予适合的指导，并持续跟进": 20,
+          "希望有一套清楚的方法，可以跟着步骤帮助孩子改善生活习惯": 16,   # = 系统性方法、按步骤执行 (operator 11/10)
+          "希望先了解孩子成长的关键因素，再决定下一步": 10,
+          "主要想获得一些免费的成长知识和建议": 4}
+Q1_OPTS = {"3–6 岁", "10–12 岁", "13–15 岁"}           # only options seen in Register so far; others -> UNMAPPED
+Q3_OPTS = {"希望未来 1 个月内开始", "希望未来 1–3 个月内开始", "暂时没有计划，想先了解资讯"}
+Q4_OPTS = {"愿意长期配合，并定期记录孩子的成长变化", "愿意在多数日子安排时间，协助孩子执行",
+           "想先了解方法，再尝试适合的部分", "目前较难安排时间，主要想先听建议"}
+
+
+def _canon(s):
+    s = unicodedata.normalize("NFKC", s or "")
+    s = re.sub(r"[‐-―−~～-]", "–", s)            # every dash / tilde form -> en dash
+    s = re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"\s*([,.:;!?()，。、！？：；（）])\s*", r"\1", s)   # no spaces around punctuation (NFKC makes it ASCII)
+    return s.replace(",", "，")
+
+
+Q2_C = {_canon(k): v for k, v in Q2_MAP.items()}
+Q5_C = {_canon(k): v for k, v in Q5_MAP.items()}
+Q_OPTS_C = {"q1": {_canon(k) for k in Q1_OPTS}, "q3": {_canon(k) for k in Q3_OPTS}, "q4": {_canon(k) for k in Q4_OPTS}}
 
 
 def idx(letter):
@@ -92,17 +116,21 @@ def num(s):
 
 
 def score_answer(ans, table):
+    """Exact GHL option text -> score; empty -> None; anything else -> UNMAPPED."""
     a = (ans or "").strip()
     if not a:
         return None
     n = num(a)
     if n is not None:                                   # the cell already holds a score
         return n
-    f = cpa.norm(a)
-    for keys, pts in table:
-        if any(k in f for k in keys):
-            return pts
-    return "未对上"
+    return table.get(_canon(a), UNMAPPED)
+
+
+def known_answer(ans, q):
+    a = (ans or "").strip()
+    if not a:
+        return None
+    return "OK" if _canon(a) in Q_OPTS_C[q] else UNMAPPED
 
 
 def grade(u):
@@ -211,10 +239,11 @@ def main():
             if v:
                 q_answers[q][v[:60]] += 1
         u = num(cell(r, "score"))
-        q2, q5 = score_answer(qs[1], Q2_MAP), score_answer(qs[4], Q5_MAP)
+        q2, q5 = score_answer(qs[1], Q2_C), score_answer(qs[4], Q5_C)
+        qk = {q: known_answer(v, q) for q, v in zip(("q1", "q3", "q4"), (qs[0], qs[2], qs[3]))}
         recs.append({"d": d, "src": cell(r, "source") or "（空）", "cls": cls, "J": cell(r, "campaign"), "K": cell(r, "adset"),
                      "L": cell(r, "ad"), "nq": sum(1 for v in qs if v), "u": u, "q2": q2, "q5": q5,
-                     "id": ident, "u_raw": cell(r, "score"), "row": hi + 2 + ri})
+                     "id": ident, "u_raw": cell(r, "score"), "row": hi + 2 + ri, "qk": qk})
     for L in ("M", "N", "O"):                           # the older 3-question survey, outside the brief's P–T
         i = idx(L)
         ds = [cpa.parse_date(r[idx("G")]) for r in rows if i < len(r) and (r[i] or "").strip() and idx("G") < len(r)]
@@ -241,7 +270,8 @@ def main():
         c = q_answers[q]
         log.info("%s（%s 栏）不同答案 %d 种，前 12：", q.upper(), COL[q], len(c))
         for a, n in c.most_common(12):
-            sc = score_answer(a, Q2_MAP) if q == "q2" else score_answer(a, Q5_MAP) if q == "q5" else ""
+            sc = (score_answer(a, Q2_C) if q == "q2" else score_answer(a, Q5_C) if q == "q5"
+                  else ("已识别" if known_answer(a, q) == "OK" else UNMAPPED))
             log.info("    %4d × %r%s", n, a, f" → {sc}" if sc != "" else "")
     u_vals = [x for x in recs if x["u_raw"]]
     log.info("U 栏：有值 %d 行 · 不是数字 %d 行（例：%s）· 超出 0–100 %d 行", len(u_vals),
@@ -282,6 +312,14 @@ def main():
         x["raw_n"] = raw_n[k]
     sg = list(best.values())
 
+    first_reg = {}
+    for x in recs:
+        if x["id"] and x["d"]:
+            first_reg[x["id"]] = min(first_reg.get(x["id"], x["d"]), x["d"])
+
+    def returning(x):
+        return bool(x["id"]) and first_reg.get(x["id"], x["d"]) < x["d"]
+
     def status(x):
         if x["u"] is not None:
             return "已评分"
@@ -294,9 +332,17 @@ def main():
     def eligible(x):
         return status(x) != PRE
 
-    def is_core(x):
-        return (x["u"] is not None and x["u"] >= 70 and isinstance(x["q2"], (int, float)) and x["q2"] >= 20
+    def core_state(x):
+        """True / False / UNMAPPED (Q2 or Q5 answer not in the GHL option list: needs review)."""
+        if x["u"] is None or x["u"] < 70:
+            return False
+        if x["q2"] == UNMAPPED or x["q5"] == UNMAPPED:
+            return UNMAPPED
+        return (isinstance(x["q2"], (int, float)) and x["q2"] >= 20
                 and isinstance(x["q5"], (int, float)) and x["q5"] >= 16)
+
+    def is_core(x):
+        return core_state(x) is True
 
     def pct(a, b):
         return f"{a / b * 100:.1f}%" if b else "—"
@@ -304,7 +350,7 @@ def main():
     def rm(v):
         return f"RM{v:.2f}"
 
-    def stats(xs, spend=None, pre_ok=True):
+    def stats(xs, spend=None, pre_ok=True, scope="同名广告"):
         # rates use Eligible as "Valid Registrations" (pre-launch rows are left out of every denominator)
         n = len(xs)
         raw = sum(x.get("raw_n", 1) for x in xs)
@@ -313,6 +359,10 @@ def main():
         done = sum(1 for x in el if x["u"] is not None or x["nq"] == 5)
         q = sum(1 for x in el if x["u"] is not None and x["u"] >= 70)
         core = sum(1 for x in el if is_core(x))
+        core_rv = sum(1 for x in el if core_state(x) == UNMAPPED)
+        ret = [x for x in xs if returning(x)]
+        ret_q = sum(1 for x in ret if eligible(x) and x["u"] is not None and x["u"] >= 70)
+        ret_c = sum(1 for x in ret if eligible(x) and is_core(x))
         st = Counter(status(x) for x in xs)
         sc = [x["u"] for x in el if x["u"] is not None]
         gr = Counter(grade(u) for u in sc)
@@ -323,10 +373,12 @@ def main():
                f" · Survey Completed {done}（Completion {pct(done, e)}）· 已评分 {len(sc)}（Score Coverage {pct(len(sc), e)}）"
                f" · Eligible Pending {st['Eligible Pending']} · 部分作答 {st['部分作答']} · 缺分待查 {st['缺分待查']}"
                f" · 平均分 {f'{sum(sc) / len(sc):.1f}' if sc else '—'} · A{gr['A']} B{gr['B']} C{gr['C']} D{gr['D']}"
-               f" · Qualified(≥70) {q}（÷Valid {pct(q, e)} · ÷Completed {pct(q, done)}）· Core ICP {core}")
+               f" · Qualified(≥70) {q}（÷Valid {pct(q, e)} · ÷Completed {pct(q, done)}）· Core ICP {core}"
+               f"{f'（另 {core_rv} 个 {UNMAPPED}）' if core_rv else ''}"
+               f" · First-time {n - len(ret)} / Returning {len(ret)}（Returning 里 Qualified {ret_q} · Core ICP {ret_c}）")
         if spend is not None:
             cpql = rm(spend / q) if q else "N/A（0 qualified）"
-            txt += f" · 花费 {rm(spend)} · CPL {rm(spend / n) if n else '—'} · Preliminary CPQL {cpql}"
+            txt += f" · 花费（{scope}）{rm(spend)} · CPL {rm(spend / n) if n else '—'} · {'Blended' if scope != '同名广告' else 'Preliminary'} CPQL {cpql}"
             txt += f" · 每个 Core ICP {rm(spend / core) if core else 'N/A'}"
             if not pre_ok:
                 txt += "（花费区间含问卷起始日之前）"
@@ -356,7 +408,7 @@ def main():
     log.info("A. SG 报名 / 问卷（报名日期 %s ~ %s，读最新评分状态）· 去重口径：同一报名日期 + 同一人（姓名+电邮+电话）算 1 人，"
              "原始 %d 笔 → 去重 %d 人（去掉 %d 笔）", d_from, d_to, sum(raw_n.values()), len(sg), dups)
     post = d_from >= launch
-    log.info("SG 已验证合计：%s", stats(sg, total_sp, post))
+    log.info("SG 已验证合计：%s", stats(sg, total_sp, post, "SG老户+HK 全部广告 Blended，不可跟单支广告的 CPQL 比"))
     for c in sg_cls:
         log.info("   其中 %s：%s", c, stats([x for x in sg if x["cls"] == c]))
     others = Counter(x["cls"] for x in win if x["cls"] not in sg_cls)
@@ -367,7 +419,8 @@ def main():
         by_day[x["d"]].append(x)
     d = d_from
     while d <= d_to:
-        log.info("   %s %s · %s", d, "一二三四五六日"[d.weekday()], stats(by_day.get(d, []), sp_day.get(d, 0.0), d >= launch))
+        log.info("   %s %s · %s", d, "一二三四五六日"[d.weekday()],
+                 stats(by_day.get(d, []), sp_day.get(d, 0.0), d >= launch, "当天 SG老户+HK 全部广告 Blended"))
         d += dt.timedelta(days=1)
 
     log.info("═" * 100)
@@ -438,13 +491,16 @@ def main():
 
     # ── F: every scored / surveyed SG row in the window (row number, no personal data) ──────────
     log.info("═" * 100)
-    all_sg_win = [x for x in win if x["cls"] in sg_cls and (x["u"] is not None or x["nq"] > 0)]
-    log.info("F. SG 有问卷 / 分数的每一行（%s ~ %s，原始行，不去重）：%d 行", d_from, d_to, len(all_sg_win))
+    all_sg_win = [x for x in recs if x["u"] is not None or x["nq"] > 0]
+    log.info("F. 全表有问卷 / 分数的每一行（全部市场、全部日期，原始行，不去重）：%d 行 · 其中 SG %d 行", len(all_sg_win),
+             sum(1 for x in all_sg_win if x["cls"] in sg_cls))
     for x in sorted(all_sg_win, key=lambda y: y["row"]):
         same = by_person.get(x["id"], []) if x["id"] else []
-        log.info("   第 %d 行 · 报名 %s · H %s · %s · U %s（%s）· 作答 %d/5 · Q2 %s · Q5 %s · Core ICP %s · 同一人共 %d 行（日期 %s）· UTM %r / %r / %r",
+        cs = core_state(x)
+        log.info("   第 %d 行 · 报名 %s · H %s · %s · U %s（%s）· 作答 %d/5 · Q1 %s · Q2 %s · Q3 %s · Q4 %s · Q5 %s · Core ICP %s · %s · 同一人共 %d 行（日期 %s）· UTM %r / %r / %r",
                  x["row"], x["d"], x["src"], x["cls"], x["u_raw"] or "—", grade(x["u"]) if x["u"] is not None else "无分",
-                 x["nq"], x["q2"], x["q5"], "是" if is_core(x) else "否", len(same),
+                 x["nq"], x["qk"]["q1"], x["q2"], x["qk"]["q3"], x["qk"]["q4"], x["q5"],
+                 "是" if cs is True else cs if cs else "否", "Returning Lead" if returning(x) else "First-time", len(same),
                  sorted({str(y["d"]) for y in same}), x["J"][:70], x["K"][:35], x["L"][:40])
         if x["u"] is not None and not (0 <= x["u"] <= 100):
             log.info("      ⚠ U 超出 0–100")
