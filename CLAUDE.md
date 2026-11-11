@@ -28,7 +28,7 @@
 - 监控的 RM90 零报名线只放过最近 60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告；成交在 60 天前的旧卖家照样会被关。重开旧片前要先讲清楚这一点（operator 2026-11-07 选 A，维持不改）。
 - 关广告时，campaign 里没有在跑的广告了，就连 campaign 一起关；不要留 ad / ad set 关了但 campaign 还开着（operator 2026-10-29 定；监控和 scripts/pause_ads_1029.py 都会这样做）。
 - 回复用中文，先给结论，数字放进表格。
-- 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。
+- 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。星期三关广告由 operator 手动做；adbot-weekly-off.yml 的自动定时已拿走（operator 2026-11-12「weekly off 拿走这个指令」，原因是 11/11 它迟了 8 小时、23:05 才跑，关掉了等 00:00 开始的新 campaign），只剩手动触发；adbot-weekly-on.yml 照旧，只开回带 weekly-off 标签的广告。
 - 建 SG 广告默认用自动版位（Advantage+ 版位），地区选"住在、常在、最近在新加坡"三种；定向复制好之后先过 src/adbot/sg_build_defaults.py 的 apply_sg_build_defaults()（operator 2026-10-22 批准）。
 
 ## Lead Quality 统计规则（operator 2026-11-06 最终确认）
