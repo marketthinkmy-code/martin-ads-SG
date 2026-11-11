@@ -563,5 +563,38 @@
     "entity_id": "120248271485680093",
     "entity_type": "campaign",
     "reason": "campaign_without_live_ads"
+  },
+  {
+    "ts": "2026-11-11T01:40:02+00:00",
+    "entity_id": "120259458984840093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 94.08,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-11-11T01:40:04+00:00",
+    "entity_id": "120259458998430093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 90.5,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
+  },
+  {
+    "ts": "2026-11-11T01:40:05+00:00",
+    "entity_id": "120259459008630093",
+    "entity_type": "ad",
+    "reason": "zero_results_over_min_spend",
+    "spend": 95.85,
+    "results": 0.0,
+    "cpl": null,
+    "cpa": null,
+    "cpa_sales": 0
   }
 ]
