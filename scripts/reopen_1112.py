@@ -24,8 +24,9 @@ from adbot.commands import graph_client
 from adbot.logging import final_summary, get_logger
 from adbot.settings import load_settings
 
+# operator 11/11 ~23:35 「B」: Video 2：吃完就马上去厕所？ 120259458992280093 stays off (weakest CPL, its 1 lead scored 50)
 TARGETS = ["120258189814070093", "120258845193530093", "120256984988770093", "120259459021510093",
-           "120259459017220093", "120259459004440093", "120259458992280093"]
+           "120259459017220093", "120259459004440093"]
 AT = dt.datetime(2026, 11, 12, 0, 0, tzinfo=dt.timezone(dt.timedelta(hours=8)))
 
 
