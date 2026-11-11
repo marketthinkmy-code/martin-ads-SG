@@ -34,6 +34,7 @@ from adbot.sg_build_defaults import apply_sg_build_defaults
 ACCT = "act_1024930575770087"
 START = "2026-11-12T00:00:00+0800"
 DAILY_MINOR = 5000
+REF_ADSET = "120259458981350093"   # Food and Drink + Milk | 11月新片7支, Video 1 ad set: bid strategy to match
 SOURCE_ADS = {  # Food and Drink + Milk | 11月新片7支 (campaign 120259458979710093), SG老户
     "1": "120259458984840093", "2": "120259458992280093", "3": "120259458998430093", "5": "120259459004440093",
     "6": "120259459008630093", "7": "120259459017220093", "8": "120259459021510093",
@@ -84,6 +85,9 @@ def main() -> None:
                  (t.get("targeting_automation") or {}).get("advantage_audience"), t.get("geo_locations"), len(ints),
                  "/".join(ints[:12]))
         tpls[key] = (tpl, t)
+    ref = g.get_object(REF_ADSET, "bid_strategy,optimization_goal,billing_event,promoted_object")
+    log.info("  出价照抄 Food and Drink + Milk 11月新片 ad set %s：bid_strategy %s · optimization %s · billing %s",
+             REF_ADSET, ref.get("bid_strategy"), ref.get("optimization_goal"), ref.get("billing_event"))
     if mode != "go":
         final_summary(log, f"预检（只读）：7 个 post id 都读到；模板 {keys} 读到。没有建任何东西。")
         return
@@ -100,6 +104,18 @@ def main() -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(st, ensure_ascii=False, indent=2))
 
+        if not st.get("campaign_id"):              # a failed earlier run may have created it: reuse by exact name
+            for c in g._get_all(f"{ACCT}/campaigns", {"fields": "id,name,effective_status", "limit": 200,
+                                                      "filtering": json.dumps([{"field": "name", "operator": "EQUAL",
+                                                                                "value": cfg["campaign"]}])}):
+                if c.get("name") == cfg["campaign"] and c.get("effective_status") not in ("DELETED", "ARCHIVED"):
+                    st["campaign_id"] = c["id"]
+                    log.info("  %s 沿用上次建了一半的 campaign %s（%s）", key, c["id"], c.get("effective_status"))
+                    for a_s in g._get_all(f"{c['id']}/adsets", {"fields": "id", "limit": 50}):
+                        log.error("❌ %s campaign %s 里已经有 ad set %s，停止，免得重复。", key, c["id"], a_s["id"])
+                        sys.exit(1)
+                    persist()
+                    break
         if not st.get("campaign_id"):
             f = {"name": cfg["campaign"], "objective": m.objective, "buying_type": "AUCTION", "status": "ACTIVE",
                  "special_ad_categories": m.special_ad_categories, "is_adset_budget_sharing_enabled": False}
@@ -121,11 +137,11 @@ def main() -> None:
                 time.sleep(0.8)
             if not st["adsets"].get(k):
                 f = {"name": cfg["adset"], "campaign_id": st["campaign_id"], "daily_budget": DAILY_MINOR,
-                     "status": "ACTIVE", "start_time": START, "optimization_goal": tpl.get("optimization_goal"),
-                     "billing_event": tpl.get("billing_event") or "IMPRESSIONS",
-                     "promoted_object": tpl.get("promoted_object") or {}, "targeting": t}
-                if tpl.get("bid_strategy"):
-                    f["bid_strategy"] = tpl["bid_strategy"]
+                     "status": "ACTIVE", "start_time": START,
+                     "optimization_goal": ref.get("optimization_goal") or tpl.get("optimization_goal"),
+                     "billing_event": ref.get("billing_event") or "IMPRESSIONS",
+                     "promoted_object": ref.get("promoted_object") or tpl.get("promoted_object") or {}, "targeting": t,
+                     "bid_strategy": ref.get("bid_strategy") or "LOWEST_COST_WITHOUT_CAP"}
                 if m.regional_regulated_categories:
                     f["regional_regulated_categories"] = m.regional_regulated_categories
                 if m.regional_regulation_identities:
