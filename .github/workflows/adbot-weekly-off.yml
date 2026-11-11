@@ -4,10 +4,10 @@ name: adbot · weekly OFF (Wed 15:00 MYT)
 # so weekly-on can resume exactly this set.
 # Cron is UTC: Wed 07:00 UTC == Wed 15:00 Asia/Kuala_Lumpur (GMT+8).
 
+# Operator 12 Nov 2026 「weekly off 拿走这个指令」: the Wed 15:09 run was delivered 8 h late (23:05 MYT
+# 11 Nov) and paused the two new campaigns scheduled for Thu 00:00. Automatic runs removed; the
+# operator closes ads by hand on Wednesday. Manual dispatch only.
 on:
-  schedule:
-    - cron: "9 7 * * 3"        # Wed 15:09 MYT (off the congested ":00" slot)
-    - cron: "9 8 * * 3"        # Wed 16:09 MYT — backup if the first was dropped (re-pause is a no-op)
   workflow_dispatch: {}
 
 concurrency:
