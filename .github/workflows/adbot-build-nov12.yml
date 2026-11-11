@@ -40,7 +40,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python scripts/build_nov12_aud_1111.py
       - name: Persist entity ids
-        if: ${{ github.event.inputs.mode == 'go' }}
+        if: ${{ always() && github.event.inputs.mode == 'go' }}
         run: |
           git config user.name "adbot"
           git config user.email "noreply@anthropic.com"
