@@ -153,7 +153,7 @@ def main():
     ld = {w: defaultdict(float) for w in WINDOWS + (3650,)}
     for _l, acct in SG_ACCTS:
         for w in WINDOWS + (3650,):
-            params = {"level": "adset", "limit": 500, "fields": "adset_name,spend,actions"}
+            params = {"level": "adset", "limit": 100, "fields": "adset_name,spend,actions"}
             if w == 3650:
                 params["date_preset"] = "maximum"
             else:
@@ -163,25 +163,31 @@ def main():
                 sp[w][k] += _f(r.get("spend"))
                 ld[w][k] += extract_results(r.get("actions"), tok)
 
-    newest, nt = {}, {}
+    newest_id, nt, nlabel = {}, {}, {}
     live = defaultdict(int)
     for label, acct in SG_ACCTS:
-        for a in g._get_all(f"{acct}/adsets", {"fields": "id,name,created_time,effective_status,daily_budget,targeting,"
-                                                         "campaign{name,effective_status}", "limit": 800}):
+        for a in g._get_all(f"{acct}/adsets", {"fields": "id,name,created_time,effective_status", "limit": 200}):
             k = aud_key(a.get("name") or "")
             if a.get("effective_status") == "ACTIVE":
                 live[k] += 1
-            if (a.get("created_time") or "") <= nt.get(k, ""):
-                continue
+            if (a.get("created_time") or "") > nt.get(k, ""):
+                nt[k], newest_id[k], nlabel[k] = a.get("created_time") or "", a["id"], label
+    newest = {}
+
+    def describe(k):
+        if k not in newest_id:
+            return "（SG老户 / HK 没找到同名 ad set）"
+        if k not in newest:
+            a = g.get_object(newest_id[k], "id,name,created_time,effective_status,daily_budget,targeting,campaign{name}")
             t = a.get("targeting") or {}
             ints = [x.get("name") for fs in t.get("flexible_spec") or [] for kind in ("interests", "behaviors", "family_statuses")
                     for x in fs.get(kind) or []]
             loc = (t.get("geo_locations") or {})
-            newest[k] = (f"{label} ad set {a['id']} {a.get('name')!r}（{a.get('effective_status')}，建于 {(a.get('created_time') or '')[:10]}，"
+            newest[k] = (f"{nlabel[k]} ad set {a['id']} {a.get('name')!r}（{a.get('effective_status')}，建于 {(a.get('created_time') or '')[:10]}，"
                          f"campaign {(a.get('campaign') or {}).get('name', '')[:60]!r}）· {t.get('age_min')}-{t.get('age_max')} 岁 · "
                          f"Adv+ 受众 {'开' if (t.get('targeting_automation') or {}).get('advantage_audience') else '关'} · "
                          f"地区 {loc.get('countries')} {loc.get('location_types')} · 兴趣 {len(ints)} 个：{'/'.join(ints[:8]) or 'broad'}")
-            nt[k] = a.get("created_time") or ""
+        return newest[k]
 
     def line(k, xs):
         dated = sorted(x["d"] for x in xs if x["d"])
@@ -209,7 +215,7 @@ def main():
             log.info("     90 天内成交的片：%s", " · ".join(f"{a} ×{c}" for a, c in ads90))
         camps = Counter(x["J"][:60] for x in xs).most_common(3)
         log.info("     成交的 campaign：%s", " · ".join(f"{a} ×{c}" for a, c in camps))
-        log.info("     最新同名 ad set：%s", newest.get(k, "（SG老户 / HK 没找到同名 ad set）"))
+        log.info("     最新同名 ad set：%s", describe(k) if i <= 6 else newest_id.get(k, "—"))
 
     # ── C: MY ad sets (counts only) ──
     my = [x for x in rows if x["m"] == "MY"]
