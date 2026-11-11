@@ -105,9 +105,7 @@ def main() -> None:
             path.write_text(json.dumps(st, ensure_ascii=False, indent=2))
 
         if not st.get("campaign_id"):              # a failed earlier run may have created it: reuse by exact name
-            for c in g._get_all(f"{ACCT}/campaigns", {"fields": "id,name,effective_status", "limit": 200,
-                                                      "filtering": json.dumps([{"field": "name", "operator": "EQUAL",
-                                                                                "value": cfg["campaign"]}])}):
+            for c in g._get_all(f"{ACCT}/campaigns", {"fields": "id,name,effective_status", "limit": 200}):
                 if c.get("name") == cfg["campaign"] and c.get("effective_status") not in ("DELETED", "ARCHIVED"):
                     st["campaign_id"] = c["id"]
                     log.info("  %s 沿用上次建了一半的 campaign %s（%s）", key, c["id"], c.get("effective_status"))
