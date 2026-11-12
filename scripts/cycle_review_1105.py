@@ -49,8 +49,15 @@ def main():
     c_to = os.environ.get("ADBOT_CYCLE_TO") or "2026-11-03"
     s_from = dt.date.fromisoformat(os.environ.get("ADBOT_SALES_FROM") or "2026-11-04")
 
-    sales, _c, _h = cpa.parse_sales(SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab),
-                                    s.cpa.price_myr)
+    sc = SheetsClient(s.secrets.google_sa_json)
+    gid = (os.environ.get("ADBOT_SHEET_GID") or "").strip()
+    if gid:   # 12 Nov: the operator sent a link to a tab by gid — confirm it is the paid list we read
+        meta = sc._svc.spreadsheets().get(spreadsheetId=s.cpa.spreadsheet_id,
+                                          fields="sheets(properties(sheetId,title))").execute()
+        titles = {str(x["properties"]["sheetId"]): x["properties"]["title"] for x in meta.get("sheets", [])}
+        log.info("链接的分页 gid %s = %r · 脚本读的成交分页 = %r · %s", gid, titles.get(gid), s.cpa.sales_tab,
+                 "同一个 ✓" if titles.get(gid) == s.cpa.sales_tab else "⚠ 不是同一个")
+    sales, _c, _h = cpa.parse_sales(sc.read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab), s.cpa.price_myr)
     web = [x for x in sales if x.date and x.date >= s_from]
     own_all = defaultdict(int)
     for x in sales:

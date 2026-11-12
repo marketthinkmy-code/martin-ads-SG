@@ -4,6 +4,11 @@ name: adbot · cycle review, webinar sales per ad (manual, read-only)
 
 on:
   workflow_dispatch:
+    inputs:
+      cycle_from: {description: "cycle first day (Thursday)", default: "2026-10-29"}
+      cycle_to: {description: "cycle last day (Tuesday)", default: "2026-11-03"}
+      sales_from: {description: "webinar sales from (Wednesday)", default: "2026-11-04"}
+      sheet_gid: {description: "optional: gid of the tab the operator linked, to confirm it is the paid list", default: ""}
 
 jobs:
   since:
@@ -23,4 +28,8 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          ADBOT_CYCLE_FROM: ${{ inputs.cycle_from }}
+          ADBOT_CYCLE_TO: ${{ inputs.cycle_to }}
+          ADBOT_SALES_FROM: ${{ inputs.sales_from }}
+          ADBOT_SHEET_GID: ${{ inputs.sheet_gid }}
         run: python scripts/cycle_review_1105.py
