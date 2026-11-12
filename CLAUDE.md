@@ -24,6 +24,7 @@
 
 - 文案先给 operator 批，批了才建。
 - 不用 Claude 会话去做后台提醒、定时唤醒或盯盘，监控只靠 GitHub 上的 adbot-monitor。例外：广告汇报用 Claude 定时会话「Martin SG 每日晨报」，一天 4 次（09:36 / 13:36 / 17:36 / 21:36 SGT，跑 adbot-cycle-check.yml；operator 2026-11-09 要求、照 MY 的做法，同日改成一天 4 次）。汇报只读，只汇报和提建议；关广告、改预算仍只靠 adbot-monitor 或 operator 的话。例外（operator 2026-11-10「如果碰到底线了，就立刻关」）：汇报时看到有广告已经越过监控的线（单支 RM90 零报名且 60 天内没有自己成交、campaign 零报名线、CPA 硬停 1,300）但还开着，就立刻手动跑一次 adbot-monitor.yml（dry_run false），读回它关了什么再汇报；只靠监控按规则关，不用别的方法关、不改预算。
+- 建议关的线（operator 2026-11-12「花满 RM80 后 CPL 超过 RM80 就建议你关」）：本期（星期四起）花费 ≥ RM80、且本期 CPL > RM80（报名数取 Meta 和报名表较多的那个；0 报名也算超过）的广告，汇报里标「建议关」并附数字，等 operator 说才关；监控不改、不自动关。60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告不套这条线，照旧看 CPA。
 - 不要动 MY 账户，除非 operator 明确要求。
 - 监控的 RM90 零报名线只放过最近 60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告；成交在 60 天前的旧卖家照样会被关。重开旧片前要先讲清楚这一点（operator 2026-11-07 选 A，维持不改）。
 - 关广告时，campaign 里没有在跑的广告了，就连 campaign 一起关；不要留 ad / ad set 关了但 campaign 还开着（operator 2026-10-29 定；监控和 scripts/pause_ads_1029.py 都会这样做）。
