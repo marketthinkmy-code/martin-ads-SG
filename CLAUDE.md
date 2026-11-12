@@ -32,6 +32,12 @@
 - 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。星期三关广告由 operator 手动做；adbot-weekly-off.yml 的自动定时已拿走（operator 2026-11-12「weekly off 拿走这个指令」，原因是 11/11 它迟了 8 小时、23:05 才跑，关掉了等 00:00 开始的新 campaign），只剩手动触发；adbot-weekly-on.yml 照旧，只开回带 weekly-off 标签的广告。
 - 建 SG 广告默认用自动版位（Advantage+ 版位），地区选"住在、常在、最近在新加坡"三种；定向复制好之后先过 src/adbot/sg_build_defaults.py 的 apply_sg_build_defaults()（operator 2026-10-22 批准）。
 
+## 下一场 Webinar 分析重点（operator 2026-11-12，Phase 3 已验收）
+
+- 停止修改 Lead Quality 分析脚本和评分规则；11/11 Phase 3 不再重跑，结果存在 docs/baseline_webinar_nov11.md，作为 11/18 对比基准。
+- 2026-11-18 Webinar 分析比较：(1) Campaign / Ad 真实 CPL、Show-Up、CPA、ROAS；(2) 早报名 vs 最后 48 小时报名的 Show-Up Rate（SG 特别关注临近开课报名者的出席）；(3) First-time vs Returning 的出席与成交；(4) Survey Completed、Qualified、Core ICP 只作辅助指标，不参与预算调整。
+- 未填 Survey 的家长不得判定为低质量。原有 Meta Ads 监控和预算管理标准照旧；不改 GHL、Google Sheet、预算或自动化。
+
 ## Lead Quality 统计规则（operator 2026-11-06 最终确认）
 
 数据：Register 分页，G=报名日期、H=source、J/K/L=UTM campaign / ad set / ad、P–T=问卷 Q1–Q5、U=Martin Lead Quality Score（GHL 已算好，不重算）。脚本 scripts/lead_quality_1106.py（workflow adbot-lead-quality.yml，手动、只读）。
