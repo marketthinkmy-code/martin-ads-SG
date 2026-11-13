@@ -1,0 +1,45 @@
+name: adbot · 11月新片B 5 posts, Parents 3-17 + Engaged（女）, start 14 Nov 00:00 (manual)
+
+# MUTATING in mode=go, operator-ordered 13 Nov: one ABO campaign on SG old, 5 ad sets (one per MY post),
+# RM50 each, Parents 3-17 + Engaged women, start 2026-11-14 00:00. mode=check (default) is read-only. 75 = rate limit.
+
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check (read-only) / go (build)"
+        required: false
+        default: "check"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Build
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_MODE: ${{ github.event.inputs.mode }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/build_nov14_b_1113.py
+      - name: Persist entity ids
+        if: ${{ always() && github.event.inputs.mode == 'go' }}
+        run: |
+          git config user.name "adbot"
+          git config user.email "noreply@anthropic.com"
+          git add state/ || true
+          git commit -m "build: persist nov14 11月新片B ids [skip ci]" || echo "no state change"
+          git pull --rebase origin main || true
+          git push || echo "push skipped"
