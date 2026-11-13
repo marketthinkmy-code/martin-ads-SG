@@ -1,0 +1,29 @@
+name: adbot · read page posts + their ads in MY / HK / SG (manual, read-only)
+
+# READ-ONLY (13 Nov): text, CTA link, and every ad using each post, before reusing MY posts on SG.
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_ids:
+        description: "comma-separated page post ids"
+        required: true
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Read
+        env:
+          ADBOT_ROOT: ${{ github.workspace }}
+          ADBOT_CONFIG: ${{ github.workspace }}/config/config.yaml
+          ADBOT_POST_IDS: ${{ github.event.inputs.post_ids }}
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: python scripts/read_posts_1113.py
