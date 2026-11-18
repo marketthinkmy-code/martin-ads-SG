@@ -152,6 +152,21 @@ def main():
     log = get_logger()
     s = load_settings()
     g = graph_client(s)
+    if (os.environ.get("ADBOT_MODE") or "check") == "pre7":
+        # rule 3: leads in the 7 days before each ad was stopped. ADBOT_AD_IDS = "adid:YYYY-MM-DD(stop day)"
+        from adbot.monitor_cpl import extract_results, result_action_type
+        tok = result_action_type(s.meta.conversion_event)
+        for pair in (os.environ.get("ADBOT_AD_IDS") or "").split(","):
+            if ":" not in pair:
+                continue
+            aid, day = pair.strip().split(":")
+            stop = dt.date.fromisoformat(day)
+            r = (g._get_all(f"{aid}/insights", {"fields": "spend,actions", "time_range": json.dumps(
+                {"since": (stop - dt.timedelta(days=7)).isoformat(), "until": (stop - dt.timedelta(days=1)).isoformat()})}) or [{}])[0]
+            log.info("  停前 7 天 %s（%s ~ %s）· 花 RM%.2f · Meta 报名 %d", aid, stop - dt.timedelta(days=7),
+                     stop - dt.timedelta(days=1), _f(r.get("spend")), extract_results(r.get("actions"), tok))
+        final_summary(log, "pre7 done")
+        return
     if (os.environ.get("ADBOT_MODE") or "check") == "go":
         ids = [x.strip() for x in (os.environ.get("ADBOT_AD_IDS") or "").split(",") if x.strip()]
         if not ids:
