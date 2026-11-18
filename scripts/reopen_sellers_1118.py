@@ -153,13 +153,13 @@ def main():
     s = load_settings()
     g = graph_client(s)
     if (os.environ.get("ADBOT_MODE") or "check") == "find":
-        # operator-given UTM triples "campaign|ad set|ad;;..." → matching ads on SG老户 + HK, chain status,
+        # operator-given UTM triples "campaign>>ad set>>ad;;..." → matching ads on SG老户 + HK, chain status,
         # 60-day spend, last delivery day and Meta leads in the 7 days up to it (rule 3).
         from adbot.monitor_cpl import extract_results, result_action_type
         tok = result_action_type(s.meta.conversion_event)
         today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
         d60 = today - dt.timedelta(days=60)
-        want = [t.split("|") for t in (os.environ.get("ADBOT_AD_IDS") or "").split(";;") if t.count("|") == 2]
+        want = [t.split(">>") for t in (os.environ.get("ADBOT_AD_IDS") or "").split(";;") if t.count(">>") == 2]
         ads = []
         for label, acct in ACCTS:
             for a in all_ads(g, acct):
