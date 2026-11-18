@@ -152,6 +152,40 @@ def main():
     log = get_logger()
     s = load_settings()
     g = graph_client(s)
+    if (os.environ.get("ADBOT_MODE") or "check") == "find":
+        # operator-given UTM triples "campaign|ad set|ad;;..." → matching ads on SG老户 + HK, chain status,
+        # 60-day spend, last delivery day and Meta leads in the 7 days up to it (rule 3).
+        from adbot.monitor_cpl import extract_results, result_action_type
+        tok = result_action_type(s.meta.conversion_event)
+        today = (dt.datetime.utcnow() + dt.timedelta(hours=8)).date()
+        d60 = today - dt.timedelta(days=60)
+        want = [t.split("|") for t in (os.environ.get("ADBOT_AD_IDS") or "").split(";;") if t.count("|") == 2]
+        ads = []
+        for label, acct in ACCTS:
+            for a in all_ads(g, acct):
+                a["_acct"] = label
+                ads.append(a)
+        for c0, s0, a0 in want:
+            k = key3(c0, s0, a0)
+            hits = [a for a in ads if key3((a.get("campaign") or {}).get("name") or "", (a.get("adset") or {}).get("name") or "",
+                                            a.get("name") or "") == k]
+            log.info("UTM %s › %s › %s → %d 支", c0, s0, a0, len(hits))
+            for a in hits:
+                c, st = a.get("campaign") or {}, a.get("adset") or {}
+                days = g._get_all(f"{a['id']}/insights", {"fields": "spend,actions", "time_increment": 1,
+                                                          "time_range": json.dumps({"since": d60.isoformat(), "until": today.isoformat()})})
+                sp = sum(_f(r.get("spend")) for r in days)
+                live_days = sorted(r["date_start"] for r in days if _f(r.get("spend")) > 0)
+                last = dt.date.fromisoformat(live_days[-1]) if live_days else None
+                p7 = sum(extract_results(r.get("actions"), tok) for r in days
+                         if last and dt.date.fromisoformat(r["date_start"]) > last - dt.timedelta(days=7))
+                bud = (f"campaign RM{_f(c.get('daily_budget')) / 100:.0f}" if c.get("daily_budget")
+                       else f"ad set RM{_f(st.get('daily_budget')) / 100:.0f}")
+                log.info("   %s · campaign %s [%s] › ad set %s [%s] › ad %s [%s/%s] · 预算 %s · 60 天花 RM%.2f · 最后有花钱 %s"
+                         " · 那之前 7 天 Meta 报名 %d", a["_acct"], c.get("id"), c.get("status"), st.get("id"), st.get("status"),
+                         a["id"], a.get("status"), a.get("effective_status"), bud, sp, last, p7)
+        final_summary(log, "find done")
+        return
     if (os.environ.get("ADBOT_MODE") or "check") == "pre7":
         # rule 3: leads in the 7 days before each ad was stopped. ADBOT_AD_IDS = "adid:YYYY-MM-DD(stop day)"
         from adbot.monitor_cpl import extract_results, result_action_type
