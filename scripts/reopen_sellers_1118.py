@@ -172,8 +172,15 @@ def main():
             log.info("UTM %s › %s › %s → %d 支", c0, s0, a0, len(hits))
             for a in hits:
                 c, st = a.get("campaign") or {}, a.get("adset") or {}
-                days = g._get_all(f"{a['id']}/insights", {"fields": "spend,actions", "time_increment": 1,
+                log.info("   → %s · campaign %s %r [%s] › ad set %s [%s] › ad %s [%s/%s]", a["_acct"], c.get("id"),
+                         (c.get("name") or "")[:60], c.get("status"), st.get("id"), st.get("status"), a["id"],
+                         a.get("status"), a.get("effective_status"))
+                try:
+                    days = g._get_all(f"{a['id']}/insights", {"fields": "spend,actions", "time_increment": 1,
                                                           "time_range": json.dumps({"since": d60.isoformat(), "until": today.isoformat()})})
+                except Exception as exc:  # insights rate limit: entity info above is enough
+                    log.info("     insights 读不到：%s", str(exc)[:80])
+                    continue
                 sp = sum(_f(r.get("spend")) for r in days)
                 live_days = sorted(r["date_start"] for r in days if _f(r.get("spend")) > 0)
                 last = dt.date.fromisoformat(live_days[-1]) if live_days else None
