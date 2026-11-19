@@ -7,7 +7,7 @@ Video 5 饭桌 is cheapest on SG (RM33.39 lifetime, creative_life_1119 run 44471
   · Account SG老户 act_1024930575770087 (rule 1: new film test on SG old, ABO, one film per ad set).
   · Campaign: existing ABO 120259499592070093 「[SG] 儿童长高方程式 | Health & Wellness | 11月新片7支 | 1-7-7」
     (name contains 「11月新片7支」, in config kpi.cpl_min_spend_overrides — rule 9).
-  · New ad set "Health & Wellness", RM60 / day, ACTIVE now. Targeting cloned from the live Health & Wellness ad set
+  · New ad set "Health & Wellness", RM50 / day (operator 「RM50 就好」), ACTIVE now. Targeting cloned from the live Health & Wellness ad set
     120259499602510093 (Video 5 饭桌) then apply_sg_build_defaults(); bid / optimization copied from it.
   · Ad "Video 7：14歲了，還有機會長高嗎" reuses the existing page post of 120259531547350093 (copy already approved,
     likes / comments carry over), url_tags from config.
@@ -34,7 +34,7 @@ TEMPLATE_ADSET = "120259499602510093"
 SOURCE_AD = "120259531547350093"
 AD_NAME = "Video 7：14歲了，還有機會長高嗎"
 ADSET_NAME = "Health & Wellness"
-DAILY_MINOR = 6000
+DAILY_MINOR = 5000
 STATE = Path("state") / "entities_hw_v7_1119.json"
 
 
