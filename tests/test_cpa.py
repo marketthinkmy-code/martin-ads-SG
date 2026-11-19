@@ -107,3 +107,33 @@ def test_cpa_value_and_tiers():
     assert cpa.cpa_tier(1300, t) == cpa.HARD_STOP
     assert cpa.cpa_tier(None, t) == cpa.NO_SALES
     assert cpa.cpa_tier(math.inf, t) == cpa.NO_SALES
+
+
+def test_sale_credits_register_utm_of_same_person():
+    # 19 Nov: the Paid row's UTM is shifted, the buyer's Register row names the real ad
+    paid = [["Date", "Email", "Phone", "UTM Campaign", "UTM Adset", "UTM Adname"],
+            ["18/11/2026", "A@x.com", "+65 9123 4567", "facebook mobile reels", "", "x"]]
+    reg = [["Date", "Email", "Phone", "UTM Campaign", "UTM Adset", "UTM Adname"],
+           ["10/11/2026", "", "91234567", "[SG] old", "Old set", "Old ad"],
+           ["14/11/2026", "a@x.com", "", "[SG] HW", "Health & Wellness", "Video 5"],
+           ["20/11/2026", "a@x.com", "", "[SG] later", "Later", "After sale"],
+           ["14/11/2026", "b@y.com", "", "[SG] other", "Other", "Other ad"],
+           ["14/11/2026", "a@x.com", "", "[SG] HW", "", "Video 5"]]
+    sales, _c, _h = cpa.parse_sales(paid, 2591)
+    regs, _c2, _h2 = cpa.parse_sales(reg, 0)
+    assert sales[0].ids == frozenset({"e:a@x.com", "p:91234567"})
+    # latest full-UTM registration on or before the sale; shifted Paid UTM is not a full triple
+    assert cpa.sale_utms(sales[0], regs) == [("[sg] hw", "health & wellness", "video 5")]
+
+
+def test_sale_keeps_paid_utm_and_skips_strangers():
+    paid = [["Date", "Email", "UTM Campaign", "UTM Adset", "UTM Adname"],
+            ["18/11/2026", "c@z.com", "[SG] F&D", "Food", "Video 8"],
+            ["18/11/2026", "", "[SG] F&D", "Food", "Video 5"]]
+    reg = [["Date", "Email", "UTM Campaign", "UTM Adset", "UTM Adname"],
+           ["12/11/2026", "c@z.com", "[SG] F&D", "Food", "Video 8"],
+           ["12/11/2026", "d@z.com", "[SG] X", "X", "X"]]
+    sales, _c, _h = cpa.parse_sales(paid, 2591)
+    regs, _c2, _h2 = cpa.parse_sales(reg, 0)
+    assert cpa.sale_utms(sales[0], regs) == [("[sg] f&d", "food", "video 8")]      # same ad once
+    assert cpa.sale_utms(sales[1], regs) == [("[sg] f&d", "food", "video 5")]      # no ids -> Paid UTM only

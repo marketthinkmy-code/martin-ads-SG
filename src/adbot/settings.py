@@ -170,6 +170,7 @@ class CpaCfg(BaseModel):
     enabled: bool = False
     spreadsheet_id: str = ""
     sales_tab: str = "Paid Student List"
+    register_tab: str = "Register"   # 19 Nov: a sale also credits the ad the buyer registered through
     price_myr: float = 2399.0
     target_myr: float = 720.0           # primary target CPA
     healthy_max_myr: float = 800.0      # end of healthy range (NOT an auto-pause line)

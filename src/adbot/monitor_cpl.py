@@ -192,6 +192,34 @@ def sale_key(campaign: str, adset: str, ad: str) -> Tuple[str, str, str]:
     return cpa.ad_key(campaign), cpa.ad_key(adset), cpa.ad_key(ad)
 
 
+def load_registers(sheets, settings: Settings) -> List[cpa.Sale]:
+    """Register-tab rows (UTM + who), or [] when the tab can't be read — the monitor then falls
+    back to the Paid rows' own UTM instead of dropping CPA altogether."""
+    try:
+        rows, _c, _h = cpa.parse_sales(sheets.read_tab(settings.cpa.spreadsheet_id,
+                                                       settings.cpa.register_tab), 0.0)
+        return rows
+    except Exception as exc:  # noqa: BLE001
+        get_logger().warning("Register tab unavailable (%s) — Paid-row UTM only this run", exc)
+        return []
+
+
+def count_sold(sales: List[cpa.Sale], registers: List[cpa.Sale],
+               cutoff: dt.date) -> Dict[Tuple[str, str, str], int]:
+    """Sales after `cutoff`, counted once per (campaign, ad set, ad) they credit: the Paid row's
+    own UTM and the buyer's Register-tab registration (cpa.sale_utms). A sale whose two UTMs
+    name different ads protects both; one sale never counts twice for the same ad."""
+    sold: Dict[Tuple[str, str, str], int] = {}
+    for s in sales:
+        if not (s.date and s.date > cutoff):
+            continue
+        keys = {sale_key(*u) for u in cpa.sale_utms(s, registers)}
+        for key in keys:
+            if all(key):
+                sold[key] = sold.get(key, 0) + 1
+    return sold
+
+
 def build_cpa_context(graph, settings: Settings, today: dt.date):
     """(60-day sales by sale_key(campaign, ad set, ad), 60-day spend by ad_id) for the CPA gate.
 
@@ -202,21 +230,17 @@ def build_cpa_context(graph, settings: Settings, today: dt.date):
         return {}, {}
     try:
         from .clients.sheets import SheetsClient
-        values = SheetsClient(settings.secrets.google_sa_json).read_tab(
-            settings.cpa.spreadsheet_id, settings.cpa.sales_tab)
+        sheets = SheetsClient(settings.secrets.google_sa_json)
+        values = sheets.read_tab(settings.cpa.spreadsheet_id, settings.cpa.sales_tab)
         sales, _cols, _hdr = cpa.parse_sales(values, settings.cpa.price_myr)
+        registers = load_registers(sheets, settings)
         cutoff = today - dt.timedelta(days=60)
         # 24 Oct operator 「修」: a sale counts only for the campaign whose UTM it carries. Keyed
         # by ad name alone, one old SG sale of a video protected every new copy of it from
         # the RM90 zero-registration kill (HK 15岁以上 Health and Wellness: RM138.73, 0 reg, kept).
         # The SG UTM campaign now carries {{campaign.name}}; sale_key() folds width and
         # punctuation on both parts so the sheet value matches the Meta name.
-        sold: Dict[Tuple[str, str, str], int] = {}
-        for s in sales:
-            if s.date and s.date > cutoff:
-                key = sale_key(s.campaign, s.adset, s.ad)
-                if all(key):
-                    sold[key] = sold.get(key, 0) + 1
+        sold = count_sold(sales, registers, cutoff)
         spend: Dict[str, float] = {}
         for row in graph.account_insights(
                 settings.meta.account_path, level="ad", fields="ad_id,spend",

@@ -30,6 +30,7 @@
 - 止损线（operator 2026-11-13 选 A）：如果 2026-11-18 直播 SG 0 成交（成交表 UTM 对上 SG老户 / HK、日期 11/12–11/18，用 adbot-sg-roas.yml 读），11/19 起的新一期只开 60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告，其他没有成交记录的广告先不开、已开的关掉；先找直播 / 跟进成交的问题，operator 说可以再放钱才开别的。成交表还没更新 11/18 的成交时先问 operator，不能当 0 单处理。
 - 不要动 MY 账户，除非 operator 明确要求。
 - 监控的 RM90 零报名线只放过最近 60 天内有自己成交（UTM campaign + ad set + ad 都对上）的广告；成交在 60 天前的旧卖家照样会被关。重开旧片前要先讲清楚这一点（operator 2026-11-07 选 A，维持不改）。
+- 认「自己成交」时，Paid 表那一行的 UTM 和报名表上这个人（同电邮或同电话）的报名 UTM 都看，campaign + ad set + ad 三层都要对上（operator 2026-11-19「让 monitor 认成交时，也看报名表上这个人是从哪支 ad 报名的…一定要看完 campaign、ad set、ad」，起因：11/18 两单 Paid 表 UTM 错位，monitor 认不到）。报名表取这个人在成交日或之前最近一次三层齐全的报名；两边指向不同广告就两支都算，同一支只算一次。监控（src/adbot/monitor_cpl.py）、cycle-check、scripts/reopen_sellers_1118.py check 都用 src/adbot/cpa.py 的 sale_utms()。
 - 关广告时，campaign 里没有在跑的广告了，就连 campaign 一起关；不要留 ad / ad set 关了但 campaign 还开着（operator 2026-10-29 定；监控和 scripts/pause_ads_1029.py 都会这样做）。
 - 回复用中文，先给结论，数字放进表格。
 - 每周节奏：星期三直播、星期三关广告、星期四 00:00 开广告。每一场直播的报名算星期四到星期二这 6 天的广告；复盘、读数都按这个周期算（operator 2026-10-22 批准）。星期三关广告由 operator 手动做；adbot-weekly-off.yml 的自动定时已拿走（operator 2026-11-12「weekly off 拿走这个指令」，原因是 11/11 它迟了 8 小时、23:05 才跑，关掉了等 00:00 开始的新 campaign），只剩手动触发；adbot-weekly-on.yml 照旧，只开回带 weekly-off 标签的广告。
