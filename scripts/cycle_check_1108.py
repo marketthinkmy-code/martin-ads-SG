@@ -71,11 +71,14 @@ def main():
 
     sh = SheetsClient(s.secrets.google_sa_json)
     sales, _c, _h = cpa.parse_sales(sh.read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab), s.cpa.price_myr)
+    rows, _c2, _h2 = cpa.parse_sales(sh.read_tab(s.cpa.spreadsheet_id, s.cpa.register_tab), 0.0)
+    # 19 Nov operator: a sale is the ad's own when the Paid row's UTM OR the buyer's Register
+    # registration names that ad's campaign + ad set + ad (same rule as the monitor).
     own = defaultdict(list)
     for x in sales:
-        own[key3(x.campaign, x.adset, x.ad)].append(x.date)
+        for u in {key3(*u) for u in cpa.sale_utms(x, rows)}:
+            own[u].append(x.date)
     regs = Counter()
-    rows, _c2, _h2 = cpa.parse_sales(sh.read_tab(s.cpa.spreadsheet_id, "Register"), 0.0)
     for x in rows:
         if _sg(x.campaign) and x.date and x.date >= c_from:
             regs[key3(x.campaign, x.adset, x.ad)] += 1

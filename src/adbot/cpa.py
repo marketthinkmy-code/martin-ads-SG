@@ -14,7 +14,7 @@ import math
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Tuple
 
 WINDOWS = (14, 30, 60)  # rolling day windows; lifetime is handled separately
 
@@ -80,6 +80,33 @@ def find_columns(header: List[str]) -> Dict[str, int]:
     }
 
 
+_EMAIL_HDR = re.compile(r"mail", re.I)
+_PHONE_HDR = re.compile(r"phone|mobile|whatsapp|電話|电话|號碼|号码|手機|手机", re.I)
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def person_columns(header: List[str]) -> Tuple[List[int], List[int]]:
+    """(email column indexes, phone column indexes) by header text."""
+    em = [i for i, h in enumerate(header) if _EMAIL_HDR.search(h or "")]
+    ph = [i for i, h in enumerate(header) if _PHONE_HDR.search(h or "") and i not in em]
+    return em, ph
+
+
+def person_ids(row: List[str], email_cols: List[int], phone_cols: List[int]) -> FrozenSet[str]:
+    """Identity tokens for one sheet row: lower-cased email, and the last 8 phone digits (so
+    '+65 9123 4567', '6591234567' and '91234567' are the same person). Name alone is never used."""
+    out = set()
+    for i in email_cols:
+        v = (row[i] if i < len(row) else "").strip().lower().replace("\\", "")
+        if _EMAIL_RE.match(v):
+            out.add("e:" + v)
+    for i in phone_cols:
+        d = re.sub(r"\D", "", row[i] if i < len(row) else "")
+        if len(d) >= 8:
+            out.add("p:" + d[-8:])
+    return frozenset(out)
+
+
 _MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
 _MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_name) if m})
 
@@ -140,6 +167,7 @@ class Sale:
     adset: str      # normalised
     ad: str         # normalised
     amount: float
+    ids: FrozenSet[str] = frozenset()   # who: "e:<email>" / "p:<last 8 phone digits>" (never logged)
 
 
 def parse_sales(values: List[List[str]], default_price: float):
@@ -157,6 +185,7 @@ def parse_sales(values: List[List[str]], default_price: float):
             header_idx, cols = i, candidate
             break
     header = values[header_idx]
+    em_cols, ph_cols = person_columns(header)
 
     sales: List[Sale] = []
     for row in values[header_idx + 1:]:
@@ -168,8 +197,42 @@ def parse_sales(values: List[List[str]], default_price: float):
         if not campaign and not ad:
             continue
         sales.append(Sale(parse_date(cell("date")), campaign, norm(cell("adset")),
-                          ad, _money(cell("amount"), default_price)))
+                          ad, _money(cell("amount"), default_price), person_ids(row, em_cols, ph_cols)))
     return sales, cols, header
+
+
+def _full(s: Sale) -> bool:
+    return bool(s.campaign and s.adset and s.ad)
+
+
+def register_ad_for(sale: Sale, registers: List[Sale]) -> Optional[Sale]:
+    """The Register row this buyer signed up through: same person (shared email or phone), all
+    three UTM levels filled, the latest registration on or before the sale date (latest of all
+    when none is dated before it). None when the buyer has no such Register row."""
+    if not sale.ids:
+        return None
+    mine = [r for r in registers if _full(r) and r.ids & sale.ids]
+    if not mine:
+        return None
+    before = [r for r in mine if r.date and sale.date and r.date <= sale.date]
+    pool = before or mine
+    return max(pool, key=lambda r: r.date or dt.date.min)
+
+
+def sale_utms(sale: Sale, registers: List[Sale]) -> List[Tuple[str, str, str]]:
+    """Every (campaign, ad set, ad) this sale credits, de-duplicated (19 Nov operator 「让 monitor
+    认成交时，也看报名表上这个人是从哪支 ad 报名的…一定要看完 campaign、ad set、ad」): the Paid row's
+    own UTM, plus the UTM of the buyer's registration in the Register tab. The Paid row's UTM can
+    be missing or shifted (18 Nov: 'facebook mobile reels…' in the campaign column), so the
+    Register row is what still ties the sale to the ad that brought the parent in. Only full
+    three-level UTMs count; an ad name alone never does."""
+    out: List[Tuple[str, str, str]] = []
+    if _full(sale):
+        out.append((sale.campaign, sale.adset, sale.ad))
+    reg = register_ad_for(sale, registers)
+    if reg is not None and (reg.campaign, reg.adset, reg.ad) not in out:
+        out.append((reg.campaign, reg.adset, reg.ad))
+    return out
 
 
 def count_windows(sales: List[Sale], today: dt.date, windows=WINDOWS) -> Dict[str, int]:

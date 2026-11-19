@@ -430,3 +430,18 @@ def test_raise_needs_a_recent_registration():
     adsets = {k: {"id": k, "name": k, "daily_budget": "5000", "campaign_id": "c"} for k in ("s1", "s2")}
     plans = plan_budget_raises(decisions, adsets, {}, cfg, {}, dt.date(2026, 10, 30), {"quiet": 0.0, "busy": 1.0})
     assert [p["id"] for p in plans] == ["s2"]
+
+
+def test_count_sold_uses_register_and_counts_each_ad_once():
+    import datetime as _dt
+    from adbot import cpa as _cpa
+    from adbot.monitor_cpl import count_sold, sale_key
+    d = _dt.date(2026, 11, 18)
+    sales = [_cpa.Sale(d, "facebook mobile reels", "", "x", 2591, frozenset({"e:a@x.com"})),
+             _cpa.Sale(d, "[sg] f&d", "food", "video 8", 2591, frozenset({"e:c@z.com"})),
+             _cpa.Sale(_dt.date(2026, 8, 1), "[sg] f&d", "food", "video 8", 2591)]
+    regs = [_cpa.Sale(_dt.date(2026, 11, 14), "[sg] hw", "health & wellness", "video 5", 0, frozenset({"e:a@x.com"})),
+            _cpa.Sale(_dt.date(2026, 11, 12), "[sg] f&d", "food", "video 8", 0, frozenset({"e:c@z.com"}))]
+    sold = count_sold(sales, regs, _dt.date(2026, 9, 20))
+    assert sold == {sale_key("[sg] hw", "health & wellness", "video 5"): 1,
+                    sale_key("[sg] f&d", "food", "video 8"): 1}

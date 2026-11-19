@@ -18,7 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from adbot import cpa
 from adbot.clients.sheets import SheetsClient
@@ -52,11 +52,24 @@ def check(log, s, g):
     d60 = today - dt.timedelta(days=60)
     sh = SheetsClient(s.secrets.google_sa_json)
     sales, _c, _h = cpa.parse_sales(sh.read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab), s.cpa.price_myr)
+    regs, _c2, _h2 = cpa.parse_sales(sh.read_tab(s.cpa.spreadsheet_id, s.cpa.register_tab), 0.0)
     own60 = defaultdict(list)
+    src = defaultdict(set)      # key -> {"Paid 表", "报名表"}: which source tied the sale to it
     newest = max((x.date for x in sales if x.date), default=None)
+    how = Counter()
     for x in sales:
         if x.date and x.date > d60:
-            own60[key3(x.campaign, x.adset, x.ad)].append(x.date)
+            paid = key3(x.campaign, x.adset, x.ad) if x.campaign and x.adset and x.ad else None
+            reg = cpa.register_ad_for(x, regs)
+            regk = key3(reg.campaign, reg.adset, reg.ad) if reg else None
+            how["有电邮/电话" if x.ids else "没有电邮/电话"] += 1
+            how["报名表找到这个人" if reg else "报名表找不到这个人"] += 1
+            for k, tag in ((paid, "Paid 表"), (regk, "报名表")):
+                if k:
+                    src[k].add(tag)
+            for k in {k for k in (paid, regk) if k}:
+                own60[k].append(x.date)
+    log.info("60 天成交怎么认：%s（报名表 %d 行）", dict(how), len(regs))
     log.info("读数 %s SGT · 成交表最新一笔日期 %s · 60 天窗口 %s 之后 · 60 天内有 UTM 的成交键 %d 个",
              now.strftime("%Y-%m-%d %H:%M"), newest, d60, len(own60))
     by_key = defaultdict(list)
@@ -92,10 +105,11 @@ def check(log, s, g):
         bud = (f"campaign RM{_f(c.get('daily_budget')) / 100:.0f}" if c.get("daily_budget")
                else f"ad set RM{_f(st.get('daily_budget')) / 100:.0f}")
         log.info("   %s · campaign %s %r [%s] › ad set %s %r [%s] › ad %s %r [%s/%s] · 预算 %s · 60 天成交 %d（%s）"
-                 " · 60 天花 RM%.2f · CPA %s · ROAS %.2f",
+                 " · 认成交靠 %s · 60 天花 RM%.2f · CPA %s · ROAS %.2f",
                  a["_acct"], c.get("id"), (c.get("name") or "")[:60], c.get("status"), st.get("id"),
                  (st.get("name") or "")[:40], st.get("status"), a["id"], (a.get("name") or "")[:50], a.get("status"),
                  a.get("effective_status"), bud, len(ds), ",".join(str(d) for d in ds),
+                 " + ".join(sorted(src.get(key3(c.get("name") or "", st.get("name") or "", a.get("name") or ""), ()))),
                  sp, f"RM{sp / len(ds):.2f}", len(ds) * s.cpa.price_myr / sp if sp else 0.0)
     log.info("B. 名字对上不止一支广告（同名副本，不开，要 operator 决定）：%d 个", len(ambiguous))
     for k, hits, ds in ambiguous:
