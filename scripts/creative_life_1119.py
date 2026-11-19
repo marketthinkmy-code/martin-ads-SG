@@ -25,6 +25,8 @@ from adbot.monitor_cpl import _week_start_thursday, extract_results, result_acti
 from adbot.settings import load_settings
 
 ACCTS = [("SG老户", "act_1024930575770087"), ("HK", "act_1179668409969241")]
+if os.environ.get("ADBOT_INCLUDE_MY") == "1":   # rule 4: read MY too before judging a film (read-only)
+    ACCTS.append(("MY", "act_1011719073600566"))
 DEFAULT = ("饭桌=饭桌|飯桌;我跟你说=我跟你说|我跟你說;具体数字目标=具体数字|具體數字;"
            "吃完就上厕所=吃完就|上厕所|上廁所;14岁=14岁|14歲")
 
