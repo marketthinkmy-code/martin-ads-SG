@@ -57,26 +57,35 @@ def main() -> None:
     # ── sheet: SG sales by audience ──
     values = SheetsClient(s.secrets.google_sa_json).read_tab(s.cpa.spreadsheet_id, s.cpa.sales_tab)
     sales, _c, _h = cpa.parse_sales(values, s.cpa.price_myr)
+    # 19 Nov operator: a sale also credits the ad set the buyer registered through (Register tab).
+    regs, _rc, _rh = cpa.parse_sales(SheetsClient(s.secrets.google_sa_json).read_tab(
+        s.cpa.spreadsheet_id, s.cpa.register_tab), 0.0)
     n_sales: Dict[int, Dict[str, int]] = {w: defaultdict(int) for w in WINDOWS}
     n_all: Dict[str, int] = defaultdict(int)
     creatives: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
     raw_names: Dict[str, set] = defaultdict(set)
     no_adset = 0
     for x in sales:
-        if not x.date or not _sg(x.campaign):
+        if not x.date:
             continue
-        aname = getattr(x, "adset", "") or ""
-        if not aname:
-            no_adset += 1
+        utms = [u for u in cpa.sale_utms(x, regs) if _sg(u[0])]
+        if not utms:
+            if _sg(x.campaign):
+                no_adset += 1
             continue
-        k = aud_key(aname)
-        raw_names[k].add(aname[:40])
-        n_all[k] += 1
-        if x.date >= today - dt.timedelta(days=90):
-            creatives[k][(x.ad or "")[:30]] += 1
-        for w in WINDOWS:
-            if x.date >= today - dt.timedelta(days=w):
-                n_sales[w][k] += 1
+        done = set()
+        for (_camp, aname, ad) in utms:
+            k = aud_key(aname)
+            if k in done:
+                continue
+            done.add(k)
+            raw_names[k].add(aname[:40])
+            n_all[k] += 1
+            if x.date >= today - dt.timedelta(days=90):
+                creatives[k][(ad or "")[:30]] += 1
+            for w in WINDOWS:
+                if x.date >= today - dt.timedelta(days=w):
+                    n_sales[w][k] += 1
     log.info("成交表：SG 单带 UTM ad set 的 %d 笔 · 没有 ad set 的 %d 笔（算不进受众）", sum(n_all.values()), no_adset)
 
     # ── Meta: spend + leads by audience ──
